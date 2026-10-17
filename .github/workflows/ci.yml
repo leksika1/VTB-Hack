@@ -1,0 +1,37 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Сюда добавить линтер и тесты бэкенда/фронтенда, когда появится код
+      - name: Build images
+        run: docker compose build
+
+  deploy:
+    name: deploy
+    needs: build
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    # Окружения dev/prod в Settings → Environments, в каждом своя переменная DOKPLOY_COMPOSE_ID
+    environment: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
+    steps:
+      - name: Trigger Dokploy deploy
+        run: |
+          curl -fsS -X POST "${{ vars.DOKPLOY_URL }}/api/compose.deploy" \
+            -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{"composeId": "${{ vars.DOKPLOY_COMPOSE_ID }}"}'
