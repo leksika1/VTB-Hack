@@ -26,17 +26,25 @@ jobs:
     needs: build
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
-    # Окружения dev/prod в Settings → Environments, в каждом свой секрет DOKPLOY_WEBHOOK_URL
-    # (Dokploy → Compose-сервис → Deployments → Webhook URL)
+    # Окружения dev/prod в Settings → Environments, в каждом секреты
+    # DOKPLOY_WEBHOOK_FRONTEND и DOKPLOY_WEBHOOK_BACKEND (Dokploy → сервис → Deployments → Webhook URL)
     environment: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [frontend, backend]
     steps:
       # Dokploy принимает вебхук только в формате push-события GitHub и на несовпадение
       # ветки отвечает 301, поэтому проверяем, что ответ именно 200
-      - name: Trigger Dokploy deploy
+      - name: Trigger Dokploy deploy (${{ matrix.service }})
         env:
-          DOKPLOY_WEBHOOK_URL: ${{ secrets.DOKPLOY_WEBHOOK_URL }}
+          WEBHOOK_URL: ${{ matrix.service == 'frontend' && secrets.DOKPLOY_WEBHOOK_FRONTEND || secrets.DOKPLOY_WEBHOOK_BACKEND }}
         run: |
-          code=$(curl -sS -o response.txt -w '%{http_code}' -X POST "$DOKPLOY_WEBHOOK_URL" \
+          if [ -z "$WEBHOOK_URL" ]; then
+            echo "::error::Секрет вебхука для ${{ matrix.service }} не задан в окружении"
+            exit 1
+          fi
+          code=$(curl -sS -o response.txt -w '%{http_code}' -X POST "$WEBHOOK_URL" \
             -H "Content-Type: application/json" \
             -H "X-GitHub-Event: push" \
             -d "{\"ref\": \"$GITHUB_REF\", \"head_commit\": {\"message\": \"CI deploy $GITHUB_SHA\"}, \"commits\": []}")
