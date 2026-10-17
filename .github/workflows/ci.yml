@@ -26,12 +26,22 @@ jobs:
     needs: build
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
-    # Окружения dev/prod в Settings → Environments, в каждом своя переменная DOKPLOY_COMPOSE_ID
+    # Окружения dev/prod в Settings → Environments, в каждом свой секрет DOKPLOY_WEBHOOK_URL
+    # (Dokploy → Compose-сервис → Deployments → Webhook URL)
     environment: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
     steps:
+      # Dokploy принимает вебхук только в формате push-события GitHub и на несовпадение
+      # ветки отвечает 301, поэтому проверяем, что ответ именно 200
       - name: Trigger Dokploy deploy
+        env:
+          DOKPLOY_WEBHOOK_URL: ${{ secrets.DOKPLOY_WEBHOOK_URL }}
         run: |
-          curl -fsS -X POST "${{ vars.DOKPLOY_URL }}/api/compose.deploy" \
-            -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
+          code=$(curl -sS -o response.txt -w '%{http_code}' -X POST "$DOKPLOY_WEBHOOK_URL" \
             -H "Content-Type: application/json" \
-            -d '{"composeId": "${{ vars.DOKPLOY_COMPOSE_ID }}"}'
+            -H "X-GitHub-Event: push" \
+            -d "{\"ref\": \"$GITHUB_REF\", \"head_commit\": {\"message\": \"CI deploy $GITHUB_SHA\"}, \"commits\": []}")
+          cat response.txt; echo
+          if [ "$code" != "200" ]; then
+            echo "::error::Dokploy ответил $code"
+            exit 1
+          fi
