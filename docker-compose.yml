@@ -1,0 +1,16 @@
+# Деплоится через Dokploy. Домены назначаются в Dokploy (вкладка Domains),
+# поэтому здесь нет ports: и container_name: — иначе prod и dev на одном сервере конфликтуют.
+services:
+  frontend:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    expose:
+      - "80"
+
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    expose:
+      - "8000"
