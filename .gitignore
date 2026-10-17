@@ -1,0 +1,28 @@
+# Секреты: в репозитории только .env.example
+.env
+.env.*
+!.env.example
+
+# Зависимости и артефакты сборки
+node_modules/
+dist/
+build/
+.next/
+coverage/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+target/
+.gradle/
+
+# IDE и ОС
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Логи
+*.log
