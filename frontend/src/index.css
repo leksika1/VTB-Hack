@@ -1,0 +1,213 @@
+@import "tailwindcss";
+
+@theme {
+  /* ── Background ── */
+  --color-bg-base: #06130E;
+  --color-bg-deep: #0B2017;
+  --color-bg-card: rgba(16, 40, 30, 0.55);
+  --color-bg-card-hover: rgba(16, 40, 30, 0.75);
+  --color-bg-elevated: rgba(20, 50, 36, 0.6);
+  --color-bg-dock: rgba(10, 26, 19, 0.85);
+  --color-bg-input: rgba(16, 40, 30, 0.45);
+  --color-bg-overlay: rgba(3, 8, 5, 0.75);
+
+  /* ── Accent ── */
+  --color-lime: #B8FF33;
+  --color-lime-dim: #8BC926;
+  --color-lime-glow: rgba(184, 255, 51, 0.25);
+
+  /* ── Semantic ── */
+  --color-danger: #FF5353;
+  --color-danger-dim: rgba(255, 83, 83, 0.15);
+  --color-warning: #FFB833;
+  --color-success: #33FFB8;
+  --color-info: #338AFF;
+
+  /* ── Text ── */
+  --color-text-primary: #F0F7F3;
+  --color-text-secondary: #8EA99B;
+  --color-text-muted: #5A7A6B;
+  --color-text-inverse: #06130E;
+
+  /* ── Border ── */
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-border-focus: rgba(184, 255, 51, 0.4);
+
+  /* ── Category Colors ── */
+  --color-cat-food: #33FFB8;
+  --color-cat-housing: #338AFF;
+  --color-cat-transport: #FFB833;
+  --color-cat-kids: #FF5353;
+  --color-cat-other: #B833FF;
+
+  /* ── Fonts ── */
+  --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+
+  /* ── Spacing & Radius ── */
+  --radius-card: 1.25rem;
+  --radius-button: 0.875rem;
+  --radius-pill: 9999px;
+  --radius-input: 0.75rem;
+}
+
+/* ── Global Resets ── */
+html {
+  background: var(--color-bg-base);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100dvh;
+  background: linear-gradient(165deg, var(--color-bg-base) 0%, var(--color-bg-deep) 100%);
+}
+
+/* ── Always Hide Scrollbars Globally ── */
+html,
+body,
+* {
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important; /* IE / Edge */
+}
+
+::-webkit-scrollbar,
+*::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+}
+
+/* ── Animations ── */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fade-in-scale {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(100%); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 8px var(--color-lime-glow); }
+  50% { box-shadow: 0 0 24px var(--color-lime-glow); }
+}
+@keyframes progress-fill {
+  from { width: 0%; }
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(-16px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes toast-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(-16px) scale(0.96); }
+}
+
+/* ── Modal Entrance & Exit Animations ── */
+@keyframes modal-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes modal-backdrop-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes modal-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes modal-panel-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(20px) scale(0.96);
+  }
+}
+
+.animate-modal-backdrop-in {
+  animation: modal-backdrop-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-modal-backdrop-out {
+  animation: modal-backdrop-out 0.22s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.animate-modal-panel-in {
+  animation: modal-panel-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-modal-panel-out {
+  animation: modal-panel-out 0.22s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out both;
+}
+.animate-fade-in-scale {
+  animation: fade-in-scale 0.3s ease-out both;
+}
+.animate-slide-up {
+  animation: slide-up 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.04), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 1.8s infinite;
+}
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+.animate-progress-fill {
+  animation: progress-fill 0.8s ease-out both;
+}
+.animate-toast-in {
+  animation: toast-in 0.3s ease-out both;
+}
+.animate-toast-out {
+  animation: toast-out 0.25s ease-in both;
+}
+
+/* ── Glass Card utility ── */
+.glass-card {
+  background: var(--color-bg-card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+}
+.glass-card:hover {
+  background: var(--color-bg-card-hover);
+}
+
+/* Stagger children */
+.stagger-children > * {
+  animation: fade-in 0.4s ease-out both;
+}
+.stagger-children > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-children > *:nth-child(2) { animation-delay: 60ms; }
+.stagger-children > *:nth-child(3) { animation-delay: 120ms; }
+.stagger-children > *:nth-child(4) { animation-delay: 180ms; }
+.stagger-children > *:nth-child(5) { animation-delay: 240ms; }
+.stagger-children > *:nth-child(6) { animation-delay: 300ms; }
+.stagger-children > *:nth-child(7) { animation-delay: 360ms; }
+.stagger-children > *:nth-child(8) { animation-delay: 420ms; }
