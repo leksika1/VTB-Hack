@@ -1,138 +1,115 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { X } from 'lucide-react';
+import { IconButton } from './Button';
+import { usePresenceClosing } from './presenceContext';
 
 interface ModalProps {
-  open: boolean;
   onClose: () => void;
   title: string;
-  children: React.ReactNode;
-  maxWidth?: string;
+  description?: ReactNode;
+  children: ReactNode;
+  /** Sticky footer with the main actions, always reachable above the keyboard */
+  footer?: ReactNode;
+  size?: 'md' | 'lg';
 }
 
-let activeModalCount = 0;
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-function lockScroll() {
-  if (activeModalCount === 0) {
-    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+let openCount = 0;
+
+/**
+ * Accessible dialog: rendered only while open (wrap it in <Presence> to animate the exit),
+ * traps focus, closes on Esc, returns focus to the element that opened it.
+ * Bottom sheet on phones, centered dialog on wider screens.
+ */
+export function Modal({ onClose, title, description, children, footer, size = 'md' }: ModalProps) {
+  const titleId = useId();
+  const descId = useId();
+  const panelRef = useRef<HTMLDivElement>(null);
+  const closing = usePresenceClosing();
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    openCount++;
     document.body.style.overflow = 'hidden';
-    if (scrollbarWidth > 0) {
-      document.body.style.paddingRight = `${scrollbarWidth}px`;
-    }
-  }
-  activeModalCount++;
-}
 
-function unlockScroll() {
-  activeModalCount = Math.max(0, activeModalCount - 1);
-  if (activeModalCount === 0) {
-    document.body.style.overflow = '';
-    document.body.style.paddingRight = '';
-  }
-}
+    const panel = panelRef.current;
+    // Focus the marked field if any, otherwise the dialog itself (does not pop the keyboard on phones)
+    const first = panel?.querySelector<HTMLElement>('[data-autofocus]');
+    (first ?? panel)?.focus({ preventScroll: true });
 
-export function Modal({ open, onClose, title, children, maxWidth = 'max-w-md' }: ModalProps) {
-  const [mounted, setMounted] = useState(open);
-  const [isClosing, setIsClosing] = useState(false);
-  const isLockedRef = useRef(false);
-
-  // Manage open transition
-  useEffect(() => {
-    if (open) {
-      setMounted(true);
-      setIsClosing(false);
-      if (!isLockedRef.current) {
-        lockScroll();
-        isLockedRef.current = true;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        onCloseRef.current();
+        return;
       }
-    } else {
-      setMounted((prevMounted) => {
-        if (prevMounted) {
-          setIsClosing(true);
-        }
-        return prevMounted;
-      });
-    }
-  }, [open]);
+      if (e.key !== 'Tab' || !panel) return;
+      const items = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => el.offsetParent !== null);
+      if (items.length === 0) return;
+      const firstEl = items[0];
+      const lastEl = items[items.length - 1];
+      if (e.shiftKey && document.activeElement === firstEl) {
+        e.preventDefault();
+        lastEl.focus();
+      } else if (!e.shiftKey && document.activeElement === lastEl) {
+        e.preventDefault();
+        firstEl.focus();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
 
-  // Manage exit timer when isClosing is triggered
-  useEffect(() => {
-    if (isClosing) {
-      const timer = setTimeout(() => {
-        setMounted(false);
-        setIsClosing(false);
-        if (isLockedRef.current) {
-          unlockScroll();
-          isLockedRef.current = false;
-        }
-      }, 220); // 220ms matches the exit animation keyframe
-      return () => clearTimeout(timer);
-    }
-  }, [isClosing]);
-
-  // Cleanup scroll lock on unmount
-  useEffect(() => {
     return () => {
-      if (isLockedRef.current) {
-        unlockScroll();
-        isLockedRef.current = false;
-      }
+      document.removeEventListener('keydown', onKeyDown);
+      openCount = Math.max(0, openCount - 1);
+      if (openCount === 0) document.body.style.overflow = '';
+      previouslyFocused?.focus?.({ preventScroll: true });
     };
   }, []);
 
-  // ESC key listener
-  useEffect(() => {
-    if (!open) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [open, onClose]);
-
-  if (!mounted) return null;
-
   return (
-    <div
-      className={`fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 ${
-        isClosing ? 'pointer-events-none' : 'pointer-events-auto'
-      }`}
-      onClick={onClose}
-    >
-      {/* Backdrop */}
+    <div className={`fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-6 ${closing ? 'pointer-events-none' : ''}`}>
       <div
-        className={`absolute inset-0 bg-black/60 backdrop-blur-md ${
-          isClosing ? 'animate-modal-backdrop-out' : 'animate-modal-backdrop-in'
-        }`}
+        className={`absolute inset-0 bg-[var(--overlay)] ${closing ? 'animate-backdrop-out' : 'animate-backdrop-in'}`}
+        onClick={onClose}
+        aria-hidden
       />
-
-      {/* Modal Dialog Card */}
       <div
-        onClick={(e) => e.stopPropagation()}
-        className={`relative w-full ${maxWidth}
-          bg-[var(--color-bg-deep)] border border-[var(--color-border)]
-          rounded-t-3xl sm:rounded-3xl p-5 sm:p-6
-          max-h-[90vh] overflow-y-auto shadow-2xl pointer-events-auto
-          ${isClosing ? 'animate-modal-panel-out' : 'animate-modal-panel-in'}`}
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={description ? descId : undefined}
+        tabIndex={-1}
+        className={`relative w-full ${size === 'lg' ? 'sm:max-w-xl' : 'sm:max-w-md'} bg-surface text-ink
+          rounded-t-[1.5rem] sm:rounded-[1.5rem] shadow-[var(--shadow-pop)] ${closing ? 'animate-sheet-out' : 'animate-sheet-in'}
+          max-h-[92dvh] flex flex-col focus:outline-none`}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-base sm:text-lg font-extrabold text-[var(--color-text-primary)] tracking-tight">
-            {title}
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center
-              bg-[var(--color-bg-card)] text-[var(--color-text-secondary)]
-              hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-card-hover)]
-              active:scale-90 transition-all cursor-pointer"
-          >
-            <X size={16} />
-          </button>
+        <div className="flex items-start gap-3 px-5 sm:px-6 pt-5 pb-3">
+          <div className="flex-1 min-w-0 pt-1.5">
+            <h2 id={titleId} className="text-xl font-semibold leading-tight break-words">
+              {title}
+            </h2>
+            {description && (
+              <div id={descId} className="text-sm text-ink-2 mt-1">
+                {description}
+              </div>
+            )}
+          </div>
+          <IconButton label="Закрыть" onClick={onClose} className="-mr-2 -mt-1">
+            <X size={20} />
+          </IconButton>
         </div>
-        {children}
+        <div className="px-5 sm:px-6 pb-5 overflow-y-auto flex-1">{children}</div>
+        {footer && (
+          <div className="px-5 sm:px-6 pt-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] border-t border-line bg-surface rounded-b-[1.5rem]">
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   );

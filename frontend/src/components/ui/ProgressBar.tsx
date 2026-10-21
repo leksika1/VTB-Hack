@@ -1,33 +1,54 @@
 interface ProgressBarProps {
-  value: number; // 0–100+
-  color?: string;
-  overBudget?: boolean;
-  height?: string;
-  animate?: boolean;
+  /** Actually spent */
+  value: number;
+  /** Reserved for upcoming payments, drawn as a hatched part after the spent part */
+  reserved?: number;
+  max: number;
+  tone?: 'accent' | 'warning' | 'danger' | 'inverse';
+  label: string;
+  size?: 'sm' | 'md';
 }
 
-export function ProgressBar({
-  value,
-  color = 'var(--color-lime)',
-  overBudget = false,
-  height = 'h-2.5',
-  animate = true,
-}: ProgressBarProps) {
-  const clampedWidth = Math.min(value, 100);
-  const barColor = overBudget ? 'var(--color-danger)' : color;
+const FILL: Record<NonNullable<ProgressBarProps['tone']>, string> = {
+  accent: 'var(--accent)',
+  warning: 'var(--warning-bar)',
+  danger: 'var(--danger)',
+  inverse: '#ffffff',
+};
+
+export function ProgressBar({ value, reserved = 0, max, tone = 'accent', label, size = 'md' }: ProgressBarProps) {
+  const total = Math.max(max, value + reserved, 1);
+  const spentPct = (Math.max(value, 0) / total) * 100;
+  const reservedPct = (Math.max(reserved, 0) / total) * 100;
+  const limitPct = max > 0 ? (max / total) * 100 : 100;
+  const inverse = tone === 'inverse';
+  const fill = FILL[tone];
 
   return (
-    <div className={`w-full ${height} rounded-full bg-[rgba(255,255,255,0.06)] overflow-hidden`}>
-      <div
-        className={`${height} rounded-full transition-all duration-700 ease-out ${animate ? 'animate-progress-fill' : ''}`}
-        style={{
-          width: `${clampedWidth}%`,
-          background: `linear-gradient(90deg, ${barColor}, ${barColor}cc)`,
-          boxShadow: overBudget
-            ? `0 0 12px rgba(255,83,83,0.4)`
-            : `0 0 12px ${color}33`,
-        }}
-      />
+    <div
+      role="progressbar"
+      aria-label={label}
+      aria-valuemin={0}
+      aria-valuemax={Math.round(max)}
+      aria-valuenow={Math.round(value + reserved)}
+      className={`relative w-full ${size === 'sm' ? 'h-2' : 'h-3'} rounded-full overflow-hidden
+        ${inverse ? 'bg-white/20' : 'bg-track'}`}
+    >
+      <div className="absolute inset-y-0 left-0 rounded-full transition-[width] duration-500" style={{ width: `${spentPct}%`, background: fill }} />
+      {reservedPct > 0 && (
+        <div
+          className="absolute inset-y-0 transition-[left,width] duration-500"
+          style={{
+            left: `${spentPct}%`,
+            width: `${reservedPct}%`,
+            background: `repeating-linear-gradient(135deg, ${fill} 0 3px, transparent 3px 6px)`,
+            opacity: inverse ? 0.7 : 0.55,
+          }}
+        />
+      )}
+      {limitPct < 100 && (
+        <div className={`absolute inset-y-0 w-0.5 ${inverse ? 'bg-white' : 'bg-ink'}`} style={{ left: `calc(${limitPct}% - 1px)` }} />
+      )}
     </div>
   );
 }

@@ -1,9 +1,9 @@
 import {
   ShoppingCart,
-  Home,
+  House,
   Car,
   Baby,
-  MoreHorizontal,
+  Ellipsis,
   type LucideIcon,
 } from 'lucide-react';
 import type { ExpenseCategory } from '../types';
@@ -12,8 +12,12 @@ export interface CategoryConfig {
   key: ExpenseCategory;
   label: string;
   icon: LucideIcon;
+  /** CSS variable for the category hue (chart marks, swatches) */
   color: string;
-  bgClass: string;
+  /** Deeper step of the same hue, readable as an icon on the soft background */
+  inkColor: string;
+  /** CSS variable for the soft background behind the icon */
+  softColor: string;
 }
 
 export const CATEGORIES: Record<ExpenseCategory, CategoryConfig> = {
@@ -21,37 +25,46 @@ export const CATEGORIES: Record<ExpenseCategory, CategoryConfig> = {
     key: 'food',
     label: 'Продукты',
     icon: ShoppingCart,
-    color: 'var(--color-cat-food)',
-    bgClass: 'bg-[rgba(51,255,184,0.12)]',
+    color: 'var(--cat-food)',
+    inkColor: 'var(--cat-food-ink)',
+    softColor: 'var(--cat-food-soft)',
   },
   housing: {
     key: 'housing',
     label: 'Жильё',
-    icon: Home,
-    color: 'var(--color-cat-housing)',
-    bgClass: 'bg-[rgba(51,138,255,0.12)]',
+    icon: House,
+    color: 'var(--cat-housing)',
+    inkColor: 'var(--cat-housing-ink)',
+    softColor: 'var(--cat-housing-soft)',
   },
   transport: {
     key: 'transport',
     label: 'Транспорт',
     icon: Car,
-    color: 'var(--color-cat-transport)',
-    bgClass: 'bg-[rgba(255,184,51,0.12)]',
+    color: 'var(--cat-transport)',
+    inkColor: 'var(--cat-transport-ink)',
+    softColor: 'var(--cat-transport-soft)',
   },
   kids: {
     key: 'kids',
     label: 'Дети',
     icon: Baby,
-    color: 'var(--color-cat-kids)',
-    bgClass: 'bg-[rgba(255,83,83,0.12)]',
+    color: 'var(--cat-kids)',
+    inkColor: 'var(--cat-kids-ink)',
+    softColor: 'var(--cat-kids-soft)',
   },
   other: {
     key: 'other',
     label: 'Другое',
-    icon: MoreHorizontal,
-    color: 'var(--color-cat-other)',
-    bgClass: 'bg-[rgba(184,51,255,0.12)]',
+    icon: Ellipsis,
+    color: 'var(--cat-other)',
+    inkColor: 'var(--cat-other-ink)',
+    softColor: 'var(--cat-other-soft)',
   },
 };
 
 export const ALL_CATEGORIES: ExpenseCategory[] = ['food', 'housing', 'transport', 'kids', 'other'];
+
+export function emptyCategoryRecord(): Record<ExpenseCategory, number> {
+  return { food: 0, housing: 0, transport: 0, kids: 0, other: 0 };
+}

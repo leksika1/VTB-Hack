@@ -1,62 +1,44 @@
+import { useState } from 'react';
+import { Check, Copy } from 'lucide-react';
 import { useFamilyStore } from '../../store/familyStore';
 import { useUIStore } from '../../store/uiStore';
 import { Modal } from '../ui/Modal';
-import { Copy, Check } from 'lucide-react';
-import { useState } from 'react';
+import { Button } from '../ui/Button';
+import { buildInviteUrl } from './invite';
 
 export function InviteModal() {
   const family = useFamilyStore((s) => s.family);
-  const activeModal = useUIStore((s) => s.activeModal);
   const closeModal = useUIStore((s) => s.closeModal);
   const addToast = useUIStore((s) => s.addToast);
   const [copied, setCopied] = useState(false);
-
   if (!family) return null;
+  const url = buildInviteUrl(family);
 
-  const inviteUrl = `${window.location.origin}${window.location.pathname}?invite=${family.inviteCode}`;
-
-  const handleCopy = async () => {
+  const copy = async () => {
     try {
-      await navigator.clipboard.writeText(inviteUrl);
+      await navigator.clipboard.writeText(url);
       setCopied(true);
-      addToast('Ссылка скопирована!');
-      setTimeout(() => setCopied(false), 2000);
+      addToast('Ссылка-приглашение скопирована');
     } catch {
-      addToast('Не удалось скопировать', 'error');
+      addToast('Не удалось скопировать. Выделите ссылку и скопируйте вручную.', 'error');
     }
   };
 
   return (
-    <Modal open={activeModal === 'invite'} onClose={closeModal} title="Пригласить в семью">
-      <div className="space-y-4">
-        <p className="text-sm text-[var(--color-text-secondary)]">
-          Поделитесь ссылкой с партнёром или членом семьи, чтобы вести бюджет вместе.
-        </p>
-
-        <div className="flex items-center gap-2">
-          <div className="flex-1 px-3 py-2.5 rounded-[var(--radius-input)] bg-[var(--color-bg-input)]
-            border border-[var(--color-border)] text-xs text-[var(--color-text-secondary)] truncate select-all">
-            {inviteUrl}
-          </div>
-          <button
-            onClick={handleCopy}
-            className={`shrink-0 w-10 h-10 rounded-[var(--radius-input)] flex items-center justify-center
-              transition-all duration-200
-              ${copied
-                ? 'bg-[var(--color-success)] text-[var(--color-text-inverse)]'
-                : 'bg-[var(--color-lime)] text-[var(--color-text-inverse)] hover:brightness-110'
-              }`}
-          >
-            {copied ? <Check size={16} /> : <Copy size={16} />}
-          </button>
-        </div>
-
-        <div className="pt-2">
-          <p className="text-xs text-[var(--color-text-muted)]">
-            Участники семьи: {family.members.map((m) => m.name).join(', ')}
-          </p>
-        </div>
-      </div>
+    <Modal
+      title="Пригласить в семью"
+      description={`По ссылке партнёр увидит название «${family.name}» и сможет присоединиться.`}
+      onClose={closeModal}
+      footer={
+        <Button fullWidth size="lg" icon={copied ? <Check size={18} /> : <Copy size={18} />} onClick={copy}>
+          {copied ? 'Скопировано' : 'Скопировать ссылку'}
+        </Button>
+      }
+    >
+      <div className="rounded-xl bg-surface-muted border border-line px-3.5 py-3 text-sm text-ink-2 break-all select-all">{url}</div>
+      <p className="text-sm text-ink-3 mt-3">
+        Или продиктуйте код: <span className="font-mono font-semibold text-ink tracking-wider">{family.inviteCode}</span>
+      </p>
     </Modal>
   );
 }
