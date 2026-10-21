@@ -351,6 +351,12 @@ input[type='number']::-webkit-inner-spin-button {
   --cat-other-soft: rgba(255, 255, 255, 0.14);
 }
 
+/* Brand gradient for single controls (main action, selected option) */
+.brand-fill {
+  background: linear-gradient(135deg, var(--brand) 0%, var(--brand-2) 100%);
+  color: var(--brand-ink);
+}
+
 /* Smooth height for collapsible blocks: grid row goes 0fr → 1fr */
 .collapsible {
   display: grid;

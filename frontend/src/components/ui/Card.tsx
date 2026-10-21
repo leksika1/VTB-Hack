@@ -11,7 +11,7 @@ interface CardProps {
 export function Card({ children, className = '', as: Tag = 'section', tone = 'default' }: CardProps) {
   return (
     <Tag
-      className={`rounded-[var(--radius-card)] ${tone === 'brand' ? 'brand-surface' : 'bg-surface shadow-[var(--shadow-card)]'} ${className}`}
+      className={`rounded-card ${tone === 'brand' ? 'brand-surface' : 'bg-surface shadow-card'} ${className}`}
     >
       {children}
     </Tag>

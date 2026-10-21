@@ -1,27 +1,13 @@
 import { Check, Undo2 } from 'lucide-react';
 import type { Payment } from '../../types';
 import { formatCurrency } from '../../utils/currency';
-import { formatDueIn, formatMonthIn, parseISODate } from '../../utils/date';
+import { formatDueIn, formatMonthIn } from '../../utils/date';
 import { isOverdue } from '../../domain/budget';
 import { setPaymentPaid } from '../../api/client';
 import { useAsyncAction } from '../../hooks/useAsyncAction';
 import { useUIStore } from '../../store/uiStore';
 import { Badge } from '../ui/Misc';
 import { Button } from '../ui/Button';
-
-function DateTile({ iso, muted }: { iso: string; muted?: boolean }) {
-  const d = parseISODate(iso);
-  return (
-    <span
-      className={`w-11 h-12 rounded-xl flex flex-col items-center justify-center shrink-0 leading-none
-        ${muted ? 'bg-surface-sunken text-ink-3' : 'bg-accent-soft text-accent-ink'}`}
-      aria-hidden
-    >
-      <span className="text-lg font-bold tabular">{d.getDate()}</span>
-      <span className="text-[11px] -mt-1">{d.toLocaleDateString('ru-RU', { month: 'short' }).replace('.', '')}</span>
-    </span>
-  );
-}
 
 export function PaymentStatusBadge({ payment }: { payment: Payment }) {
   if (payment.status === 'paid') return <Badge tone="success" icon={<Check size={12} aria-hidden />}>Оплачен</Badge>;
@@ -49,7 +35,6 @@ export function PaymentRow({ payment, editable = true }: { payment: Payment; edi
   return (
     <li className="py-3 first:pt-1 last:pb-1">
       <div className="flex items-center gap-3">
-        <DateTile iso={payment.dueDate} muted={paid} />
         <button
           type="button"
           disabled={!canEdit}
@@ -88,14 +73,13 @@ export function PaymentRow({ payment, editable = true }: { payment: Payment; edi
           ) : (
             <Button
               size="sm"
-              variant="secondary"
               icon={<Check size={15} />}
               loading={toggle.pending}
               onClick={onToggle}
               aria-label={`Отметить «${payment.title}» оплаченным`}
-              className="h-8 px-2.5"
+              className="h-8 px-3"
             >
-              Оплатили
+              Отметить оплату
             </Button>
           )}
         </div>

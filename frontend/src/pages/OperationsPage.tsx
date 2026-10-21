@@ -31,16 +31,23 @@ export function OperationsPage() {
   const hasRestrictions = activeFilters > 0 || query.trim() !== '';
 
   // Search tolerates typos (Levenshtein) and also looks at the category name. Day order is kept.
-  const { filtered, withTypos } = useMemo(() => {
+  // Search and author first: the chart is built from this set, so it keeps every category visible
+  const { searched, withTypos } = useMemo(() => {
     const matched = expenses
-      .filter((e) => (categories.length === 0 || categories.includes(e.category)) && (!author || e.authorId === author))
+      .filter((e) => !author || e.authorId === author)
       .map((e) => ({ expense: e, match: fuzzyMatch(query, `${e.title} ${CATEGORIES[e.category].label}`) }))
       .filter((m) => m.match !== null);
     return {
-      filtered: matched.map((m) => m.expense),
+      searched: matched.map((m) => m.expense),
       withTypos: matched.some((m) => (m.match?.score ?? 0) > 0),
     };
-  }, [expenses, categories, author, query]);
+  }, [expenses, author, query]);
+
+  // Then the category filter (chips or a click on the chart) for the list
+  const filtered = useMemo(
+    () => (categories.length === 0 ? searched : searched.filter((e) => categories.includes(e.category))),
+    [searched, categories]
+  );
 
   const total = filtered.reduce((s, e) => s + e.amount, 0);
 
@@ -59,6 +66,7 @@ export function OperationsPage() {
         <div className="flex items-center gap-3">
           <MonthSwitcher />
           <Button
+            variant="brand"
             icon={<Plus size={20} />}
             onClick={() => openModal({ type: 'expenseForm' })}
             aria-label="Добавить расход"
@@ -140,7 +148,9 @@ export function OperationsPage() {
         )}
       </Card>
 
-      {filtered.length > 0 && <SpendingCharts key={`charts-${monthKey}`} expenses={filtered} />}
+      {searched.length > 0 && (
+        <SpendingCharts key={`charts-${monthKey}`} expenses={searched} selected={categories} onToggle={toggleCategory} />
+      )}
 
       <Card key={`list-${monthKey}`} className="p-4 sm:p-5 mt-5 animate-month-in">
         {expenses.length === 0 ? (

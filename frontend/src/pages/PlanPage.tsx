@@ -130,10 +130,7 @@ function PaymentsCard() {
       {copy.error && <p role="alert" className="text-sm text-danger text-center">{copy.error}</p>}
 
       {summary.upcomingPayments.length > 0 && (
-        <div>
-          <h3 className="text-sm font-semibold text-ink-2 mb-1">Предстоят</h3>
-          <PaymentList payments={summary.upcomingPayments} editable />
-        </div>
+        <PaymentList payments={summary.upcomingPayments} editable />
       )}
       {summary.paidPayments.length > 0 && (
         <div className={summary.upcomingPayments.length > 0 ? 'mt-5 pt-4 border-t border-line' : ''}>

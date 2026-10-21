@@ -1,7 +1,7 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { LoaderCircle } from 'lucide-react';
 
-type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'inverse' | 'onBrand' | 'dangerGhost' | 'dangerSoft' | 'neutral';
+type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'inverse' | 'onBrand' | 'dangerGhost' | 'dangerSoft' | 'neutral' | 'brand' | 'outline';
 type Size = 'md' | 'sm' | 'lg';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -22,6 +22,8 @@ const VARIANTS: Record<Variant, string> = {
   dangerGhost: 'bg-transparent text-danger hover:bg-danger-soft disabled:opacity-50',
   dangerSoft: 'bg-danger-soft text-danger hover:brightness-95 disabled:opacity-50',
   neutral: 'bg-surface-muted text-ink hover:bg-surface-sunken disabled:opacity-50',
+  brand: 'brand-fill hover:brightness-125 disabled:opacity-50',
+  outline: 'bg-surface text-accent-ink border border-accent/40 hover:bg-accent-soft hover:border-accent disabled:opacity-50',
 };
 
 const SIZES: Record<Size, string> = {

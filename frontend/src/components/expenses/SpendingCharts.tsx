@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ChartColumn, ChartPie } from 'lucide-react';
 import type { Expense, ExpenseCategory } from '../../types';
 import { ALL_CATEGORIES, CATEGORIES } from '../../utils/categories';
@@ -49,7 +49,17 @@ function niceMax(value: number): number {
 }
 
 /** Spending of the shown operations by category: column chart or donut, switchable */
-export function SpendingCharts({ expenses }: { expenses: Expense[] }) {
+interface SpendingChartsProps {
+  /** Operations after search and author filters, but before the category filter — so every category stays visible */
+  expenses: Expense[];
+  /** Categories selected as a filter for the list */
+  selected: ExpenseCategory[];
+  /** Click on a column, segment or legend row toggles that category in the list filter */
+  onToggle: (key: ExpenseCategory) => void;
+}
+
+/** Spending by category, column chart or donut. Clicking a category filters the operations list. */
+export function SpendingCharts({ expenses, selected, onToggle }: SpendingChartsProps) {
   const [view, setView] = useState<View>(readView);
   const [active, setActive] = useState<ExpenseCategory | null>(null);
 
@@ -72,7 +82,7 @@ export function SpendingCharts({ expenses }: { expenses: Expense[] }) {
   };
 
   return (
-    <Card tone="brand" className="p-4 sm:p-5 mt-5 animate-month-in">
+    <Card tone="default" className="p-4 sm:p-5 mt-5 animate-month-in">
       <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
         <div>
           <h2 className="text-lg font-semibold text-ink leading-tight">Расходы по категориям</h2>
@@ -81,36 +91,80 @@ export function SpendingCharts({ expenses }: { expenses: Expense[] }) {
             {plural(expenses.length, 'операция', 'операции', 'операций')}
           </p>
         </div>
-        <div role="radiogroup" aria-label="Вид графика" className="inline-flex p-1 rounded-[var(--radius-control)] bg-surface-sunken">
-          <ViewButton active={view === 'bar'} onClick={() => changeView('bar')} icon={<ChartColumn size={17} />} label="Столбцы" />
-          <ViewButton active={view === 'pie'} onClick={() => changeView('pie')} icon={<ChartPie size={17} />} label="Круг" />
-        </div>
+        <ViewSwitcher view={view} onChange={changeView} />
       </div>
 
       <div key={view} className="animate-fade-in">
         {view === 'bar' ? (
-          <ColumnChart slices={slices} active={active} onActive={setActive} />
+          <ColumnChart slices={slices} active={active} onActive={setActive} selected={selected} onToggle={onToggle} />
         ) : (
-          <DonutChart slices={slices} total={total} active={active} onActive={setActive} />
+          <DonutChart slices={slices} total={total} active={active} onActive={setActive} selected={selected} onToggle={onToggle} />
         )}
       </div>
+      <p className="text-[13px] text-ink-3 mt-3">
+        {selected.length > 0
+          ? 'Список ниже показывает выбранные категории. Нажмите ещё раз, чтобы снять выбор.'
+          : 'Нажмите на категорию, чтобы показать только её операции.'}
+      </p>
     </Card>
   );
 }
 
-function ViewButton({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string }) {
+const VIEWS: { value: View; label: string; icon: React.ReactNode }[] = [
+  { value: 'bar', label: 'Столбцы', icon: <ChartColumn size={17} /> },
+  { value: 'pie', label: 'Круг', icon: <ChartPie size={17} /> },
+];
+
+/** Segmented control with a brand-gradient pill that slides and resizes under the selected option */
+function ViewSwitcher({ view, onChange }: { view: View; onChange: (view: View) => void }) {
+  const refs = useRef<Partial<Record<View, HTMLButtonElement | null>>>({});
+  const [pill, setPill] = useState<{ left: number; width: number } | null>(null);
+  // No transition on the very first placement, otherwise the pill slides in from the edge
+  const [animated, setAnimated] = useState(false);
+
+  useLayoutEffect(() => {
+    const el = refs.current[view];
+    if (!el) return;
+    setPill({ left: el.offsetLeft, width: el.offsetWidth });
+  }, [view]);
+
+  useEffect(() => {
+    if (!pill || animated) return;
+    const id = requestAnimationFrame(() => setAnimated(true));
+    return () => cancelAnimationFrame(id);
+  }, [pill, animated]);
+
   return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={active}
-      onClick={onClick}
-      className={`h-9 px-3 rounded-[10px] inline-flex items-center gap-1.5 text-sm font-medium transition-colors
-        ${active ? 'bg-surface text-ink shadow-[var(--shadow-card)]' : 'text-ink-2 hover:text-ink'}`}
-    >
-      {icon}
-      {label}
-    </button>
+    <div role="radiogroup" aria-label="Вид графика" className="relative inline-flex p-1 rounded-control bg-surface-sunken">
+      {pill && (
+        <span
+          aria-hidden
+          className={`absolute top-1 bottom-1 rounded-[10px] brand-fill shadow-[var(--shadow-card)] ${animated ? 'transition-[left,width] duration-300 ease-[var(--ease-in-out)]' : ''
+            }`}
+          style={{ left: pill.left, width: pill.width }}
+        />
+      )}
+      {VIEWS.map((v) => {
+        const active = v.value === view;
+        return (
+          <button
+            key={v.value}
+            ref={(el) => {
+              refs.current[v.value] = el;
+            }}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            onClick={() => onChange(v.value)}
+            className={`relative z-10 h-9 px-3 rounded-[10px] inline-flex items-center gap-1.5 text-sm font-medium transition-colors duration-300
+              ${active ? 'text-white' : 'text-ink-2 hover:text-ink'}`}
+          >
+            {v.icon}
+            {v.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -118,11 +172,26 @@ interface ChartProps {
   slices: Slice[];
   active: ExpenseCategory | null;
   onActive: (key: ExpenseCategory | null) => void;
+  selected: ExpenseCategory[];
+  onToggle: (key: ExpenseCategory) => void;
+}
+
+/** Hover wins over the selection; otherwise categories outside the selection are dimmed */
+function isDimmed(key: ExpenseCategory, active: ExpenseCategory | null, selected: ExpenseCategory[]): boolean {
+  if (active) return active !== key;
+  return selected.length > 0 && !selected.includes(key);
+}
+
+function onActivateKey(e: React.KeyboardEvent, action: () => void) {
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    action();
+  }
 }
 
 /* ── Columns ── */
 
-function ColumnChart({ slices, active, onActive }: ChartProps) {
+function ColumnChart({ slices, active, onActive, selected, onToggle }: ChartProps) {
   // Largest first reads easiest; colour still follows the category, not the rank
   const sorted = [...slices].sort((a, b) => b.amount - a.amount);
   const max = niceMax(sorted[0]?.amount ?? 0);
@@ -154,25 +223,31 @@ function ColumnChart({ slices, active, onActive }: ChartProps) {
           <ul className="absolute inset-0 flex items-end justify-center gap-3 sm:gap-4 px-2" aria-label="Расходы по категориям">
             {sorted.map((s) => {
               const cfg = CATEGORIES[s.key];
-              const dimmed = active !== null && active !== s.key;
+              const dimmed = isDimmed(s.key, active, selected);
               const isActive = active === s.key;
+              const isSelected = selected.includes(s.key);
               return (
                 <li
                   key={s.key}
                   tabIndex={0}
+                  role="button"
+                  aria-pressed={isSelected}
                   aria-label={`${cfg.label}: ${formatCurrency(s.amount)}, ${Math.round(s.share * 100)}%`}
+                  onClick={() => onToggle(s.key)}
+                  onKeyDown={(e) => onActivateKey(e, () => onToggle(s.key))}
                   onMouseEnter={() => onActive(s.key)}
                   onMouseLeave={() => onActive(null)}
                   onFocus={() => onActive(s.key)}
                   onBlur={() => onActive(null)}
-                  className="relative h-full flex-1 max-w-24 flex flex-col justify-end items-center focus-visible:outline-none group"
+                  className="relative h-full flex-1 max-w-24 flex flex-col justify-end items-center cursor-pointer focus-visible:outline-none group"
                 >
                   {isActive && <Tooltip slice={s} />}
                   <span className={`text-xs font-semibold text-ink tabular mb-1 whitespace-nowrap transition-opacity ${dimmed ? 'opacity-40' : ''}`}>
                     {formatCompact(s.amount)}
                   </span>
                   <span
-                    className={`w-full rounded-t-[4px] transition-opacity duration-200 group-focus-visible:ring-2 group-focus-visible:ring-[var(--focus)] ${dimmed ? 'opacity-35' : ''}`}
+                    className={`w-full rounded-t-xl transition-[opacity,outline-color] duration-200 group-focus-visible:ring-2 group-focus-visible:ring-[var(--focus)]
+                      outline-2 outline-offset-2 ${isSelected ? 'outline-[var(--ink)]' : 'outline-transparent'} ${dimmed ? 'opacity-35' : ''}`}
                     style={{ height: `${(s.amount / max) * 100}%`, background: cfg.color, boxShadow: 'inset 0 0 0 1.5px rgba(255,255,255,0.45)' }}
                   />
                 </li>
@@ -184,7 +259,11 @@ function ColumnChart({ slices, active, onActive }: ChartProps) {
         {/* Category labels under the baseline */}
         <div className="flex justify-center gap-3 sm:gap-4 px-2 mt-2" aria-hidden>
           {sorted.map((s) => (
-            <span key={s.key} className={`flex-1 max-w-24 text-center text-xs text-ink-2 truncate transition-opacity ${active && active !== s.key ? 'opacity-50' : ''}`}>
+            <span
+              key={s.key}
+              className={`flex-1 max-w-24 text-center text-xs truncate transition-opacity
+                ${selected.includes(s.key) ? 'text-ink font-semibold' : 'text-ink-2'} ${isDimmed(s.key, active, selected) ? 'opacity-50' : ''}`}
+            >
               {CATEGORIES[s.key].label}
             </span>
           ))}
@@ -221,7 +300,7 @@ const STROKE = 30;
 const GAP = 3; // surface gap between segments, px along the arc
 const CIRC = 2 * Math.PI * RADIUS;
 
-function DonutChart({ slices, total, active, onActive }: ChartProps & { total: number }) {
+function DonutChart({ slices, total, active, onActive, selected, onToggle }: ChartProps & { total: number }) {
   // Segments grow from zero after mount
   const [drawn, setDrawn] = useState(false);
   useEffect(() => {
@@ -240,12 +319,13 @@ function DonutChart({ slices, total, active, onActive }: ChartProps & { total: n
 
   return (
     <div className="grid gap-6 sm:grid-cols-[220px_minmax(0,1fr)] items-center">
-      <div className="relative mx-auto w-[220px] h-[220px]">
+      <div className="relative mx-auto w-55 h-55">
         <svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="w-full h-full -rotate-90" role="img" aria-label="Доли категорий в расходах">
           <circle cx={SIZE / 2} cy={SIZE / 2} r={RADIUS} fill="none" stroke="var(--track)" strokeWidth={STROKE} />
           {segments.map(({ slice, start, length }) => {
             const visible = Math.max(length - gap, 0.5);
             const isActive = active === slice.key;
+            const isSelected = selected.includes(slice.key);
             return (
               <circle
                 key={slice.key}
@@ -254,14 +334,15 @@ function DonutChart({ slices, total, active, onActive }: ChartProps & { total: n
                 r={RADIUS}
                 fill="none"
                 stroke={CATEGORIES[slice.key].color}
-                strokeWidth={isActive ? STROKE + 8 : STROKE}
+                strokeWidth={isActive || isSelected ? STROKE + 8 : STROKE}
                 strokeDasharray={drawn ? `${visible} ${CIRC - visible}` : `0 ${CIRC}`}
                 strokeDashoffset={-(start + gap / 2)}
-                opacity={active && !isActive ? 0.35 : 1}
+                opacity={isDimmed(slice.key, active, selected) ? 0.35 : 1}
                 className="cursor-pointer"
                 style={{ transition: 'stroke-dasharray 0.8s cubic-bezier(0.16,1,0.3,1), stroke-width 0.2s, opacity 0.2s' }}
                 onMouseEnter={() => onActive(slice.key)}
                 onMouseLeave={() => onActive(null)}
+                onClick={() => onToggle(slice.key)}
               />
             );
           })}
@@ -278,19 +359,22 @@ function DonutChart({ slices, total, active, onActive }: ChartProps & { total: n
         {slices.map((s) => {
           const cfg = CATEGORIES[s.key];
           const isActive = active === s.key;
+          const isSelected = selected.includes(s.key);
           return (
             <li key={s.key}>
               <button
                 type="button"
+                aria-pressed={isSelected}
+                onClick={() => onToggle(s.key)}
                 onMouseEnter={() => onActive(s.key)}
                 onMouseLeave={() => onActive(null)}
                 onFocus={() => onActive(s.key)}
                 onBlur={() => onActive(null)}
-                className={`w-[calc(100%+1rem)] flex items-center gap-3 py-2.5 px-2 -mx-2 rounded-lg text-left transition-colors ${isActive ? 'bg-surface-muted' : ''}`}
+                className={`w-[calc(100%+1rem)] flex items-center gap-3 py-2.5 px-2 -mx-2 rounded-lg text-left transition-colors ${isActive || isSelected ? 'bg-surface-muted' : ''} ${isDimmed(s.key, active, selected) ? 'opacity-50' : ''}`}
               >
                 <span className="w-3 h-3 rounded-[3px] shrink-0" style={{ background: cfg.color }} aria-hidden />
                 <span className="flex-1 min-w-0">
-                  <span className="block text-ink truncate">{cfg.label}</span>
+                  <span className={`block text-ink truncate ${isSelected ? 'font-semibold' : ''}`}>{cfg.label}</span>
                   <span className="block text-[13px] text-ink-3">
                     {s.count} {plural(s.count, 'операция', 'операции', 'операций')}
                   </span>
