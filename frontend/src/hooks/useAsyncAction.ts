@@ -42,8 +42,8 @@ export function useAsyncAction<A extends unknown[], R>(action: (...args: A) => P
   return { run, pending, error, errorField, reset };
 }
 
-/** A stable idempotency key for one opened form */
+/** A stable idempotency key for one opened form. Cryptographically random: a guessable key could replay someone else's request */
 export function useRequestId(): string {
-  const [id] = useState(() => Math.random().toString(36).slice(2) + Date.now().toString(36));
+  const [id] = useState(() => crypto.randomUUID());
   return id;
 }
