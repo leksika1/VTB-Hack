@@ -1,0 +1,15 @@
+# Добавка для локальной разработки: публикует PostgreSQL и Redis на localhost,
+# чтобы backend и тесты запускались на хосте против тех же СУБД, что в проде.
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --wait db redis
+services:
+  db:
+    ports:
+      - "127.0.0.1:55432:5432"  # 5432 часто занят локальным PostgreSQL
+  redis:
+    ports:
+      - "127.0.0.1:6379:6379"
+
+networks:
+  # Чтобы опубликовать порты базы и Redis на localhost, внутреннюю сеть открываем (только локально)
+  data:
+    internal: false
