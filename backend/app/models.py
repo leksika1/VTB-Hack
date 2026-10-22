@@ -98,6 +98,23 @@ class ChildInvite(Base):
     used_by: Mapped[str | None] = mapped_column(ForeignKey("members.id", ondelete="SET NULL"), default=None)
 
 
+class InviteLink(Base):
+    """Многоразовая ссылка-приглашение: вошедшие по ней сразу в семье, без подтверждения (docs/FEATURES.md §1).
+    Действует до отзыва или срока. Хранится только SHA-256 кода — как у токенов сессий."""
+
+    __tablename__ = "invite_links"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    family_id: Mapped[str] = mapped_column(ForeignKey("families.id", ondelete="CASCADE"), index=True)
+    code_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    role: Mapped[str] = mapped_column(String(8))
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("members.id", ondelete="SET NULL"))
+    created_at: Mapped[int] = mapped_column(BigInteger, default=now_ms)
+    expires_at: Mapped[int] = mapped_column(BigInteger)
+    uses: Mapped[int] = mapped_column(default=0, server_default="0")
+    last_used_at: Mapped[int | None] = mapped_column(BigInteger, default=None)
+
+
 class MemberSession(Base):
     """Сессия устройства. В базе только SHA-256 токена — утечка таблицы не даёт входа."""
 

@@ -8,6 +8,8 @@ from ..schemas import (
     CreateFamilyIn,
     ExpenseOut,
     FamilyOut,
+    InviteLinkIn,
+    InviteLinkOut,
     InvitePreviewOut,
     JoinFamilyIn,
     PaymentOut,
@@ -78,6 +80,27 @@ async def create_child_invite(member: ParentMember, db: Db, request: Request):
 async def rotate_child_code(member: ParentMember, db: Db):
     """Старый детский код перестаёт работать. Дети в семье остаются."""
     return await families.rotate_child_code(db, member)
+
+
+@router.post("/family/invite-links", response_model=InviteLinkOut, status_code=201,
+             summary="Ссылка-приглашение без подтверждения")
+async def create_invite_link(member: ParentMember, db: Db, request: Request, body: InviteLinkIn | None = None):
+    """Вошедшие по ссылке `?invite=<code>` сразу видят данные семьи. Ссылка многоразовая, действует 7 дней
+    или до отзыва; код (16 символов) показывается один раз (docs/FEATURES.md §1)."""
+    mark_silent(request)
+    return await families.create_invite_link(db, member, (body or InviteLinkIn()).role)
+
+
+@router.get("/family/invite-links", response_model=list[InviteLinkOut], summary="Действующие ссылки")
+async def list_invite_links(member: ParentMember, db: Db):
+    return await families.list_invite_links(db, member)
+
+
+@router.delete("/family/invite-links/{link_id}", status_code=204, summary="Отозвать ссылку")
+async def revoke_invite_link(link_id: str, member: ParentMember, db: Db, request: Request):
+    mark_silent(request)
+    await families.revoke_invite_link(db, member, link_id)
+    return Response(status_code=204)
 
 
 @router.post("/family/members/{member_id}/approve", response_model=FamilyOut, summary="Подтвердить вход участника")

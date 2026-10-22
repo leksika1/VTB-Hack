@@ -4,14 +4,25 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..errors import Conflict, Forbidden, NotFound, ValidationFailed
-from ..models import ChildInvite, Family, Member, MemberSession, now_ms
-from ..schemas import ChildInviteOut, CreateFamilyIn, FamilyOut, InvitePreviewOut, JoinFamilyIn, SessionOut
-from ..security import MEMBER_COLORS, hash_token, new_invite_code, new_token
+from ..models import ChildInvite, Family, InviteLink, Member, MemberSession, now_ms
+from ..schemas import (
+    ChildInviteOut,
+    CreateFamilyIn,
+    FamilyOut,
+    InviteLinkOut,
+    InvitePreviewOut,
+    JoinFamilyIn,
+    SessionOut,
+)
+from ..security import MEMBER_COLORS, hash_token, new_invite_code, new_invite_link_code, new_token
 from ..validation import clean_name, normalize_invite_code
 from . import idempotency, notifications
 from .me import clear_email
 
 MAX_MEMBERS = 10
+INVITE_LINK_CODE_LENGTH = 16
+INVITE_LINK_TTL_MS = 7 * 86_400_000
+MAX_ACTIVE_INVITE_LINKS = 10
 ROLES = ("parent", "child")
 
 
@@ -99,10 +110,17 @@ async def create_family(db: AsyncSession, body: CreateFamilyIn, idem_key: str | 
 
 async def resolve_invite(
     db: AsyncSession, code: str, lock: bool = False
-) -> tuple[Family, str, ChildInvite | None]:
-    """(семья, роль входящего, старое одноразовое приглашение или None).
-    Код семьи — взрослый, постоянный детский код — ребёнок; старые одноразовые детские приглашения ещё действуют."""
+) -> tuple[Family, str, ChildInvite | InviteLink | None]:
+    """(семья, роль входящего, одноразовое приглашение или None).
+    Код семьи — взрослый, постоянный детский код — ребёнок, ссылка-приглашение — роль, выбранная взрослым;
+    старые одноразовые детские приглашения ещё действуют."""
     normalized = normalize_invite_code(code)
+    if len(normalized) == INVITE_LINK_CODE_LENGTH:
+        q = select(InviteLink).where(InviteLink.code_hash == hash_token(normalized))
+        link = await db.scalar(q.with_for_update().execution_options(populate_existing=True) if lock else q)
+        if link is None or link.expires_at < now_ms():
+            raise NotFound("Ссылка недействительна: её отозвали или срок истёк. Попросите новую.", "code")
+        return await load_family(db, link.family_id), link.role, link
     family = await db.scalar(select(Family).where(Family.invite_code == normalized))
     if family is not None:
         return family, "parent", None
@@ -116,12 +134,13 @@ async def resolve_invite(
 
 
 async def invite_preview(db: AsyncSession, code: str) -> InvitePreviewOut:
-    family, role, _ = await resolve_invite(db, code)
+    family, role, ticket = await resolve_invite(db, code)
     return InvitePreviewOut(
         code=normalize_invite_code(code),
         family_name=family.name,
         members_count=len(_active(family)),
         role=role,
+        needs_approval=not isinstance(ticket, InviteLink),
     )
 
 
@@ -132,8 +151,9 @@ async def join_family(
     normalized = normalize_invite_code(code)
 
     async def action() -> dict:
-        # Детский код гасится в той же транзакции; блокировка — чтобы двое не вошли по одному коду
-        family, role, child_invite = await resolve_invite(db, normalized, lock=True)
+        # Блокировка приглашения: одноразовый детский код гасится один раз, счётчик ссылки не теряет входы
+        family, role, ticket = await resolve_invite(db, normalized, lock=True)
+        direct = isinstance(ticket, InviteLink)
         # Ожидающие тоже занимают место: посторонние с кодом не могут бесконечно «стучаться»
         if sum(1 for m in family.members if m.present) >= MAX_MEMBERS:
             raise Conflict(f"В семье уже {MAX_MEMBERS} участников")
@@ -143,21 +163,32 @@ async def join_family(
             name=user_name,
             color=_next_color(total_ever),
             role=role,
-            # Данные семьи — только после подтверждения взрослым (docs/FEATURES.md §1)
-            status="pending",
+            # По коду — данные семьи только после подтверждения взрослым; по ссылке-приглашению — сразу
+            status="active" if direct else "pending",
             oidc_sub=await _link_sub(db, body.oidc_link_token),
         )
         db.add(member)
         await db.flush()
-        if child_invite:
-            child_invite.used_at = now_ms()
-            child_invite.used_by = member.id
+        if direct:
+            ticket.uses += 1
+            ticket.last_used_at = now_ms()
+        elif ticket:
+            ticket.used_at = now_ms()
+            ticket.used_by = member.id
         who = "взрослым" if role == "parent" else "ребёнком"
-        await notifications.notify(
-            db, family.id, [m for m in _active(family) if m.is_parent], "member_join_request",
-            f"{member.name} просит доступ к семье", f"Хочет войти {who}. Подтвердите или отклоните на вкладке «Семья»",
-            {"memberId": member.id, "role": role}, dedupe_key=f"member_join_request:{member.id}",
-        )
+        if direct:
+            await notifications.notify(
+                db, family.id, [m for m in _active(family) if m.id != member.id], "member_joined",
+                f"{member.name} теперь в семье", f"Вошёл {who} по ссылке-приглашению", {"memberId": member.id},
+                dedupe_key=f"member_joined:{member.id}",
+            )
+        else:
+            await notifications.notify(
+                db, family.id, [m for m in _active(family) if m.is_parent], "member_join_request",
+                f"{member.name} просит доступ к семье",
+                f"Хочет войти {who}. Подтвердите или отклоните на вкладке «Семья»",
+                {"memberId": member.id, "role": role}, dedupe_key=f"member_join_request:{member.id}",
+            )
         return {"memberId": member.id, "familyId": family.id}
 
     fp = idempotency.fingerprint("join_family", normalized, user_name)
@@ -179,6 +210,47 @@ async def create_child_invite(db: AsyncSession, member: Member) -> ChildInviteOu
     code = await ensure_child_code(db, family)
     await db.commit()
     return ChildInviteOut(code=code, expires_at=None)
+
+
+def _live_links(family_id: str):
+    return select(InviteLink).where(InviteLink.family_id == family_id, InviteLink.expires_at >= now_ms())
+
+
+async def create_invite_link(db: AsyncSession, member: Member, role: str) -> InviteLinkOut:
+    """Многоразовая ссылка: по ней входят сразу, без подтверждения, пока её не отзовут или не истечёт срок.
+    Код виден только в этом ответе."""
+    if role not in ROLES:
+        raise ValidationFailed("Роль: parent или child", "role")
+    # Блокировка семьи — чтобы параллельные запросы не обошли лимит
+    await db.execute(select(Family.id).where(Family.id == member.family_id).with_for_update())
+    live = await db.scalar(select(func.count()).select_from(_live_links(member.family_id).subquery()))
+    if live >= MAX_ACTIVE_INVITE_LINKS:
+        raise Conflict(f"Действующих ссылок уже {MAX_ACTIVE_INVITE_LINKS}. Отзовите ненужные.")
+    code = new_invite_link_code()
+    link = InviteLink(family_id=member.family_id, code_hash=hash_token(code), role=role, created_by=member.id,
+                      expires_at=now_ms() + INVITE_LINK_TTL_MS)
+    db.add(link)
+    await db.commit()
+    return InviteLinkOut.of(link, code)
+
+
+async def list_invite_links(db: AsyncSession, member: Member) -> list[InviteLinkOut]:
+    links = await db.scalars(_live_links(member.family_id).order_by(InviteLink.created_at.desc()))
+    return [InviteLinkOut.of(link) for link in links]
+
+
+async def revoke_invite_link(db: AsyncSession, member: Member, link_id: str) -> None:
+    result = await db.execute(
+        delete(InviteLink).where(InviteLink.id == link_id, InviteLink.family_id == member.family_id)
+    )
+    if not result.rowcount:
+        raise NotFound("Ссылка не найдена — возможно, её уже отозвали")
+    await db.commit()
+
+
+async def _revoke_links_of(db: AsyncSession, member: Member) -> None:
+    """Ссылки того, кто больше не взрослый в семье, перестают работать."""
+    await db.execute(delete(InviteLink).where(InviteLink.created_by == member.id))
 
 
 async def rotate_child_code(db: AsyncSession, member: Member) -> FamilyOut:
@@ -232,6 +304,8 @@ async def set_role(db: AsyncSession, actor: Member, member_id: str, role: str) -
     if target.is_parent and role == "child" and not _other_parents(family, target):
         raise Conflict("В семье должен остаться хотя бы один взрослый")
     target.role = role
+    if role == "child":
+        await _revoke_links_of(db, target)
     await db.commit()
     return FamilyOut.of(await load_family(db, actor.family_id), actor)
 
@@ -239,6 +313,7 @@ async def set_role(db: AsyncSession, actor: Member, member_id: str, role: str) -
 async def _deactivate(db: AsyncSession, member: Member) -> None:
     member.left_at = now_ms()
     clear_email(member)  # 152-ФЗ: не храним адрес того, кто больше не в семье
+    await _revoke_links_of(db, member)
     await db.execute(delete(MemberSession).where(MemberSession.member_id == member.id))
 
 

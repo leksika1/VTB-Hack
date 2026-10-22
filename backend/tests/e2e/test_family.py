@@ -67,7 +67,8 @@ def test_invite_preview(api, new_client):
     guest = new_client()
     r = guest.get(f"/api/invites/{anna.invite_code.lower()}")
     assert r.status_code == 200
-    assert r.json() == {"code": anna.invite_code, "familyName": "Сидоровы", "membersCount": 1, "role": "parent"}
+    assert r.json() == {"code": anna.invite_code, "familyName": "Сидоровы", "membersCount": 1, "role": "parent",
+                        "needsApproval": True}
 
 
 def test_invite_preview_errors(api):

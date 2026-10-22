@@ -212,6 +212,29 @@ class InvitePreviewOut(Schema):
     family_name: str
     members_count: int
     role: str  # с какой ролью войдёт приглашённый: parent (код семьи) или child (детский код)
+    # false — ссылка-приглашение: вход сразу, без подтверждения взрослым
+    needs_approval: bool
+
+
+class InviteLinkIn(Schema):
+    role: str = "parent"
+
+
+class InviteLinkOut(Schema):
+    id: str
+    # Код показывается один раз — при создании; в списке null (в базе хранится только хэш)
+    code: str | None
+    role: str
+    created_by: str | None
+    created_at: int
+    expires_at: int
+    uses: int  # сколько человек уже вошло по ссылке
+    last_used_at: int | None
+
+    @classmethod
+    def of(cls, link: models.InviteLink, code: str | None = None) -> "InviteLinkOut":
+        return cls(id=link.id, code=code, role=link.role, created_by=link.created_by, created_at=link.created_at,
+                   expires_at=link.expires_at, uses=link.uses, last_used_at=link.last_used_at)
 
 
 class ChildInviteOut(Schema):
