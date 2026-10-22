@@ -62,16 +62,21 @@ async def events(request: Request, authorization: Authorization = None):
     # Ping чаще, чем истекает запись о потоке, — живой поток не потеряет своё место
     heartbeat = min(settings.events_heartbeat_seconds, realtime.STREAM_TTL // 3)
     queue = realtime.subscribe(family_id)
-    released = False
+    cleanup: asyncio.Future | None = None
+
+    async def _cleanup() -> None:
+        realtime.unsubscribe(family_id, queue)
+        await realtime.release_stream(member_id, stream_id)
 
     async def release() -> None:
-        # Вызывается и из генератора, и фоновой задачей ответа: если клиент ушёл до первого
-        # сообщения, генератор не запустится, и слот иначе остался бы занятым
-        nonlocal released
-        if not released:
-            released = True
-            realtime.unsubscribe(family_id, queue)
-            await realtime.release_stream(member_id, stream_id)
+        # Вызывается и из генератора, и фоновой задачей ответа (если клиент ушёл до первого сообщения,
+        # генератор не запустится). Очистка — отдельная задача под shield: при обрыве соединения Starlette
+        # отменяет генератор, и без этого удаление слота в Redis прерывалось бы на полпути,
+        # а повторный вызов считал бы, что всё уже сделано, — слот висел до истечения STREAM_TTL
+        nonlocal cleanup
+        if cleanup is None:
+            cleanup = asyncio.ensure_future(_cleanup())
+        await asyncio.shield(cleanup)
 
     async def stream():
         try:

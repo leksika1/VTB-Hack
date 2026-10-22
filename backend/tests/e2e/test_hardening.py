@@ -50,9 +50,10 @@ def test_event_streams_per_member_are_capped(api, new_client):
     try:
         assert all(s.next() == "ready" for s in streams)
         assert_error(new_client().get("/api/events", headers=auth(anna.token)), 429, "rate_limited")
-        # Закрытый поток освобождает место
+        # Закрытый поток освобождает место. Через прокси сервер узнаёт об обрыве не сразу,
+        # а при следующей записи в поток (ping раз в EVENTS_HEARTBEAT_SECONDS), поэтому ждём с запасом
         streams.pop().close()
-        deadline = time.time() + 5
+        deadline = time.time() + 15
         while True:
             extra = EventStream(new_client(), anna.token)
             if extra.response.status_code == 200 or time.time() > deadline:
