@@ -12,3 +12,5 @@ target
 *.log
 Dockerfile
 .dockerignore
+tests
+.pytest_cache

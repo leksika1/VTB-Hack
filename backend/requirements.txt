@@ -1,0 +1,11 @@
+fastapi==0.159.1
+# Явно: fastapi допускает starlette>=0.46, а в версиях до 1.3.1 известные уязвимости (pip-audit)
+starlette==1.9.0
+uvicorn[standard]==0.54.0
+sqlalchemy[asyncio]==2.1.6
+asyncpg==0.32.0
+alembic==1.20.0
+pydantic==2.14.1
+pydantic-settings==2.16.1
+redis==8.1.0
+tzdata==2026.5

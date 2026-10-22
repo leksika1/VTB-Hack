@@ -1,0 +1,76 @@
+import asyncio
+import logging
+from contextlib import asynccontextmanager, suppress
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from . import db, infra, maintenance, realtime
+from .api import family, finance, system
+from .config import get_settings
+from .errors import install_error_handlers
+from .middleware import BodySizeLimitMiddleware, RequestContextMiddleware, setup_logging
+from .schemas import ErrorOut
+
+log = logging.getLogger("app")
+
+
+def create_app() -> FastAPI:
+    settings = get_settings()
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI):
+        # Схему ведут миграции (alembic upgrade head) — их запускает контейнер перед стартом
+        setup_logging(settings.log_level)
+        db.init_engine(settings.database_url)
+        await infra.init_redis(settings.redis_url)
+        realtime.start_listener()
+        cleanup = (
+            asyncio.create_task(maintenance.run_periodically(settings.maintenance_interval_seconds))
+            if settings.maintenance_interval_seconds > 0
+            else None
+        )
+        yield
+        if cleanup:
+            cleanup.cancel()
+            with suppress(asyncio.CancelledError):
+                await cleanup
+        await realtime.stop_listener()
+        await infra.close_redis()
+        await db.dispose_engine()
+
+    docs = settings.enable_docs
+    app = FastAPI(
+        title="Семейный бюджет — API",
+        version="0.3.0",
+        description=(
+            "Общий бюджет семьи: план на месяц, расходы, обязательные платежи и проверка покупки. "
+            "Полное описание — docs/API.md."
+        ),
+        lifespan=lifespan,
+        docs_url="/api/docs" if docs else None,
+        redoc_url="/api/redoc" if docs else None,
+        openapi_url="/api/openapi.json" if docs else None,
+        responses={code: {"model": ErrorOut} for code in (400, 401, 403, 404, 409, 413, 422, 429)},
+    )
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origin_list,
+        allow_methods=["GET", "POST", "PUT", "DELETE"],
+        allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "X-Request-ID"],
+        expose_headers=["X-Request-ID"],
+    )
+    app.add_middleware(RequestContextMiddleware)
+    # Последний добавленный — внешний: большие тела отсекаются раньше всего остального
+    app.add_middleware(BodySizeLimitMiddleware, max_bytes=settings.max_body_bytes)
+    install_error_handlers(app)
+
+    # /health без префикса — для healthcheck контейнера
+    app.add_api_route("/health", system.health, include_in_schema=False)
+    app.include_router(system.router, prefix="/api")
+    app.include_router(family.router, prefix="/api")
+    app.include_router(finance.router, prefix="/api")
+    return app
+
+
+app = create_app()
