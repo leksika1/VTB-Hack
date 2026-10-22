@@ -10,7 +10,7 @@ from ..errors import Conflict, Forbidden, NotFound, ValidationFailed
 from ..models import Goal, GoalContribution, Member, now_ms
 from ..schemas import ContributionIn, ContributionOut, GoalIn, GoalOut
 from ..validation import amount_to_kop, kop_to_amount, month_bounds, parse_date, shift_month
-from . import allowance
+from . import allowance, notifications
 
 MAX_ACTIVE_GOALS = 20
 ETA_WINDOW_MONTHS = 3
@@ -163,6 +163,10 @@ async def contribute(db: AsyncSession, member: Member, goal_id: str, body: Contr
     await db.flush()
     achieved = await _refresh_status(db, goal)
     await db.flush()
+    if achieved:
+        await notifications.notify(db, goal.family_id, await notifications.everyone(db, goal.family_id),
+                                   "goal_achieved", f"Цель «{goal.title}» накоплена!", "Поздравляем всю семью",
+                                   {"goalId": goal.id}, dedupe_key=f"goal_achieved:{goal.id}:{goal.achieved_at}")
     return goal, contribution, achieved
 
 

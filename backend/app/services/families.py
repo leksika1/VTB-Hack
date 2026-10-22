@@ -8,7 +8,8 @@ from ..models import ChildInvite, Family, Member, MemberSession, now_ms
 from ..schemas import ChildInviteOut, CreateFamilyIn, FamilyOut, InvitePreviewOut, JoinFamilyIn, SessionOut
 from ..security import MEMBER_COLORS, hash_token, new_invite_code, new_token
 from ..validation import clean_name, normalize_invite_code
-from . import idempotency
+from . import idempotency, notifications
+from .me import clear_email
 
 MAX_MEMBERS = 10
 MAX_ACTIVE_CHILD_INVITES = 5
@@ -120,6 +121,12 @@ async def join_family(
         if child_invite:
             child_invite.used_at = now_ms()
             child_invite.used_by = member.id
+        await notifications.notify(
+            db, family.id, [m for m in _active(family) if m.id != member.id], "member_joined",
+            f"{member.name} теперь в семье", "Новый участник видит общий бюджет семьи"
+            if member.is_parent else "Ребёнок присоединился к семье", {"memberId": member.id},
+            dedupe_key=f"member_joined:{member.id}",
+        )
         return {"memberId": member.id, "familyId": family.id}
 
     fp = idempotency.fingerprint("join_family", normalized, user_name)
@@ -180,6 +187,7 @@ async def set_role(db: AsyncSession, actor: Member, member_id: str, role: str) -
 
 async def _deactivate(db: AsyncSession, member: Member) -> None:
     member.left_at = now_ms()
+    clear_email(member)  # 152-ФЗ: не храним адрес того, кто больше не в семье
     await db.execute(delete(MemberSession).where(MemberSession.member_id == member.id))
 
 

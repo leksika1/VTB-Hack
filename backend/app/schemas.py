@@ -95,6 +95,18 @@ class ContributionIn(Schema):
     date: str | None = None
 
 
+class EmailIn(Schema):
+    email: str = Field(max_length=320)
+
+
+class CodeIn(Schema):
+    code: str = Field(max_length=20)
+
+
+class NotificationSettingsIn(Schema):
+    email: bool
+
+
 class SettlementIn(Schema):
     from_id: str
     to_id: str
@@ -269,6 +281,7 @@ class StateOut(Schema):
     expenses: list[ExpenseOut]
     payments: list[PaymentOut]
     allowances: list["AllowanceOut"] = []
+    unread_notifications: int = 0
 
 
 class CategorySummaryOut(Schema):
@@ -436,6 +449,32 @@ class SettlementOut(Schema):
     members: list[SettlementMemberOut]
     transfers: list[TransferOut]
     recorded: list[RecordedSettlementOut]
+
+
+class MeOut(Schema):
+    id: str
+    name: str
+    role: str
+    email: str | None
+    email_verified: bool
+    notify_by_email: bool
+    pending_email: str | None
+    vtb_linked: bool
+
+
+class NotificationOut(Schema):
+    id: str
+    kind: str
+    title: str
+    body: str
+    data: dict
+    created_at: int
+    read_at: int | None
+
+    @classmethod
+    def of(cls, n: models.Notification) -> "NotificationOut":
+        return cls(id=n.id, kind=n.kind, title=n.title, body=n.body, data=n.data or {},
+                   created_at=n.created_at, read_at=n.read_at)
 
 
 class ErrorBody(Schema):

@@ -10,7 +10,7 @@ from sqlalchemy import delete
 
 from . import db
 from .config import get_settings
-from .models import Family, IdempotencyRecord, MemberSession, now_ms
+from .models import Family, IdempotencyRecord, MemberSession, Notification, now_ms
 
 log = logging.getLogger("app.maintenance")
 
@@ -30,6 +30,11 @@ async def cleanup_once(session_factory=None) -> dict[str, int]:
             "sessions": (await session.execute(
                 delete(MemberSession).where(
                     MemberSession.last_seen_at < now - settings.session_ttl_days * 24 * HOUR_MS
+                )
+            )).rowcount,
+            "notifications": (await session.execute(
+                delete(Notification).where(
+                    Notification.created_at < now - settings.notification_ttl_days * 24 * HOUR_MS
                 )
             )).rowcount,
             "demo_families": (await session.execute(
@@ -52,11 +57,36 @@ async def extend_recurring_once(session_factory=None) -> int:
     return created
 
 
+async def payment_reminders_once(session_factory=None) -> int:
+    """Уведомления о платежах со сроком сегодня–через 2 дня (повторы отбрасываются по dedupe_key)."""
+    from .services import notifications
+
+    async with (session_factory or db.session)() as session:
+        created = await notifications.payments_due(session)
+        await session.commit()
+    return created
+
+
+async def send_emails_periodically(interval: int) -> None:
+    from .services import notifications
+
+    while True:
+        try:
+            async with db.session() as session:
+                await notifications.send_pending(session)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.exception("email sending failed")
+        await asyncio.sleep(interval)
+
+
 async def run_periodically(interval: int) -> None:
     while True:
         try:
             removed = await cleanup_once()
             removed["recurring_created"] = await extend_recurring_once()
+            removed["payment_reminders"] = await payment_reminders_once()
             if any(removed.values()):
                 log.info("maintenance", extra={"extra_fields": removed})
         except asyncio.CancelledError:

@@ -8,7 +8,7 @@ from ..errors import Conflict, Forbidden, NotFound, ValidationFailed
 from ..models import Expense, Member, PurchaseRequest, now_ms
 from ..schemas import DecisionIn, PurchaseRequestIn, PurchaseRequestOut
 from ..validation import amount_to_kop, check_category, clean_title
-from . import finance
+from . import finance, notifications
 
 MAX_PENDING_PER_AUTHOR = 20
 STATUSES = ("pending", "approved", "rejected", "cancelled")
@@ -40,6 +40,12 @@ async def create(db: AsyncSession, member: Member, body: PurchaseRequestIn) -> P
     db.add(request)
     await db.flush()
     await db.refresh(request, ["expense"])
+    await notifications.notify(
+        db, member.family_id, await notifications.parents(db, member.family_id, exclude=member.id),
+        "request_created", f"{member.name} просит: {request.title}",
+        f"{request.amount_kop / 100:,.2f} ₽".replace(",", " ").replace(".", ","), {"requestId": request.id},
+        dedupe_key=f"request_created:{request.id}",
+    )
     return request
 
 
@@ -106,6 +112,14 @@ async def _decide(db: AsyncSession, actor: Member, request_id: str, body: Decisi
         ))
     await db.flush()
     await db.refresh(request, ["expense"])
+    author = await db.get(Member, request.author_id) if request.author_id else None
+    if author:
+        verdict = "одобрил" if status == "approved" else "отклонил"
+        await notifications.notify(
+            db, request.family_id, [author], "request_decided", f"{actor.name} {verdict}: {request.title}",
+            request.decision_comment or ("Покупка записана в расходы" if status == "approved" else "Можно обсудить позже"),
+            {"requestId": request.id, "status": status}, dedupe_key=f"request_decided:{request.id}",
+        )
     return request
 
 

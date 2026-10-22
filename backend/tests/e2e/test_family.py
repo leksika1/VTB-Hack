@@ -124,7 +124,7 @@ def test_get_family_and_state(api, new_client):
     assert family["id"] == anna.family_id and len(family["members"]) == 2
 
     state = anna.get("/api/state").json()
-    assert set(state) == {"family", "currentUserId", "budgets", "expenses", "payments", "allowances"}
+    assert set(state) == {"family", "currentUserId", "budgets", "expenses", "payments", "allowances", "unreadNotifications"}
     assert state["currentUserId"] == anna.id
     assert state["budgets"] == [] and state["payments"] == []
     assert [e["id"] for e in state["expenses"]] == [expense["id"]]

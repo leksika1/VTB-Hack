@@ -47,6 +47,15 @@ class Member(Base):
     left_at: Mapped[int | None] = mapped_column(BigInteger, default=None)
     # parent — взрослый, управляет деньгами семьи; child — ребёнок, видит только свои карманные деньги
     role: Mapped[str] = mapped_column(String(8), default="parent", server_default="parent")
+    # E-mail для уведомлений (docs/FEATURES.md §9): только подтверждённый получает письма.
+    # Код подтверждения хранится хешем; при выходе из семьи всё стирается
+    email: Mapped[str | None] = mapped_column(String(254), default=None)
+    email_verified_at: Mapped[int | None] = mapped_column(BigInteger, default=None)
+    notify_by_email: Mapped[bool] = mapped_column(default=False, server_default=text("false"))
+    pending_email: Mapped[str | None] = mapped_column(String(254), default=None)
+    email_code_hash: Mapped[str | None] = mapped_column(String(64), default=None)
+    email_code_expires_at: Mapped[int | None] = mapped_column(BigInteger, default=None)
+    email_code_attempts: Mapped[int] = mapped_column(default=0, server_default=text("0"))
 
     family: Mapped[Family] = relationship(back_populates="members", lazy="joined")
 
@@ -237,6 +246,43 @@ class Settlement(Base):
     amount_kop: Mapped[int] = mapped_column(BigInteger)
     created_by: Mapped[str | None] = mapped_column(ForeignKey("members.id", ondelete="SET NULL"))
     created_at: Mapped[int] = mapped_column(BigInteger, default=now_ms)
+
+
+class Notification(Base):
+    """Уведомление участнику (docs/FEATURES.md §9). dedupe_key — одно уведомление на событие."""
+
+    __tablename__ = "notifications"
+    __table_args__ = (
+        Index("ix_notifications_member_created", "member_id", "created_at"),
+        UniqueConstraint("member_id", "dedupe_key", name="uq_notifications_member_dedupe"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    family_id: Mapped[str] = mapped_column(ForeignKey("families.id", ondelete="CASCADE"))
+    member_id: Mapped[str] = mapped_column(ForeignKey("members.id", ondelete="CASCADE"))
+    kind: Mapped[str] = mapped_column(String(32))
+    title: Mapped[str] = mapped_column(String(200))
+    body: Mapped[str] = mapped_column(String(500))
+    data: Mapped[dict] = mapped_column(JSON, default=dict)
+    dedupe_key: Mapped[str] = mapped_column(String(120))
+    created_at: Mapped[int] = mapped_column(BigInteger, default=now_ms, index=True)
+    read_at: Mapped[int | None] = mapped_column(BigInteger, default=None)
+
+
+class EmailOutbox(Base):
+    """Очередь писем: отправляет фоновая задача (SMTP) с повторами; в разработке письма остаются здесь."""
+
+    __tablename__ = "email_outbox"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    member_id: Mapped[str | None] = mapped_column(ForeignKey("members.id", ondelete="CASCADE"), index=True)
+    to_email: Mapped[str] = mapped_column(String(254))
+    subject: Mapped[str] = mapped_column(String(200))
+    body: Mapped[str] = mapped_column(String(2000))
+    created_at: Mapped[int] = mapped_column(BigInteger, default=now_ms, index=True)
+    sent_at: Mapped[int | None] = mapped_column(BigInteger, default=None)
+    attempts: Mapped[int] = mapped_column(default=0)
+    last_error: Mapped[str | None] = mapped_column(String(300), default=None)
 
 
 class IdempotencyRecord(Base):

@@ -45,6 +45,18 @@ class Settings(BaseSettings):
     # Интервал пустых сообщений в потоке событий, чтобы прокси не рвали соединение
     events_heartbeat_seconds: int = 15
 
+    # Уведомления и письма (docs/FEATURES.md §9)
+    notification_ttl_days: int = 90
+    # outbox — письма только складываются в email_outbox (разработка, тесты); smtp — отправляются
+    email_backend: str = "outbox"
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = "Семейный бюджет <no-reply@example.ru>"
+    smtp_starttls: bool = True
+    email_send_interval_seconds: int = 10
+
     log_level: str = "INFO"
 
     @property

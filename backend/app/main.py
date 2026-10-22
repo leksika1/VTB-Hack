@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import db, infra, maintenance, realtime
-from .api import family, finance, money, planning, system
+from .api import family, finance, me, money, planning, system
 from .config import get_settings
 from .errors import install_error_handlers
 from .middleware import BodySizeLimitMiddleware, RequestContextMiddleware, setup_logging
@@ -30,11 +30,13 @@ def create_app() -> FastAPI:
             if settings.maintenance_interval_seconds > 0
             else None
         )
+        mailer = asyncio.create_task(maintenance.send_emails_periodically(settings.email_send_interval_seconds))
         yield
-        if cleanup:
-            cleanup.cancel()
-            with suppress(asyncio.CancelledError):
-                await cleanup
+        for task in (cleanup, mailer):
+            if task:
+                task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await task
         await realtime.stop_listener()
         await infra.close_redis()
         await db.dispose_engine()
@@ -72,6 +74,7 @@ def create_app() -> FastAPI:
     app.include_router(finance.router, prefix="/api")
     app.include_router(money.router, prefix="/api")
     app.include_router(planning.router, prefix="/api")
+    app.include_router(me.router, prefix="/api")
     return app
 
 

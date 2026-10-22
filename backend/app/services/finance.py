@@ -4,7 +4,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import clock
-from . import allowance, recurring
+from . import allowance, notifications, recurring
 from ..domain.budget import MonthSummary, compute_month_summary
 from ..config import get_settings
 from ..errors import Conflict, Forbidden, NotFound, ValidationFailed
@@ -135,6 +135,8 @@ async def create_expense(db: AsyncSession, member: Member, body: ExpenseIn) -> E
     db.add(expense)
     await db.flush()
     await db.refresh(expense, ["author"])
+    await notifications.check_category_limit(db, expense.family_id, expense.category,
+                                             expense.date.strftime("%Y-%m"), member.id)
     return expense
 
 

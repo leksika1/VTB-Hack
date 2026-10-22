@@ -16,7 +16,7 @@ from ..schemas import (
     StateOut,
     SwitchUserIn,
 )
-from ..services import allowance, demo, families, finance
+from ..services import allowance, demo, families, finance, notifications
 
 router = APIRouter(tags=["family"])
 
@@ -101,4 +101,5 @@ async def get_state(member: CurrentMember, db: Db):
         expenses=[ExpenseOut.of(e) for e in await finance.list_expenses(db, family.id, author_id=None if adult else member.id)],
         payments=[PaymentOut.of(p) for p in await finance.list_payments(db, family.id)] if adult else [],
         allowances=await allowance.list_allowances(db, member),
+        unread_notifications=await notifications.unread_count(db, member),
     )

@@ -9,6 +9,7 @@ from ..errors import Forbidden, NotFound, ValidationFailed
 from ..models import Allowance, Expense, GoalContribution, Member
 from ..schemas import AllowanceIn, AllowanceOut
 from ..validation import amount_to_kop, kop_to_amount
+from . import notifications
 
 PERIODS = ("week", "month")
 
@@ -90,7 +91,11 @@ async def set_allowance(db: AsyncSession, actor: Member, member_id: str, body: A
     allowance.updated_by = actor.id
     await db.flush()
     await db.refresh(allowance)
-    return await to_out(db, allowance)
+    out = await to_out(db, allowance)
+    period = "в неделю" if allowance.period == "week" else "в месяц"
+    await notifications.notify(db, child.family_id, [child], "allowance_changed", "Карманные деньги обновлены",
+                               f"{format_rub(allowance.amount_kop)} {period}", {"memberId": child.id})
+    return out
 
 
 async def delete_allowance(db: AsyncSession, actor: Member, member_id: str) -> None:
