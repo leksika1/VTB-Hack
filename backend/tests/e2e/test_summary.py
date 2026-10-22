@@ -6,7 +6,7 @@ def test_summary_shape(api):
     anna = create_family(api)
     s = summary(anna)
     assert set(s) == {"monthKey", "hasBudget", "plan", "spent", "reserved", "leftByPlan", "freeByPlan",
-                      "unallocated", "categories", "upcomingPayments", "paidPayments", "expenses"}
+                      "unallocated", "savedThisMonth", "categories", "upcomingPayments", "paidPayments", "expenses"}
     assert s["monthKey"] == MONTH
     assert [c["key"] for c in s["categories"]] == ["food", "housing", "transport", "kids", "other"]
     assert set(s["categories"][0]) == {"key", "plan", "spent", "reserved", "left", "status", "overByExpenses"}

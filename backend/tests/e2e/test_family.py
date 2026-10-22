@@ -23,7 +23,8 @@ def test_create_family(api):
     assert family["name"] == "Ивановы"
     assert family["isDemo"] is False
     assert len(family["inviteCode"]) == 6 and family["inviteCode"].isalnum() and family["inviteCode"].isupper()
-    assert family["members"] == [{"id": body["currentUserId"], "name": "Анна", "color": family["members"][0]["color"]}]
+    assert family["members"] == [
+        {"id": body["currentUserId"], "name": "Анна", "color": family["members"][0]["color"], "role": "parent"}]
     assert family["members"][0]["color"].startswith("#")
 
 
@@ -63,7 +64,7 @@ def test_invite_preview(api, new_client):
     guest = new_client()
     r = guest.get(f"/api/invites/{anna.invite_code.lower()}")
     assert r.status_code == 200
-    assert r.json() == {"code": anna.invite_code, "familyName": "Сидоровы", "membersCount": 1}
+    assert r.json() == {"code": anna.invite_code, "familyName": "Сидоровы", "membersCount": 1, "role": "parent"}
 
 
 def test_invite_preview_errors(api):
@@ -123,7 +124,7 @@ def test_get_family_and_state(api, new_client):
     assert family["id"] == anna.family_id and len(family["members"]) == 2
 
     state = anna.get("/api/state").json()
-    assert set(state) == {"family", "currentUserId", "budgets", "expenses", "payments"}
+    assert set(state) == {"family", "currentUserId", "budgets", "expenses", "payments", "allowances"}
     assert state["currentUserId"] == anna.id
     assert state["budgets"] == [] and state["payments"] == []
     assert [e["id"] for e in state["expenses"]] == [expense["id"]]
@@ -159,21 +160,27 @@ def test_demo_family(api):
     demo = start_demo(api)
     family = demo.get("/api/family").json()
     assert family["isDemo"] is True and family["name"] == "Семья Смирновых"
-    assert [m["name"] for m in family["members"]] == ["Алексей", "Мария"]
+    assert [(m["name"], m["role"]) for m in family["members"]] == [
+        ("Алексей", "parent"), ("Мария", "parent"), ("Соня", "child")]
 
     state = demo.get("/api/state").json()
-    assert (len(state["budgets"]), len(state["expenses"]), len(state["payments"])) == (2, 12, 7)
+    assert (len(state["budgets"]), len(state["expenses"]), len(state["payments"])) == (2, 13, 7)
+    assert [a["amount"] for a in state["allowances"]] == [1500]
     s = summary(demo)
     assert s["plan"] == 140000
     assert s["reserved"] == 6500 + 1800 + 7500 + 5200
-    assert s["spent"] == 67889.9  # 38000 + 399 + 8500 + 4200 + 3400 + 6850.4 + 2150 + 1270.5 + 3120
+    # 38000 + 399 + 8500 + 4200 + 3400 + 6850.4 + 2150 + 1270.5 + 3120 + 180 (мороженое Сони)
+    assert s["spent"] == 68069.9
+    requests = demo.get("/api/purchase-requests").json()
+    assert [(r["title"], r["status"]) for r in requests] == [("Беспроводные наушники", "pending")]
+    assert requests[0]["check"]["verdict"] in ("ok", "tight")
 
 
 def test_each_visitor_gets_own_demo(api, new_client):
     a, b = start_demo(api), start_demo(new_client())
     assert a.family_id != b.family_id
     add_expense(a, 1)
-    assert len(b.get("/api/expenses", params={"month": MONTH}).json()) == 9
+    assert len(b.get("/api/expenses", params={"month": MONTH}).json()) == 10
 
 
 def test_switch_demo_user(api):

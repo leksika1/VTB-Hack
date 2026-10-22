@@ -4,9 +4,11 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import clock
+from . import allowance
 from ..domain.budget import MonthSummary, compute_month_summary
 from ..config import get_settings
 from ..errors import Conflict, Forbidden, NotFound, ValidationFailed
+from ..receipts import parse_receipt
 from ..models import Budget, Expense, Member, Payment, now_ms
 from ..schemas import BudgetIn, ExpenseIn, PaymentIn
 from ..validation import (
@@ -58,7 +60,7 @@ async def list_budgets(db: AsyncSession, family_id: str) -> list[Budget]:
 # ── Потолок объёма ──
 
 
-async def _check_capacity(db: AsyncSession, model, family_id: str, adding: int = 1) -> None:
+async def check_capacity(db: AsyncSession, model, family_id: str, adding: int = 1) -> None:
     """Одна семья не может бесконечно раздувать базу и ответ /state (защита от злоупотреблений)."""
     limit = get_settings().max_records_per_family
     count = await db.scalar(select(func.count()).select_from(model).where(model.family_id == family_id))
@@ -69,8 +71,12 @@ async def _check_capacity(db: AsyncSession, model, family_id: str, adding: int =
 # ── Расходы ──
 
 
-async def list_expenses(db: AsyncSession, family_id: str, month_key: str | None = None) -> list[Expense]:
+async def list_expenses(
+    db: AsyncSession, family_id: str, month_key: str | None = None, author_id: str | None = None
+) -> list[Expense]:
     q = select(Expense).where(Expense.family_id == family_id)
+    if author_id:
+        q = q.where(Expense.author_id == author_id)
     if month_key:
         start, end = month_bounds(check_month_key(month_key, "month"))
         q = q.where(Expense.date >= start, Expense.date < end)
@@ -84,15 +90,47 @@ async def _get_expense(db: AsyncSession, member: Member, expense_id: str) -> Exp
     return expense
 
 
+async def _payer(db: AsyncSession, member: Member, paid_by: str | None) -> str:
+    """Кто платил (docs/FEATURES.md §7): взрослый указывает любого текущего взрослого, ребёнок — только себя."""
+    if not paid_by or paid_by == member.id:
+        return member.id
+    payer = await db.get(Member, paid_by)
+    if payer is None or payer.family_id != member.family_id or not payer.active:
+        raise ValidationFailed("Участник не найден", "paidBy")
+    if not member.is_parent or not payer.is_parent:
+        raise ValidationFailed("Платившим можно указать только взрослого участника", "paidBy")
+    return payer.id
+
+
+def _check_can_modify(member: Member, expense: Expense, action: str) -> None:
+    # Расход из одобренного запроса меняют взрослые: иначе ребёнок мог бы увеличить одобренную сумму
+    if expense.request_id:
+        if not member.is_parent:
+            raise Forbidden("Этот расход создан по одобренному запросу — изменить его может взрослый")
+    elif expense.author_id != member.id:
+        raise Forbidden(f"{action} можно только свои расходы")
+
+
 async def create_expense(db: AsyncSession, member: Member, body: ExpenseIn) -> Expense:
-    await _check_capacity(db, Expense, member.family_id)
+    await check_capacity(db, Expense, member.family_id)
+    amount = amount_to_kop(body.amount)
+    on = parse_date(body.date)
+    receipt_key = None
+    if body.receipt:
+        receipt_key = parse_receipt(body.receipt, "receipt").key
+        if await find_by_receipt(db, member.family_id, receipt_key):
+            raise Conflict("Этот чек уже добавлен", "receipt")
+    if not member.is_parent:
+        await allowance.check_child_spending(db, member, amount, on)
     expense = Expense(
         family_id=member.family_id,
         title=clean_title(body.title),
-        amount_kop=amount_to_kop(body.amount),
+        amount_kop=amount,
         category=check_category(body.category),
-        date=parse_date(body.date),
+        date=on,
         author_id=member.id,
+        paid_by=await _payer(db, member, body.paid_by),
+        receipt_key=receipt_key,
     )
     db.add(expense)
     await db.flush()
@@ -100,14 +138,25 @@ async def create_expense(db: AsyncSession, member: Member, body: ExpenseIn) -> E
     return expense
 
 
+async def find_by_receipt(db: AsyncSession, family_id: str, receipt_key: str) -> Expense | None:
+    return await db.scalar(
+        select(Expense).where(Expense.family_id == family_id, Expense.receipt_key == receipt_key)
+    )
+
+
 async def update_expense(db: AsyncSession, member: Member, expense_id: str, body: ExpenseIn) -> Expense:
     expense = await _get_expense(db, member, expense_id)
-    if expense.author_id != member.id:
-        raise Forbidden("Изменять можно только свои расходы")
+    _check_can_modify(member, expense, "Изменять")
+    amount = amount_to_kop(body.amount)
+    on = parse_date(body.date)
+    if not member.is_parent:
+        await allowance.check_child_spending(db, member, amount, on, exclude_expense_id=expense.id)
     expense.title = clean_title(body.title)
-    expense.amount_kop = amount_to_kop(body.amount)
+    expense.amount_kop = amount
     expense.category = check_category(body.category)
-    expense.date = parse_date(body.date)
+    expense.date = on
+    if body.paid_by is not None:
+        expense.paid_by = await _payer(db, member, body.paid_by)
     await db.flush()
     return expense
 
@@ -116,8 +165,7 @@ async def delete_expense(db: AsyncSession, member: Member, expense_id: str) -> N
     expense = await db.get(Expense, expense_id)
     if expense is None or expense.family_id != member.family_id:
         return  # уже удалён — повторное удаление не ошибка
-    if expense.author_id != member.id:
-        raise Forbidden("Удалять можно только свои расходы")
+    _check_can_modify(member, expense, "Удалять")
     # Расход из оплаченного платежа: платёж возвращается в «Предстоит»
     if expense.payment_id:
         payment = await db.get(Payment, expense.payment_id)
@@ -147,7 +195,7 @@ async def _get_payment(db: AsyncSession, member: Member, payment_id: str, lock: 
 
 
 async def create_payment(db: AsyncSession, member: Member, body: PaymentIn) -> Payment:
-    await _check_capacity(db, Payment, member.family_id)
+    await check_capacity(db, Payment, member.family_id)
     payment = Payment(
         family_id=member.family_id,
         title=clean_title(body.title),
@@ -201,7 +249,7 @@ async def set_payment_paid(
     if paid:
         if payment.status == "paid":
             return payment, None
-        await _check_capacity(db, Expense, payment.family_id)
+        await check_capacity(db, Expense, payment.family_id)
         today = clock.today()
         same_month = payment.due_date.strftime("%Y-%m") == today.strftime("%Y-%m")
         expense = Expense(
@@ -211,6 +259,7 @@ async def set_payment_paid(
             category=payment.category,
             date=today if same_month else payment.due_date,
             author_id=member.id,
+            paid_by=member.id,
             payment_id=payment.id,
         )
         payment.status = "paid"
@@ -235,7 +284,7 @@ async def copy_payments_from_previous_month(db: AsyncSession, member: Member, mo
     check_month_key(month_key)
     existing = {p.title for p in await list_payments(db, member.family_id, month_key)}
     previous = await list_payments(db, member.family_id, shift_month(month_key, -1))
-    await _check_capacity(db, Payment, member.family_id, adding=len(previous))
+    await check_capacity(db, Payment, member.family_id, adding=len(previous))
     copies = []
     for p in previous:
         if p.title in existing:

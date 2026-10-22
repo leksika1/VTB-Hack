@@ -6,7 +6,7 @@ def test_create_expense(api):
     anna = create_family(api)
     e = add_expense(anna, 1250.5, "food", "  Продукты  ")
     assert set(e) == {"id", "familyId", "title", "amount", "category", "date", "authorId", "authorName",
-                      "paymentId", "createdAt"}
+                      "paymentId", "paidBy", "requestId", "createdAt"}
     assert (e["title"], e["amount"], e["category"], e["date"]) == ("Продукты", 1250.5, "food", TODAY)
     assert (e["authorId"], e["authorName"], e["paymentId"]) == (anna.id, "Анна", None)
     assert e["familyId"] == anna.family_id

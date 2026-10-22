@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .config import get_settings
 from .db import get_db
-from .errors import Unauthorized
+from .errors import Forbidden, Unauthorized
 from .models import Member, MemberSession, now_ms
 from .ratelimit import check_member_limit
 from .security import hash_token
@@ -55,6 +55,18 @@ async def current_member(request: Request, db: Db, authorization: Authorization 
 
 
 CurrentMember = Annotated[Member, Depends(current_member)]
+
+PARENT_ONLY = "Это доступно только взрослым участникам семьи"
+
+
+async def parent_member(member: CurrentMember) -> Member:
+    if not member.is_parent:
+        raise Forbidden(PARENT_ONLY)
+    return member
+
+
+# Взрослый участник: бюджет, платежи, сводки, приглашения, управление семьёй (docs/FEATURES.md §1)
+ParentMember = Annotated[Member, Depends(parent_member)]
 
 
 def mark_silent(request: Request) -> None:

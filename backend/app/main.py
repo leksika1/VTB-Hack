@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import db, infra, maintenance, realtime
-from .api import family, finance, system
+from .api import family, finance, money, system
 from .config import get_settings
 from .errors import install_error_handlers
 from .middleware import BodySizeLimitMiddleware, RequestContextMiddleware, setup_logging
@@ -70,6 +70,7 @@ def create_app() -> FastAPI:
     app.include_router(system.router, prefix="/api")
     app.include_router(family.router, prefix="/api")
     app.include_router(finance.router, prefix="/api")
+    app.include_router(money.router, prefix="/api")
     return app
 
 

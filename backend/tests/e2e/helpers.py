@@ -155,3 +155,20 @@ class EventStream:
             self._cm.__exit__(None, None, None)
         except Exception:
             pass
+
+
+def add_child(parent: Member, client: httpx.Client, name: str = "Соня") -> Member:
+    """Ребёнок входит по одноразовому детскому приглашению взрослого."""
+    r = parent.post("/api/family/child-invites")
+    assert r.status_code == 201, r.text
+    return join(client, r.json()["code"], name)
+
+
+def set_allowance(parent: Member, child: Member, amount: float = 1000, period: str = "week") -> dict:
+    r = parent.put(f"/api/family/members/{child.id}/allowance", {"amount": amount, "period": period})
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def receipt_qr(amount: str = "1250.50", fp: str = "3826443159", when: str = "20261021T1530") -> str:
+    return f"t={when}&s={amount}&fn=7380440700076549&i=41552&fp={fp}&n=1"

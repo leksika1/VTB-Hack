@@ -29,6 +29,10 @@ class SwitchUserIn(Schema):
     user_id: str
 
 
+class RoleIn(Schema):
+    role: str
+
+
 class BudgetIn(Schema):
     total_amount: float
     category_plans: dict[str, float] = {}
@@ -39,6 +43,36 @@ class ExpenseIn(Schema):
     amount: float
     category: str
     date: str
+    paid_by: str | None = None  # кто платил; по умолчанию автор (docs/FEATURES.md §7)
+    receipt: str | None = Field(default=None, max_length=512)  # строка QR-кода чека (§8)
+
+
+class AllowanceIn(Schema):
+    amount: float
+    period: str  # week | month
+
+
+class PurchaseRequestIn(Schema):
+    title: str = Field(max_length=500)
+    amount: float
+    category: str
+    comment: str | None = Field(default=None, max_length=1000)
+
+
+class DecisionIn(Schema):
+    comment: str | None = Field(default=None, max_length=1000)
+
+
+class ReceiptIn(Schema):
+    qr: str = Field(max_length=512)
+
+
+class ReceiptOut(Schema):
+    amount: float
+    date: str
+    time: str
+    duplicate: bool
+    duplicate_of: str | None
 
 
 class PaymentIn(Schema):
@@ -68,25 +102,27 @@ class UserOut(Schema):
     id: str
     name: str
     color: str
+    role: str  # parent | child
 
     @classmethod
     def of(cls, m: models.Member) -> "UserOut":
-        return cls(id=m.id, name=m.name, color=m.color)
+        return cls(id=m.id, name=m.name, color=m.color, role=m.role)
 
 
 class FamilyOut(Schema):
     id: str
     name: str
-    invite_code: str
+    # Код семьи даёт вход с правами взрослого — ребёнку он не отдаётся (null)
+    invite_code: str | None
     members: list[UserOut]
     is_demo: bool
 
     @classmethod
-    def of(cls, f: models.Family) -> "FamilyOut":
+    def of(cls, f: models.Family, viewer: models.Member) -> "FamilyOut":
         return cls(
             id=f.id,
             name=f.name,
-            invite_code=f.invite_code,
+            invite_code=f.invite_code if viewer.is_parent else None,
             members=[UserOut.of(m) for m in f.members if m.active],
             is_demo=f.is_demo,
         )
@@ -104,6 +140,12 @@ class InvitePreviewOut(Schema):
     code: str
     family_name: str
     members_count: int
+    role: str  # с какой ролью войдёт приглашённый: parent (код семьи) или child (детское приглашение)
+
+
+class ChildInviteOut(Schema):
+    code: str
+    expires_at: int
 
 
 class BudgetOut(Schema):
@@ -134,6 +176,8 @@ class ExpenseOut(Schema):
     author_id: str | None
     author_name: str | None
     payment_id: str | None
+    paid_by: str | None
+    request_id: str | None
     created_at: int
 
     @classmethod
@@ -148,6 +192,8 @@ class ExpenseOut(Schema):
             author_id=e.author_id,
             author_name=e.author.name if e.author else None,
             payment_id=e.payment_id,
+            paid_by=e.paid_by,
+            request_id=e.request_id,
             created_at=e.created_at,
         )
 
@@ -199,6 +245,7 @@ class StateOut(Schema):
     budgets: list[BudgetOut]
     expenses: list[ExpenseOut]
     payments: list[PaymentOut]
+    allowances: list["AllowanceOut"] = []
 
 
 class CategorySummaryOut(Schema):
@@ -220,6 +267,8 @@ class MonthSummaryOut(Schema):
     left_by_plan: float
     free_by_plan: float
     unallocated: float
+    # Справочно: взносы в цели за месяц; в формулы бюджета не входят (docs/FEATURES.md §4)
+    saved_this_month: float = 0
     categories: list[CategorySummaryOut]
     upcoming_payments: list[PaymentOut]
     paid_payments: list[PaymentOut]
@@ -236,6 +285,43 @@ class PurchaseCheckOut(Schema):
     reserved_payments: list[PaymentOut]
 
 
+class AllowanceOut(Schema):
+    member_id: str
+    amount: float
+    period: str
+    period_start: str
+    period_end: str
+    spent: float
+    left: float
+    updated_at: int
+
+
+class PurchaseRequestOut(Schema):
+    id: str
+    family_id: str
+    author_id: str | None
+    title: str
+    amount: float
+    category: str
+    comment: str | None
+    status: str
+    decided_by: str | None
+    decided_at: int | None
+    decision_comment: str | None
+    expense_id: str | None
+    created_at: int
+    check: PurchaseCheckOut | None = None  # только взрослым и только для pending
+
+    @classmethod
+    def of(cls, r: models.PurchaseRequest, check: "PurchaseCheckOut | None" = None) -> "PurchaseRequestOut":
+        return cls(
+            id=r.id, family_id=r.family_id, author_id=r.author_id, title=r.title,
+            amount=kop_to_amount(r.amount_kop), category=r.category, comment=r.comment, status=r.status,
+            decided_by=r.decided_by, decided_at=r.decided_at, decision_comment=r.decision_comment,
+            expense_id=r.expense.id if r.expense else None, created_at=r.created_at, check=check,
+        )
+
+
 class ErrorBody(Schema):
     code: str
     message: str
@@ -244,3 +330,6 @@ class ErrorBody(Schema):
 
 class ErrorOut(Schema):
     error: ErrorBody
+
+
+StateOut.model_rebuild()

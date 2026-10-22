@@ -8,7 +8,7 @@ from datetime import date
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import clock
-from ..models import Budget, Expense, Family, Member, Payment, now_ms
+from ..models import Allowance, Budget, Expense, Family, Member, Payment, PurchaseRequest, now_ms
 from ..schemas import SessionOut
 from ..security import MEMBER_COLORS
 from ..validation import shift_month
@@ -39,7 +39,9 @@ async def create_demo_family(db: AsyncSession) -> SessionOut:
     family = Family(name="Семья Смирновых", invite_code=await families.unique_invite_code(db), is_demo=True)
     alex = Member(family=family, name="Алексей", color=MEMBER_COLORS[0], joined_at=now - 1000 * HOUR_MS)
     maria = Member(family=family, name="Мария", color=MEMBER_COLORS[1], joined_at=now - 999 * HOUR_MS)
-    db.add_all([family, alex, maria])
+    # Ребёнок — для сценариев карманных денег и запроса на покупку (docs/FEATURES.md §2–3)
+    sonya = Member(family=family, name="Соня", color=MEMBER_COLORS[2], role="child", joined_at=now - 998 * HOUR_MS)
+    db.add_all([family, alex, maria, sonya])
     await db.flush()
 
     db.add_all(
@@ -86,7 +88,7 @@ async def create_demo_family(db: AsyncSession) -> SessionOut:
 
     def expense(title, amount, category, on, author, age_hours, paid_from=None) -> Expense:
         return Expense(family_id=family.id, title=title, amount_kop=_kop(amount), category=category, date=on,
-                       author_id=author.id, payment_id=paid_from.id if paid_from else None,
+                       author_id=author.id, paid_by=author.id, payment_id=paid_from.id if paid_from else None,
                        created_at=now - age_hours * HOUR_MS)
 
     db.add_all(
@@ -106,6 +108,13 @@ async def create_demo_family(db: AsyncSession) -> SessionOut:
             expense("Коммунальные услуги", 6400, "housing", d(prev, 25), maria, 700, pay_prev_util),
         ]
     )
+    db.add_all([
+        Allowance(member_id=sonya.id, family_id=family.id, amount_kop=_kop(1500), period="week", updated_by=maria.id),
+        Expense(family_id=family.id, title="Мороженое", amount_kop=_kop(180), category="food", date=today,
+                author_id=sonya.id, paid_by=sonya.id, created_at=now - HOUR_MS),
+        PurchaseRequest(family_id=family.id, author_id=sonya.id, title="Беспроводные наушники", amount_kop=_kop(3500),
+                        category="other", comment="Старые сломались", created_at=now - 3 * HOUR_MS),
+    ])
     await db.commit()
     return await families.issue_session(db, alex.id)
 
