@@ -97,7 +97,7 @@
 |---|---|
 | Версии зависимостей закреплены точно | `requirements.txt`, `package-lock.json` |
 | `pip-audit` и `npm audit` в CI — сборка падает при известной уязвимости | `.github/workflows/ci.yml` |
-| Dependabot еженедельно предлагает обновления pip, npm, Docker-образов и GitHub Actions | `.github/dependabot.yml` |
+| Версии обновляются вручную; известные уязвимости ловит аудит в CI (строка выше) — автоматических PR с обновлениями нет | — |
 | `GITHUB_TOKEN` только на чтение; секреты вебхуков — в окружениях dev/prod | `.github/workflows/ci.yml` |
 | Деплой только после зелёных unit, e2e на всём стеке и проверок фронтенда | `.github/workflows/ci.yml` |
 
