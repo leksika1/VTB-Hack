@@ -52,6 +52,7 @@ export function OnboardingPage({ invite, onInviteDismiss }: OnboardingPageProps)
           {invite && mode === 'join' ? (
             <JoinForm
               invite={invite}
+              onJoined={onInviteDismiss}
               onCancel={() => {
                 dismissInvite();
                 setMode('create');
@@ -171,7 +172,15 @@ function CreateForm() {
   );
 }
 
-function JoinForm({ invite, onCancel }: { invite: { code: string; familyName: string | null } | null; onCancel?: () => void }) {
+function JoinForm({
+  invite,
+  onCancel,
+  onJoined,
+}: {
+  invite: { code: string; familyName: string | null } | null;
+  onCancel?: () => void;
+  onJoined?: () => void;
+}) {
   const addToast = useUIStore((s) => s.addToast);
   const requestId = useRequestId();
   const join = useAsyncAction(joinFamily);
@@ -186,6 +195,8 @@ function JoinForm({ invite, onCancel }: { invite: { code: string; familyName: st
     const res = await join.run(code, invite?.familyName ?? null, userName, requestId);
     if (!res.ok) return;
     clearInviteFromUrl();
+    // Link and child codes never equal family.inviteCode, so App cannot tell on its own that the invite is used
+    onJoined?.();
     addToast(`Вы присоединились к «${res.value.name}»`);
   };
 

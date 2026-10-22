@@ -194,7 +194,8 @@ export async function createFamily(familyName: string, userName: string, request
 /** Join by invite code. The family name hint from the link is only for display, the server knows the family. */
 export async function joinFamily(code: string, _familyNameHint: string | null, userName: string, requestId: string): Promise<Family> {
   const normalized = code.trim().toUpperCase();
-  if (!/^[A-Z0-9]{6}$/.test(normalized)) throw new ApiError('Код состоит из 6 латинских букв и цифр', 'code');
+  // 6 characters: family or child code; 16: invite link (joins without approval)
+  if (!/^[A-Z0-9]{6}([A-Z0-9]{10})?$/.test(normalized)) throw new ApiError('Код состоит из 6 латинских букв и цифр', 'code');
   const session = await request<SessionResponse>(`/invites/${normalized}/join`, {
     method: 'POST',
     body: { userName },
