@@ -26,6 +26,8 @@ class Family(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     name: Mapped[str] = mapped_column(String(80))
     invite_code: Mapped[str] = mapped_column(String(6), unique=True)
+    # Постоянный детский код: вошедший по нему — ребёнок (после подтверждения взрослым)
+    child_invite_code: Mapped[str | None] = mapped_column(String(6), unique=True, default=None)
     is_demo: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[int] = mapped_column(BigInteger, default=now_ms)
 
@@ -47,6 +49,8 @@ class Member(Base):
     left_at: Mapped[int | None] = mapped_column(BigInteger, default=None)
     # parent — взрослый, управляет деньгами семьи; child — ребёнок, видит только свои карманные деньги
     role: Mapped[str] = mapped_column(String(8), default="parent", server_default="parent")
+    # pending — вошёл по коду и ждёт подтверждения взрослого: данных семьи не видит; active — участник
+    status: Mapped[str] = mapped_column(String(8), default="active", server_default="active")
     # E-mail для уведомлений (docs/FEATURES.md §9): только подтверждённый получает письма.
     # Код подтверждения хранится хешем; при выходе из семьи всё стирается
     email: Mapped[str | None] = mapped_column(String(254), default=None)
@@ -62,8 +66,18 @@ class Member(Base):
     family: Mapped[Family] = relationship(back_populates="members", lazy="joined")
 
     @property
-    def active(self) -> bool:
+    def present(self) -> bool:
+        """Не вышел из семьи (в том числе ещё ждёт подтверждения)."""
         return self.left_at is None
+
+    @property
+    def active(self) -> bool:
+        """Полноправный участник: не вышел и подтверждён."""
+        return self.left_at is None and self.status == "active"
+
+    @property
+    def pending(self) -> bool:
+        return self.left_at is None and self.status == "pending"
 
     @property
     def is_parent(self) -> bool:

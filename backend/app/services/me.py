@@ -25,7 +25,7 @@ _EMAIL_RE = re.compile(r"^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]{1,64}@[A-Za-z0-9](?:[A
 
 def to_out(m: Member) -> MeOut:
     return MeOut(
-        id=m.id, name=m.name, role=m.role, email=m.email, email_verified=m.email_verified_at is not None,
+        id=m.id, name=m.name, role=m.role, status=m.status, email=m.email, email_verified=m.email_verified_at is not None,
         notify_by_email=m.notify_by_email, pending_email=m.pending_email,
         vtb_linked=m.oidc_sub is not None,
     )

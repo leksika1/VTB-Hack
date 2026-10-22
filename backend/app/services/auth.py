@@ -67,7 +67,7 @@ async def callback(db: AsyncSession, code: str, state: str) -> OidcCallbackOut:
         await db.commit()
         return OidcCallbackOut(status="linked")
 
-    if linked and linked.active:
+    if linked and linked.present:  # ожидающий подтверждения получит сессию без данных семьи
         return OidcCallbackOut(status="session", session=await families.issue_session(db, linked.id))
     if linked:  # участник вышел из семьи — учётную запись можно привязать заново
         linked.oidc_sub = None

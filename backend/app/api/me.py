@@ -1,7 +1,7 @@
 """Профиль участника и уведомления (docs/FEATURES.md §9)."""
 from fastapi import APIRouter, Query, Response
 
-from ..deps import CurrentMember, Db
+from ..deps import AnyMember, CurrentMember, Db
 from ..schemas import CodeIn, EmailIn, MeOut, NotificationOut, NotificationSettingsIn
 from ..services import me, notifications
 
@@ -9,7 +9,7 @@ router = APIRouter(tags=["me"])
 
 
 @router.get("/me", response_model=MeOut, summary="Мой профиль")
-async def get_me(member: CurrentMember):
+async def get_me(member: AnyMember):
     return me.to_out(member)
 
 

@@ -40,6 +40,13 @@ class Forbidden(ApiError):
     code = "forbidden"
 
 
+class PendingApproval(Forbidden):
+    code = "pending_approval"
+
+    def __init__(self, message: str = "Взрослый участник семьи ещё не подтвердил ваш вход"):
+        super().__init__(message)
+
+
 class NotFound(ApiError):
     status = 404
     code = "not_found"

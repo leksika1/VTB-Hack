@@ -172,16 +172,29 @@ class FamilyOut(Schema):
     name: str
     # Код семьи даёт вход с правами взрослого — ребёнку он не отдаётся (null)
     invite_code: str | None
+    # Постоянный детский код: вошедший по нему — ребёнок. Только взрослым
+    child_invite_code: str | None
     members: list[UserOut]
+    # Ждут подтверждения входа (docs/FEATURES.md §1). Только взрослым
+    pending_members: list[UserOut]
+    # true — сам зритель ждёт подтверждения: видит только название семьи и себя
+    pending: bool
     is_demo: bool
 
     @classmethod
     def of(cls, f: models.Family, viewer: models.Member) -> "FamilyOut":
+        if viewer.pending:
+            return cls(id=f.id, name=f.name, invite_code=None, child_invite_code=None, members=[UserOut.of(viewer)],
+                       pending_members=[], pending=True, is_demo=f.is_demo)
+        adult = viewer.is_parent
         return cls(
             id=f.id,
             name=f.name,
-            invite_code=f.invite_code if viewer.is_parent else None,
+            invite_code=f.invite_code if adult else None,
+            child_invite_code=f.child_invite_code if adult else None,
             members=[UserOut.of(m) for m in f.members if m.active],
+            pending_members=[UserOut.of(m) for m in f.members if m.pending] if adult else [],
+            pending=False,
             is_demo=f.is_demo,
         )
 
@@ -198,12 +211,12 @@ class InvitePreviewOut(Schema):
     code: str
     family_name: str
     members_count: int
-    role: str  # с какой ролью войдёт приглашённый: parent (код семьи) или child (детское приглашение)
+    role: str  # с какой ролью войдёт приглашённый: parent (код семьи) или child (детский код)
 
 
 class ChildInviteOut(Schema):
     code: str
-    expires_at: int
+    expires_at: int | None  # постоянный детский код — null
 
 
 class BudgetOut(Schema):
@@ -482,6 +495,7 @@ class MeOut(Schema):
     id: str
     name: str
     role: str
+    status: str  # active | pending (ждёт подтверждения входа)
     email: str | None
     email_verified: bool
     notify_by_email: bool

@@ -17,13 +17,13 @@ import asyncio
 import logging
 import uuid
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete
 from sqlalchemy.exc import IntegrityError
 
 from . import db, infra
 from .config import get_settings
-from .models import Family, Member
-from .services.families import create_child_invite
+from .models import Family
+from .services.families import ensure_child_code
 from .validation import normalize_invite_code
 from .oidc import mock_sub
 from .services.demo import build_sample_family
@@ -61,13 +61,12 @@ async def ensure_showcase(reset: bool = False, session_factory=None) -> bool:
 
 
 async def showcase_codes(session_factory=None) -> tuple[str, str]:
-    """Код семьи витрины и новый одноразовый детский код (7 дней)."""
+    """Код семьи витрины и её постоянный детский код."""
     async with (session_factory or db.session)() as session:
         family = await session.get(Family, SHOWCASE_ID)
-        adult = await session.scalar(select(Member).where(Member.family_id == SHOWCASE_ID, Member.role == "parent",
-                                                          Member.left_at.is_(None)).order_by(Member.joined_at))
-        child = await create_child_invite(session, adult)
-        return family.invite_code, child.code
+        child_code = await ensure_child_code(session, family)
+        await session.commit()
+        return family.invite_code, child_code
 
 
 async def _main(reset: bool) -> None:
@@ -79,7 +78,8 @@ async def _main(reset: bool) -> None:
         print("Витрина создана" if created else "Витрина уже есть (для пересоздания: --reset)")
         family_code, child_code = await showcase_codes()
         print(f"Код семьи (вход взрослым): {family_code}")
-        print(f"Детский код (одноразовый, 7 дней): {child_code}")
+        print(f"Детский код (вход ребёнком): {child_code}")
+        print("Вошедшие по коду видят данные после подтверждения: Алексей или Мария → вкладка «Семья»")
     finally:
         await infra.close_redis()
         await db.dispose_engine()

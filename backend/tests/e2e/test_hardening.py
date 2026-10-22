@@ -71,7 +71,7 @@ def test_event_streams_per_member_are_capped(api, new_client):
 
 def test_rotate_invite_code(api, new_client):
     anna = create_family(api)
-    boris = join(new_client(), anna.invite_code)
+    boris = join(new_client(), anna)
     old = anna.invite_code
     stream = EventStream(new_client(), boris.token)
     try:

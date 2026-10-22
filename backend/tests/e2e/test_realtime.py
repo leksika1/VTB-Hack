@@ -32,7 +32,7 @@ def test_events_require_auth(api):
 
 def test_member_sees_changes_of_others(api, new_client):
     anna = create_family(api)
-    boris = join(new_client(), anna.invite_code)
+    boris = join(new_client(), anna)
     stream = EventStream(new_client(), anna.token)
     try:
         assert stream.next() == "ready"
@@ -53,7 +53,7 @@ def test_join_and_leave_are_announced(api, new_client):
     stream = EventStream(new_client(), anna.token)
     try:
         assert stream.next() == "ready"
-        boris = join(new_client(), anna.invite_code)
+        boris = join(new_client(), anna)
         assert wait_for(stream, "changed")
         boris.post("/api/family/leave")
         assert wait_for(stream, "changed")

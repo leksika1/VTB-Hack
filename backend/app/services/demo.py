@@ -53,6 +53,7 @@ async def build_sample_family(
     family = Family(name=name, invite_code=await families.unique_invite_code(db), is_demo=is_demo)
     if family_id:
         family.id = family_id
+    family.child_invite_code = await families.unique_invite_code(db)
     alex = Member(family=family, name="Алексей", color=MEMBER_COLORS[0], joined_at=now - 1000 * HOUR_MS,
                   oidc_sub=subs.get("Алексей"))
     maria = Member(family=family, name="Мария", color=MEMBER_COLORS[1], joined_at=now - 999 * HOUR_MS,

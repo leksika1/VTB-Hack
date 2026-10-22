@@ -60,8 +60,16 @@ def test_showcase_codes_let_jury_join(api, new_client, needs_db):
             await engine.dispose()
 
     family_code, child_code = asyncio.run(go())
+    assert asyncio.run(go()) == (family_code, child_code)  # оба кода постоянные
     adult = new_client().post(f"/api/invites/{family_code}/join", json={"userName": "Жюри"}).json()
-    assert adult["family"]["id"] == SHOWCASE_ID
-    assert len(api.get("/api/state", headers={"Authorization": f"Bearer {adult['token']}"}).json()["expenses"]) == 13
+    assert adult["family"]["id"] == SHOWCASE_ID and adult["family"]["pending"] is True
+    jury = {"Authorization": f"Bearer {adult['token']}"}
+    assert api.get("/api/state", headers=jury).json()["expenses"] == []  # до подтверждения — ничего
+
+    alexey = {"Authorization": f"Bearer {login_as(new_client(), 'alexey')['token']}"}
+    assert api.post(f"/api/family/members/{adult['currentUserId']}/approve", headers=alexey).status_code == 200
+    assert len(api.get("/api/state", headers=jury).json()["expenses"]) == 13
     child = new_client().post(f"/api/invites/{child_code}/join", json={"userName": "Ребёнок жюри"}).json()
     assert child["family"]["id"] == SHOWCASE_ID and child["family"]["inviteCode"] is None
+    family = api.get("/api/family", headers=alexey).json()
+    assert [m["name"] for m in family["pendingMembers"]] == ["Ребёнок жюри"]

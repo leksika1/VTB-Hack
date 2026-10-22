@@ -28,9 +28,10 @@ def kinds(m, **params):
 
 def test_request_notifications_and_read_state(api, new_client):
     anna = create_family(api)
-    boris = join(new_client(), anna.invite_code, "Борис")
+    boris = join(new_client(), anna, "Борис")
     child = add_child(anna, new_client())
-    assert "member_joined" in kinds(anna)  # Борис и Соня вошли
+    assert "member_join_request" in kinds(anna)  # Соня просила доступ
+    assert "member_joined" in kinds(boris)  # Анна впустила Соню
 
     req = child.post("/api/purchase-requests", {"title": "Наушники", "amount": 3500, "category": "other"}).json()
     for parent in (anna, boris):
@@ -54,7 +55,7 @@ def test_request_notifications_and_read_state(api, new_client):
 
 def test_notifications_are_private_and_paginated(api, new_client):
     anna = create_family(api)
-    boris = join(new_client(), anna.invite_code)
+    boris = join(new_client(), anna)
     own = boris.get("/api/notifications").json()
     anna_note = anna.get("/api/notifications").json()[0]
     # Чужое уведомление не помечается прочитанным
@@ -67,7 +68,7 @@ def test_notifications_are_private_and_paginated(api, new_client):
 
 def test_category_limit_notified_once_per_status(api, new_client):
     anna = create_family(api)
-    boris = join(new_client(), anna.invite_code)
+    boris = join(new_client(), anna)
     set_budget(anna, 10000, {"food": 1000})
     add_expense(anna, 900, "food")        # 90% → почти исчерпан
     add_expense(anna, 10, "food")         # всё ещё «почти» — без повтора
@@ -119,7 +120,7 @@ def last_code(db_url, member_id):
 
 def test_email_verification_flow(api, new_client, needs_db):
     anna = create_family(api)
-    boris = join(new_client(), anna.invite_code)
+    boris = join(new_client(), anna)
     me = anna.get("/api/me").json()
     assert (me["email"], me["emailVerified"], me["notifyByEmail"], me["role"]) == (None, False, False, "parent")
     assert_error(anna.put("/api/me/notifications", {"email": True}), 422, field="email")
@@ -161,7 +162,7 @@ def test_email_code_attempts_and_rate_limit(api, needs_db):
 
 def test_leaving_family_erases_email(api, new_client, needs_db):
     anna = create_family(api)
-    boris = join(new_client(), anna.invite_code)
+    boris = join(new_client(), anna)
     boris.put("/api/me/email", {"email": "boris@example.ru"})
     boris.post("/api/me/email/verify", {"code": last_code(needs_db, boris.id)})
     assert anna.delete(f"/api/family/members/{boris.id}").status_code == 204

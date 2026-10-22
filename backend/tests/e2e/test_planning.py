@@ -43,7 +43,7 @@ def contribute(m, goal, amount, on=None):
 
 def test_goal_lifecycle(api, new_client):
     anna = create_family(api)
-    boris = join(new_client(), anna.invite_code)
+    boris = join(new_client(), anna)
     deadline = (today() + timedelta(days=60)).isoformat()
     g = create_goal(anna, deadline=deadline)
     assert (g["status"], g["saved"], g["left"], g["percent"], g["etaMonth"]) == ("active", 0, 10000, 0, None)
@@ -197,7 +197,7 @@ def test_forecast_shape_and_rules(api, new_client):
 
 def test_settlement_flow(api, new_client):
     anna = create_family(api, user="Анна")
-    boris = join(new_client(), anna.invite_code, "Борис")
+    boris = join(new_client(), anna, "Борис")
     child = add_child(anna, new_client())
     set_allowance(anna, child, 1000)
     add_expense(anna, 9000, "food")
@@ -222,7 +222,7 @@ def test_settlement_flow(api, new_client):
 
 def test_settlement_validation(api, new_client):
     anna = create_family(api)
-    boris = join(new_client(), anna.invite_code)
+    boris = join(new_client(), anna)
     child = add_child(anna, new_client())
     url = f"/api/months/{MONTH}/settlements"
     assert_error(anna.post(url, {"fromId": anna.id, "toId": anna.id, "amount": 1}), 422, field="toId")
