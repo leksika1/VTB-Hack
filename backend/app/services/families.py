@@ -51,6 +51,13 @@ def anon_scope(client_ip: str) -> str:
     return "anon:" + hashlib.sha256(client_ip.encode()).hexdigest()[:32]
 
 
+async def _link_sub(db: AsyncSession, token: str | None) -> str | None:
+    # Внутри action: при повторе запроса с тем же Idempotency-Key одноразовый токен не нужен повторно
+    from .auth import consume_link_token
+
+    return await consume_link_token(db, token)
+
+
 def _active(family: Family) -> list[Member]:
     return [m for m in family.members if m.active]
 
@@ -65,7 +72,8 @@ async def create_family(db: AsyncSession, body: CreateFamilyIn, idem_key: str | 
 
     async def action() -> dict:
         family = Family(name=family_name, invite_code=await unique_invite_code(db))
-        member = Member(family=family, name=user_name, color=MEMBER_COLORS[0], role="parent")
+        member = Member(family=family, name=user_name, color=MEMBER_COLORS[0], role="parent",
+                        oidc_sub=await _link_sub(db, body.oidc_link_token))
         db.add_all([family, member])
         await db.flush()
         return {"memberId": member.id}
@@ -115,6 +123,7 @@ async def join_family(
             name=user_name,
             color=_next_color(total_ever),
             role="child" if child_invite else "parent",
+            oidc_sub=await _link_sub(db, body.oidc_link_token),
         )
         db.add(member)
         await db.flush()

@@ -9,3 +9,7 @@ pydantic==2.14.1
 pydantic-settings==2.16.1
 redis==8.1.0
 tzdata==2026.5
+# Вход через ВТБ ID (OIDC): проверка подписи id_token и запросы к провайдеру
+pyjwt[crypto]==2.15.1
+cryptography==50.0.2
+httpx==0.28.1

@@ -18,7 +18,7 @@
 | 8 | Расход по QR-коду чека | ✅ | ✅ | [§8](#8-qr-код-чека) |
 | 9 | Уведомления (в приложении и e-mail) | ✅ | ✅ | [§9](#9-уведомления) |
 | 10 | Импорт банковской выписки | ✅ | ✅ | [§10](#10-импорт-выписки) |
-| 11 | Вход через ВТБ ID (OIDC) | ⏳ | ⏳ | [§11](#11-вход-через-втб-id) |
+| 11 | Вход через ВТБ ID (OIDC) | ✅ | ✅ | [§11](#11-вход-через-втб-id) |
 
 ✅ — готово и покрыто e2e, ◐ — частично, ⏳ — в работе. Метрики продукта отложены по решению команды.
 
@@ -448,8 +448,25 @@ Import = {
 |---|---|---|
 | `GET /auth/oidc/config` | все | → `{enabled, providerName}` |
 | `POST /auth/oidc/start` | все (для `link` — с токеном) | `{intent: "login" \| "link", redirectUri}` → `{authorizationUrl}` |
-| `POST /auth/oidc/callback` | все | `{code, state}` → `Session` или `{status: "unlinked", linkToken}` или `{status: "linked"}` |
+| `POST /auth/oidc/callback` | все | `{code, state}` → `{status, session, linkToken}` — см. ниже |
 | `POST /families`, `POST /invites/{code}/join` | — | необязательное поле `oidcLinkToken` |
 | `DELETE /me/oidc` | все | → `204` |
 
 `redirectUri` должен входить в `OIDC_REDIRECT_URIS` — иначе `422`.
+
+Ответ callback:
+
+| `status` | Что пришло | Что делать фронтенду |
+|---|---|---|
+| `session` | `session` — как при создании семьи (`token`, `currentUserId`, `family`) | Войти |
+| `unlinked` | `linkToken` (одноразовый, 10 минут) | Показать «Создать семью» / «Войти по коду», передать `oidcLinkToken` |
+| `linked` | — | ВТБ ID привязан к текущему участнику |
+
+Ошибки: `422 state` — ссылка входа устарела или уже использована; `422 code` — банк не подтвердил вход
+(неверный код, подпись, срок, nonce); `409` — этот ВТБ ID уже привязан к другому участнику; `404` — вход через банк
+не настроен (`OIDC_ENABLED=false`).
+
+Переменные: `OIDC_ENABLED`, `OIDC_PROVIDER_NAME`, `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`,
+`OIDC_REDIRECT_URIS`, `OIDC_SCOPES`, `OIDC_MOCK`. Тестовый провайдер живёт на `{OIDC_ISSUER}` = `…/api/mock-idp`
+(`/authorize`, `/.well-known/openid-configuration`, `/jwks`); его ключ RS256 общий для всех копий backend (Redis),
+код одноразовый и живёт 60 секунд. Вышедший из семьи участник теряет привязку: тот же ВТБ ID можно привязать заново.

@@ -19,10 +19,22 @@ class Schema(BaseModel):
 class CreateFamilyIn(Schema):
     family_name: str = Field(max_length=200)
     user_name: str = Field(max_length=200)
+    oidc_link_token: str | None = Field(default=None, max_length=100)  # §11: привязать ВТБ ID к новому участнику
 
 
 class JoinFamilyIn(Schema):
     user_name: str = Field(max_length=200)
+    oidc_link_token: str | None = Field(default=None, max_length=100)
+
+
+class OidcStartIn(Schema):
+    intent: str  # login | link
+    redirect_uri: str = Field(max_length=500)
+
+
+class OidcCallbackIn(Schema):
+    code: str = Field(max_length=500)
+    state: str = Field(max_length=100)
 
 
 class SwitchUserIn(Schema):
@@ -534,6 +546,21 @@ class ImportOut(Schema):
                 duplicate=r.duplicate, error=r.error, expense_id=r.expense_id,
             ) for r in rows] if with_rows else None,
         )
+
+
+class OidcConfigOut(Schema):
+    enabled: bool
+    provider_name: str
+
+
+class OidcStartOut(Schema):
+    authorization_url: str
+
+
+class OidcCallbackOut(Schema):
+    status: str  # session | unlinked | linked
+    session: "SessionOut | None" = None
+    link_token: str | None = None
 
 
 class ErrorBody(Schema):

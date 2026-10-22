@@ -56,6 +56,8 @@ class Member(Base):
     email_code_hash: Mapped[str | None] = mapped_column(String(64), default=None)
     email_code_expires_at: Mapped[int | None] = mapped_column(BigInteger, default=None)
     email_code_attempts: Mapped[int] = mapped_column(default=0, server_default=text("0"))
+    # Учётная запись ВТБ ID (sub из id_token); одна учётная запись — один участник
+    oidc_sub: Mapped[str | None] = mapped_column(String(255), unique=True, default=None)
 
     family: Mapped[Family] = relationship(back_populates="members", lazy="joined")
 

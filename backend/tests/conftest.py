@@ -94,6 +94,11 @@ class LocalServer:
             MAINTENANCE_INTERVAL_SECONDS="0",
             EVENTS_HEARTBEAT_SECONDS="1",
             LOG_LEVEL="WARNING",
+            OIDC_ENABLED="true",
+            OIDC_MOCK="true",
+            OIDC_ISSUER=f"{self.url}/api/mock-idp",
+            OIDC_CLIENT_ID="family-budget",
+            OIDC_REDIRECT_URIS="http://localhost:5173/auth/callback",
         )
         from app.config import get_settings
         from app.main import create_app

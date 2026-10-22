@@ -19,6 +19,12 @@ services:
     environment:
       # Частый ping: обрыв потока через nginx замечается при следующей записи — тесты не ждут по 15 с
       EVENTS_HEARTBEAT_SECONDS: "2"
+      # Вход через банк — встроенный тестовый провайдер (docs/FEATURES.md §11)
+      OIDC_ENABLED: "true"
+      OIDC_MOCK: "true"
+      OIDC_ISSUER: http://127.0.0.1:18080/api/mock-idp
+      OIDC_CLIENT_ID: family-budget
+      OIDC_REDIRECT_URIS: http://localhost:5173/auth/callback
   db:
     # Прямой доступ к базе для тестов, которым он нужен (срок сессии, очистка, предел записей)
     ports:

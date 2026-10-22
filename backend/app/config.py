@@ -58,11 +58,27 @@ class Settings(BaseSettings):
     smtp_starttls: bool = True
     email_send_interval_seconds: int = 10
 
+    # Вход через ВТБ ID — OpenID Connect (docs/FEATURES.md §11)
+    oidc_enabled: bool = False
+    oidc_provider_name: str = "ВТБ ID"
+    oidc_issuer: str = ""
+    oidc_client_id: str = ""
+    oidc_client_secret: str = ""
+    # Куда провайдер может вернуть пользователя (точное совпадение), через запятую
+    oidc_redirect_uris: str = ""
+    oidc_scopes: str = "openid"
+    # Встроенный тестовый провайдер для демо и тестов. В бою — false
+    oidc_mock: bool = False
+
     log_level: str = "INFO"
 
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def oidc_redirect_uri_list(self) -> list[str]:
+        return [u.strip() for u in self.oidc_redirect_uris.split(",") if u.strip()]
 
     @property
     def tz(self) -> ZoneInfo:

@@ -27,7 +27,7 @@ def to_out(m: Member) -> MeOut:
     return MeOut(
         id=m.id, name=m.name, role=m.role, email=m.email, email_verified=m.email_verified_at is not None,
         notify_by_email=m.notify_by_email, pending_email=m.pending_email,
-        vtb_linked=bool(getattr(m, "oidc_sub", None)),
+        vtb_linked=m.oidc_sub is not None,
     )
 
 

@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import db, infra, maintenance, realtime
-from .api import family, finance, me, money, planning, system
+from .api import auth, family, finance, me, money, planning, system
 from .config import get_settings
 from .errors import install_error_handlers
 from .middleware import BodySizeLimitMiddleware, RequestContextMiddleware, setup_logging
@@ -24,6 +24,8 @@ def create_app() -> FastAPI:
         setup_logging(settings.log_level)
         db.init_engine(settings.database_url)
         await infra.init_redis(settings.redis_url)
+        if settings.oidc_mock:
+            log.warning("OIDC_MOCK=true: включён тестовый провайдер входа — только для демо и тестов")
         realtime.start_listener()
         cleanup = (
             asyncio.create_task(maintenance.run_periodically(settings.maintenance_interval_seconds))
@@ -76,6 +78,7 @@ def create_app() -> FastAPI:
     app.include_router(money.router, prefix="/api")
     app.include_router(planning.router, prefix="/api")
     app.include_router(me.router, prefix="/api")
+    app.include_router(auth.router, prefix="/api")
     return app
 
 
