@@ -1,12 +1,15 @@
 """Семья: создание, приглашение, вход, выход, демо, состояние."""
 from .helpers import (
     MONTH,
+    TODAY,
+    add_child,
     add_expense,
     assert_error,
     auth,
     create_family,
     join,
     key,
+    set_budget,
     start_demo,
     summary,
 )
@@ -64,7 +67,8 @@ def test_invite_preview(api, new_client):
     guest = new_client()
     r = guest.get(f"/api/invites/{anna.invite_code.lower()}")
     assert r.status_code == 200
-    assert r.json() == {"code": anna.invite_code, "familyName": "Сидоровы", "membersCount": 1, "role": "parent"}
+    assert r.json() == {"code": anna.invite_code, "familyName": "Сидоровы", "membersCount": 1, "role": "parent",
+                        "needsApproval": True}
 
 
 def test_invite_preview_errors(api):
@@ -78,7 +82,7 @@ def test_invite_preview_errors(api):
 
 def test_join_family(api, new_client):
     anna = create_family(api)
-    boris = join(new_client(), anna.invite_code, " Борис ")
+    boris = join(new_client(), anna, " Борис ")
     assert boris.family_id == anna.family_id
     family = anna.get("/api/family").json()
     names = [m["name"] for m in family["members"]]
@@ -102,13 +106,79 @@ def test_join_idempotent(api, new_client):
     first = guest.post(f"/api/invites/{anna.invite_code}/join", json={"userName": "Ева"}, headers={"Idempotency-Key": k})
     second = guest.post(f"/api/invites/{anna.invite_code}/join", json={"userName": "Ева"}, headers={"Idempotency-Key": k})
     assert first.json()["currentUserId"] == second.json()["currentUserId"]
-    assert len(anna.get("/api/family").json()["members"]) == 2
+    assert len(anna.get("/api/family").json()["pendingMembers"]) == 1
+
+
+def test_joiner_sees_nothing_until_adult_approves(api, new_client):
+    anna = create_family(api)
+    set_budget(anna, 10000, {})
+    add_expense(anna, 500, title="Аренда")
+    boris = join(new_client(), anna.invite_code)  # по коду, без подтверждения
+    family = boris.get("/api/family").json()
+    assert family["pending"] is True and [m["name"] for m in family["members"]] == ["Борис"]
+    assert (family["inviteCode"], family["childInviteCode"], family["pendingMembers"]) == (None, None, [])
+    state = boris.get("/api/state").json()
+    assert (state["budgets"], state["expenses"], state["payments"], state["allowances"]) == ([], [], [], [])
+    assert_error(boris.get("/api/expenses"), 403, "pending_approval")
+    assert_error(boris.get(f"/api/months/{MONTH}/summary"), 403, "pending_approval")
+    assert_error(boris.post("/api/expenses", {"title": "x", "amount": 1, "category": "food", "date": TODAY}),
+                 403, "pending_approval")
+    assert boris.get("/api/me").json()["status"] == "pending"
+
+    # Взрослые видят заявку; в составе семьи ожидающего нет
+    family = anna.get("/api/family").json()
+    assert [m["name"] for m in family["members"]] == ["Анна"] and family["pending"] is False
+    assert [m["id"] for m in family["pendingMembers"]] == [boris.id]
+    note = anna.get("/api/notifications").json()[0]
+    assert (note["kind"], note["data"]["memberId"]) == ("member_join_request", boris.id)
+    assert api.get(f"/api/invites/{anna.invite_code}").json()["membersCount"] == 1
+
+    r = anna.post(f"/api/family/members/{boris.id}/approve")
+    assert r.status_code == 200 and r.json()["pendingMembers"] == []
+    assert [m["name"] for m in r.json()["members"]] == ["Анна", "Борис"]
+    assert [e["title"] for e in boris.get("/api/expenses").json()] == ["Аренда"]
+    assert boris.get("/api/family").json()["inviteCode"] == anna.invite_code
+    assert boris.get("/api/me").json()["status"] == "active"
+    assert boris.get("/api/notifications").json()[0]["kind"] == "member_approved"
+    assert_error(anna.post(f"/api/family/members/{boris.id}/approve"), 404)  # уже подтверждён
+
+
+def test_reject_or_cancel_join_request(api, new_client):
+    anna = create_family(api)
+    eve = join(new_client(), anna.invite_code, "Ева")
+    assert anna.delete(f"/api/family/members/{eve.id}").status_code == 204  # отказ
+    assert_error(eve.get("/api/family"), 401)
+    gleb = join(new_client(), anna.invite_code, "Глеб")
+    assert gleb.post("/api/family/leave").status_code == 204  # передумал
+    assert_error(gleb.get("/api/family"), 401)
+    assert anna.get("/api/family").json()["pendingMembers"] == []
+
+
+def test_only_active_adult_can_approve(api, new_client):
+    anna = create_family(api)
+    first = join(new_client(), anna.invite_code, "Ева")
+    second = join(new_client(), anna.invite_code, "Глеб")
+    assert_error(first.post(f"/api/family/members/{second.id}/approve"), 403, "pending_approval")
+    child = add_child(anna, new_client())
+    assert_error(child.post(f"/api/family/members/{second.id}/approve"), 403, "forbidden")
+    other = create_family(new_client(), "Чужие", "Ира")
+    assert_error(other.post(f"/api/family/members/{second.id}/approve"), 404)
+    # Ожидающих нельзя «повысить» в обход подтверждения
+    assert_error(anna.put(f"/api/family/members/{second.id}", {"role": "child"}), 404)
+
+
+def test_pending_requests_count_toward_member_limit(api, new_client):
+    anna = create_family(api)
+    for i in range(9):
+        join(new_client(), anna.invite_code, f"Гость {i}")
+    r = new_client().post(f"/api/invites/{anna.invite_code}/join", json={"userName": "Лишний"})
+    assert_error(r, 409, "conflict")
 
 
 def test_family_member_limit(api, new_client):
     anna = create_family(api)
     for i in range(9):
-        join(new_client(), anna.invite_code, f"Участник {i}")
+        join(new_client(), anna, f"Участник {i}")
     r = new_client().post(f"/api/invites/{anna.invite_code}/join", json={"userName": "Лишний"})
     assert_error(r, 409, "conflict", message="В семье уже 10 участников")
 
@@ -118,7 +188,7 @@ def test_family_member_limit(api, new_client):
 
 def test_get_family_and_state(api, new_client):
     anna = create_family(api)
-    boris = join(new_client(), anna.invite_code)
+    boris = join(new_client(), anna)
     expense = add_expense(boris, 250, "kids")
     family = anna.get("/api/family").json()
     assert family["id"] == anna.family_id and len(family["members"]) == 2
@@ -136,7 +206,7 @@ def test_get_family_and_state(api, new_client):
 
 def test_leave_family_keeps_records_and_closes_session(api, new_client):
     anna = create_family(api)
-    boris = join(new_client(), anna.invite_code)
+    boris = join(new_client(), anna)
     add_expense(boris, 10, "transport", "Бензин")
     assert boris.post("/api/family/leave").status_code == 204
     assert_error(boris.get("/api/state"), 401, "unauthorized")

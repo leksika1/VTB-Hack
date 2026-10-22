@@ -148,7 +148,7 @@ erDiagram
 
 | Таблица | Что хранит |
 |---|---|
-| `members.role`, `child_invites` | Роли parent/child; одноразовые детские приглашения |
+| `members.role`, `members.status`, `families.child_invite_code` | Роли parent/child; подтверждение входа (`active`/`pending`); постоянный детский код. `invite_links` — многоразовые ссылки без подтверждения (хэш кода, роль, срок, счётчик входов). `child_invites` — старые одноразовые приглашения |
 | `allowances` | Карманные деньги ребёнка: сумма и период |
 | `purchase_requests` | Запросы на покупку и решения; `expenses.request_id` — созданный расход |
 | `goals`, `goal_contributions` | Цели-копилки и взносы |

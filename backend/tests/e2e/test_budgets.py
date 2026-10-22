@@ -25,7 +25,7 @@ def test_create_and_read_budget(api):
 
 def test_edit_budget_by_another_member(api, new_client):
     anna = create_family(api)
-    boris = join(new_client(), anna.invite_code)
+    boris = join(new_client(), anna)
     first = set_budget(anna, 100000)
     second = set_budget(boris, 120000)
     assert second["totalAmount"] == 120000 and second["updatedAt"] >= first["updatedAt"]

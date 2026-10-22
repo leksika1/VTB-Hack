@@ -42,7 +42,7 @@ def test_set_and_read_allowance(api, new_client):
 
 def test_allowance_validation(api, new_client):
     anna = create_family(api)
-    boris = join(new_client(), anna.invite_code)
+    boris = join(new_client(), anna)
     child = add_child(anna, new_client())
     url = f"/api/family/members/{child.id}/allowance"
     assert_error(anna.put(url, {"amount": 100, "period": "day"}), 422, field="period")
@@ -113,7 +113,7 @@ def test_remove_allowance(api, new_client):
 
 def test_paid_by(api, new_client):
     anna = create_family(api)
-    boris = join(new_client(), anna.invite_code)
+    boris = join(new_client(), anna)
     child = add_child(anna, new_client())
     e = add_expense(anna, 100)
     assert e["paidBy"] == anna.id  # по умолчанию — автор
@@ -177,7 +177,7 @@ def test_request_reject_and_cancel(api, new_client):
 
 def test_request_permissions(api, new_client):
     anna = create_family(api)
-    boris = join(new_client(), anna.invite_code)
+    boris = join(new_client(), anna)
     child = add_child(anna, new_client())
     own = create_request(anna, title="Кофемашина")
     # Себе не одобряет, другой взрослый — может
@@ -220,7 +220,7 @@ def test_request_expense_can_only_be_changed_by_parent(api, new_client):
 
 def test_parallel_decisions(api, new_client):
     anna = create_family(api)
-    boris = join(new_client(), anna.invite_code)
+    boris = join(new_client(), anna)
     child = add_child(anna, new_client())
     req = create_request(child)
     calls = [(anna, "approve"), (boris, "reject"), (anna, "reject"), (boris, "approve")]

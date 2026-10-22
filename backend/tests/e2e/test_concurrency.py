@@ -23,7 +23,7 @@ def test_parallel_requests_with_same_idempotency_key_create_one_expense(api):
 
 def test_parallel_budget_creation_for_new_month(api, new_client):
     anna = create_family(api)
-    boris = join(new_client(), anna.invite_code)
+    boris = join(new_client(), anna)
     members = [anna, boris] * 4
     with ThreadPoolExecutor(max_workers=len(members)) as pool:
         responses = list(pool.map(
@@ -35,7 +35,7 @@ def test_parallel_budget_creation_for_new_month(api, new_client):
 
 def test_parallel_mark_paid_creates_single_expense(api, new_client):
     anna = create_family(api)
-    boris = join(new_client(), anna.invite_code)
+    boris = join(new_client(), anna)
     p = add_payment(anna, 500)
     members = [anna, boris] * 3
     with ThreadPoolExecutor(max_workers=len(members)) as pool:

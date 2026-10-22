@@ -17,3 +17,8 @@ def hash_token(token: str) -> str:
 
 def new_invite_code() -> str:
     return "".join(secrets.choice(_INVITE_ALPHABET) for _ in range(6))
+
+
+def new_invite_link_code() -> str:
+    """Код ссылки-приглашения: 16 символов (80 бит) — вход без подтверждения, перебором не угадать."""
+    return "".join(secrets.choice(_INVITE_ALPHABET) for _ in range(16))

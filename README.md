@@ -11,7 +11,9 @@
 | Документ | О чём |
 |---|---|
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Компоненты, сценарии, модель данных, безопасность, масштабирование, целевая архитектура пилота |
+| [docs/FEATURES.md](docs/FEATURES.md) | Фичи второй очереди: роли, карманные деньги, запросы, цели, прогноз, импорт, ВТБ ID — правила и контракт |
 | [docs/API.md](docs/API.md) | Все эндпоинты: запросы, ответы, ошибки, лимиты, идемпотентность, поток событий |
+| [docs/TEST_DATA.md](docs/TEST_DATA.md) | Тестовые данные: демо-семья, витрина на сервере, тестовые входы, примеры чеков и выписки |
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | Развёртывание в Dokploy, переменные окружения, health-проверки, журнал, бэкапы, частые проблемы |
 | [docs/SECURITY.md](docs/SECURITY.md) | Модель угроз, защита от DDoS и злоупотреблений, результаты аудита, остаточные риски |
 | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Локальный запуск, тесты, CI, как добавить эндпоинт или миграцию |
@@ -42,7 +44,9 @@ frontend/            React-приложение и nginx (Dockerfile)
 backend/app/         FastAPI: api/ → services/ → domain/, модели, миграции
 backend/tests/       unit/ — формулы; e2e/ — все эндпоинты по HTTP
 docs/                документация
-docker-compose.yml   прод-стек: frontend, backend, PostgreSQL, Redis
+docker-compose.yml   весь стек для локального запуска и CI
+backend/docker-compose.yml   сервис «Backend» в Dokploy: backend + PostgreSQL + Redis
+frontend/docker-compose.yml  сервис «Frontend» в Dokploy: nginx с фронтендом
 docker-compose.dev.yml  добавка для разработки: PostgreSQL и Redis на localhost
 docker-compose.e2e.yml  добавка для запуска всего стека и e2e: порт 18080, 2 копии backend
 ```

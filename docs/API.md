@@ -114,7 +114,7 @@ Authorization: Bearer <token>
 
 | Группа | Эндпоинты | Раздел |
 |---|---|---|
-| Участники | `POST /family/child-invites`, `PUT/DELETE /family/members/{id}` | [§1](FEATURES.md#1-роли-в-семье) |
+| Участники | `POST /family/child-invites`, `POST /family/child-invite-code`, `POST /family/members/{id}/approve`, `GET/POST /family/invite-links`, `DELETE /family/invite-links/{id}`, `PUT/DELETE /family/members/{id}` | [§1](FEATURES.md#1-роли-в-семье) |
 | Карманные деньги | `GET /allowances`, `PUT/DELETE /family/members/{id}/allowance` | [§2](FEATURES.md#2-карманные-деньги) |
 | Запросы на покупку | `GET/POST /purchase-requests`, `POST /purchase-requests/{id}/approve\|reject\|cancel` | [§3](FEATURES.md#3-запросы-на-покупку) |
 | Цели | `GET/POST /goals`, `PUT/DELETE /goals/{id}`, `POST /goals/{id}/archive`, `GET/POST /goals/{id}/contributions`, `DELETE /goals/{id}/contributions/{cid}` | [§4](FEATURES.md#4-цели-копилки) |
@@ -176,7 +176,8 @@ Authorization: Bearer <token>
 ### `POST /api/demo` — демо-семья
 
 Публичный, лимит `signup`, без тела. Создаёт для посетителя отдельную копию «Семьи Смирновых»
-(2 участника, бюджеты на этот и прошлый месяц, 12 расходов, 7 платежей) и входит как «Алексей».
+(взрослые Алексей и Мария, ребёнок Соня с карманными деньгами и запросом на покупку; бюджеты на этот
+и прошлый месяц, 13 расходов, 7 платежей) и входит как «Алексей». Полный состав — [TEST_DATA.md](TEST_DATA.md).
 Демо-семьи удаляются через 24 часа (`DEMO_TTL_HOURS`). Ответ `201` — как у создания семьи, `isDemo: true`.
 
 ### `GET /api/family` — моя семья

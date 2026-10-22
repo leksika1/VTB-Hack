@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .config import get_settings
 from .db import get_db
-from .errors import Forbidden, Unauthorized
+from .errors import Forbidden, PendingApproval, Unauthorized
 from .models import Member, MemberSession, now_ms
 from .ratelimit import check_member_limit
 from .security import hash_token
@@ -36,7 +36,8 @@ async def resolve_member(db: AsyncSession, authorization: str | None) -> Member:
         raise Unauthorized()
 
     member = await db.get(Member, session.member_id)
-    if member is None or not member.active:
+    # Ожидающий подтверждения входа тоже авторизован: ему нужны GET /family, выход и поток событий
+    if member is None or not member.present:
         raise Unauthorized()
 
     if now - session.last_seen_at > _TOUCH_EVERY_MS:
@@ -45,12 +46,22 @@ async def resolve_member(db: AsyncSession, authorization: str | None) -> Member:
     return member
 
 
-async def current_member(request: Request, db: Db, authorization: Authorization = None) -> Member:
+async def any_member(request: Request, db: Db, authorization: Authorization = None) -> Member:
     member = await resolve_member(db, authorization)
     # Для журнала и события «данные изменились» (middleware.py)
     request.state.family_id = member.family_id
     request.state.member_id = member.id
     await check_member_limit(member.id, write=request.method != "GET")
+    return member
+
+
+# Участник, в том числе ожидающий подтверждения входа: только там, где данные семьи не отдаются
+AnyMember = Annotated[Member, Depends(any_member)]
+
+
+async def current_member(member: AnyMember) -> Member:
+    if member.pending:
+        raise PendingApproval()
     return member
 
 

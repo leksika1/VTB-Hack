@@ -53,7 +53,7 @@ def test_list_payments_sorted_by_due_date(api):
 
 def test_update_and_delete_upcoming_payment(api, new_client):
     anna = create_family(api)
-    boris = join(new_client(), anna.invite_code)
+    boris = join(new_client(), anna)
     p = add_payment(anna, 100)
     # Любой участник может править предстоящий платёж
     r = boris.put(f"/api/payments/{p['id']}", {"title": "Садик", "amount": 7500, "category": "kids", "dueDate": "2026-05-06"})
@@ -67,7 +67,7 @@ def test_update_and_delete_upcoming_payment(api, new_client):
 
 def test_mark_paid_turns_reserve_into_expense(api, new_client):
     anna = create_family(api)
-    boris = join(new_client(), anna.invite_code)
+    boris = join(new_client(), anna)
     set_budget(anna, 100000)
     p = add_payment(anna, 38000, "housing", due=f"{MONTH}-01")
 

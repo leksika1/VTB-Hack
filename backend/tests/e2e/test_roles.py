@@ -1,46 +1,50 @@
-"""Роли в семье: детские приглашения, права ребёнка, смена роли, исключение (docs/FEATURES.md §1)."""
+"""Роли в семье: детский код, права ребёнка, смена роли, исключение (docs/FEATURES.md §1)."""
 import pytest
 
-from .helpers import MONTH, TODAY, add_child, add_expense, assert_error, create_family, join, set_budget
+from .helpers import MONTH, TODAY, add_child, add_expense, approve, assert_error, create_family, join, set_budget
 
 PARENT_ONLY = "Это доступно только взрослым участникам семьи"
 
 
-def test_child_joins_by_one_time_invite(api, new_client):
+def test_child_joins_by_permanent_child_code(api, new_client):
     anna = create_family(api)
+    code = anna.get("/api/family").json()["childInviteCode"]
+    assert len(code) == 6 and code != anna.invite_code
     r = anna.post("/api/family/child-invites")
-    assert r.status_code == 201
-    code = r.json()["code"]
-    assert len(code) == 6 and r.json()["expiresAt"] > 0
+    assert r.status_code == 200 and r.json() == {"code": code, "expiresAt": None}  # тот же постоянный код
     assert new_client().get(f"/api/invites/{code}").json()["role"] == "child"
 
-    child = join(new_client(), code, "Соня")
+    sonya = approve(anna, join(new_client(), code, "Соня"))
+    approve(anna, join(new_client(), code, "Петя"))  # код многоразовый, как код семьи
     members = {m["name"]: m["role"] for m in anna.get("/api/family").json()["members"]}
-    assert members == {"Анна": "parent", "Соня": "child"}
-    # Код одноразовый
-    assert_error(new_client().post(f"/api/invites/{code}/join", json={"userName": "Ещё"}), 404, field="code")
-    assert child.get("/api/state").status_code == 200
+    assert members == {"Анна": "parent", "Соня": "child", "Петя": "child"}
+    assert sonya.get("/api/state").status_code == 200
+
+
+def test_rotate_child_code(api, new_client):
+    anna = create_family(api)
+    child = add_child(anna, new_client())
+    old = anna.get("/api/family").json()["childInviteCode"]
+    r = anna.post("/api/family/child-invite-code")
+    assert r.status_code == 200
+    new = r.json()["childInviteCode"]
+    assert new != old and len(new) == 6 and r.json()["inviteCode"] == anna.invite_code
+    assert_error(new_client().get(f"/api/invites/{old}"), 404)
+    assert new_client().get(f"/api/invites/{new}").json()["role"] == "child"
+    assert child.get("/api/state").status_code == 200  # дети в семье остаются
 
 
 def test_family_code_still_makes_parent(api, new_client):
     anna = create_family(api)
-    boris = join(new_client(), anna.invite_code)
+    boris = join(new_client(), anna)
     assert next(m for m in anna.get("/api/family").json()["members"] if m["id"] == boris.id)["role"] == "parent"
-
-
-def test_child_invite_limit(api, new_client):
-    anna = create_family(api)
-    codes = [anna.post("/api/family/child-invites").json()["code"] for _ in range(5)]
-    assert_error(anna.post("/api/family/child-invites"), 409, "conflict")
-    # Использованное приглашение освобождает место
-    join(new_client(), codes[0], "Соня")
-    assert anna.post("/api/family/child-invites").status_code == 201
 
 
 def test_child_cannot_invite(api, new_client):
     anna = create_family(api)
     child = add_child(anna, new_client())
     assert_error(child.post("/api/family/child-invites"), 403, "forbidden", message=PARENT_ONLY)
+    assert child.get("/api/family").json()["childInviteCode"] is None
 
 
 @pytest.mark.parametrize("method,path,body", [
@@ -52,6 +56,8 @@ def test_child_cannot_invite(api, new_client):
     ("GET", f"/api/months/{MONTH}/summary", None),
     ("POST", f"/api/months/{MONTH}/purchase-check", {"amount": 1}),
     ("POST", "/api/family/invite-code", None),
+    ("POST", "/api/family/child-invite-code", None),
+    ("POST", "/api/family/members/x/approve", None),
     ("PUT", "/api/family/members/x", {"role": "parent"}),
     ("DELETE", "/api/family/members/x", None),
     ("PUT", "/api/family/members/x/allowance", {"amount": 1, "period": "week"}),
@@ -77,7 +83,7 @@ def test_child_sees_only_own_data(api, new_client):
 
 def test_change_role(api, new_client):
     anna = create_family(api)
-    boris = join(new_client(), anna.invite_code)
+    boris = join(new_client(), anna)
     r = anna.put(f"/api/family/members/{boris.id}", {"role": "child"})
     assert r.status_code == 200
     assert {m["id"]: m["role"] for m in r.json()["members"]}[boris.id] == "child"
@@ -94,14 +100,14 @@ def test_last_parent_is_protected(api, new_client):
     assert_error(anna.put(f"/api/family/members/{anna.id}", {"role": "child"}), 409, "conflict")
     assert_error(anna.post("/api/family/leave"), 409, "conflict")
     # Когда есть второй взрослый — можно
-    boris = join(new_client(), anna.invite_code)
+    boris = join(new_client(), anna)
     assert anna.put(f"/api/family/members/{anna.id}", {"role": "child"}).status_code == 200
     assert boris.get("/api/family").status_code == 200 and child.get("/api/family").status_code == 200
 
 
 def test_remove_member(api, new_client):
     anna = create_family(api)
-    boris = join(new_client(), anna.invite_code)
+    boris = join(new_client(), anna)
     add_expense(boris, 100, title="Бензин")
     assert_error(anna.delete(f"/api/family/members/{anna.id}"), 422)  # себя — только через «выйти»
     assert anna.delete(f"/api/family/members/{boris.id}").status_code == 204
@@ -125,6 +131,7 @@ def test_child_does_not_get_family_invite_code(api, new_client):
     r = anna.post("/api/family/child-invites")
     joined = new_client().post(f"/api/invites/{r.json()['code']}/join", json={"userName": "Соня"}).json()
     assert joined["family"]["inviteCode"] is None
+    assert anna.post(f"/api/family/members/{joined['currentUserId']}/approve").status_code == 200
     child_headers = {"Authorization": f"Bearer {joined['token']}"}
     assert api.get("/api/family", headers=child_headers).json()["inviteCode"] is None
     assert api.get("/api/state", headers=child_headers).json()["family"]["inviteCode"] is None

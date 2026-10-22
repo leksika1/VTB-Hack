@@ -58,7 +58,8 @@ def queue_email(db: AsyncSession, member: Member, subject: str, body: str, to: s
 async def _family(db: AsyncSession, family_id: str) -> list[Member]:
     # Запрос, а не family.members: связь из кэша сессии подгружалась бы лениво (в async — ошибка)
     return list(await db.scalars(
-        select(Member).where(Member.family_id == family_id, Member.left_at.is_(None)).order_by(Member.joined_at)
+        select(Member).where(Member.family_id == family_id, Member.left_at.is_(None), Member.status == "active")
+        .order_by(Member.joined_at)
     ))
 
 

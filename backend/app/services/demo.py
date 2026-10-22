@@ -1,6 +1,9 @@
 """
-Демо-семья на сервере. У каждого посетителя своя копия, поэтому демо можно ломать как угодно;
-копии старше DEMO_TTL_HOURS удаляет фоновая очистка (maintenance.py).
+Пример семьи с данными (состав — docs/TEST_DATA.md).
+
+- create_demo_family — личная копия для посетителя (кнопка «Посмотреть на примере»): её можно ломать,
+  копии старше DEMO_TTL_HOURS удаляет фоновая очистка.
+- build_sample_family — то же наполнение для постоянной тестовой семьи на сервере (app/seed.py).
 """
 import calendar
 from datetime import date
@@ -22,7 +25,18 @@ def _kop(rub: float) -> int:
 
 
 async def create_demo_family(db: AsyncSession) -> SessionOut:
+    alex = await build_sample_family(db, name="Семья Смирновых", is_demo=True)
+    return await families.issue_session(db, alex.id)
+
+
+async def build_sample_family(
+    db: AsyncSession, *, name: str, is_demo: bool, family_id: str | None = None,
+    oidc_subs: dict[str, str] | None = None,
+) -> Member:
+    """Семья с бюджетами, расходами, платежами и ребёнком. Возвращает Алексея.
+    oidc_subs — {"Алексей": sub, …}: участникам сразу привязывается учётная запись тестового ВТБ ID."""
     now = now_ms()
+    subs = oidc_subs or {}
 
     today = clock.today()
     month = today.strftime("%Y-%m")
@@ -36,11 +50,17 @@ async def create_demo_family(db: AsyncSession) -> SessionOut:
     def d(month_key: str, dd: int) -> date:
         return date.fromisoformat(f"{month_key}-{dd:02d}")
 
-    family = Family(name="Семья Смирновых", invite_code=await families.unique_invite_code(db), is_demo=True)
-    alex = Member(family=family, name="Алексей", color=MEMBER_COLORS[0], joined_at=now - 1000 * HOUR_MS)
-    maria = Member(family=family, name="Мария", color=MEMBER_COLORS[1], joined_at=now - 999 * HOUR_MS)
+    family = Family(name=name, invite_code=await families.unique_invite_code(db), is_demo=is_demo)
+    if family_id:
+        family.id = family_id
+    family.child_invite_code = await families.unique_invite_code(db)
+    alex = Member(family=family, name="Алексей", color=MEMBER_COLORS[0], joined_at=now - 1000 * HOUR_MS,
+                  oidc_sub=subs.get("Алексей"))
+    maria = Member(family=family, name="Мария", color=MEMBER_COLORS[1], joined_at=now - 999 * HOUR_MS,
+                   oidc_sub=subs.get("Мария"))
     # Ребёнок — для сценариев карманных денег и запроса на покупку (docs/FEATURES.md §2–3)
-    sonya = Member(family=family, name="Соня", color=MEMBER_COLORS[2], role="child", joined_at=now - 998 * HOUR_MS)
+    sonya = Member(family=family, name="Соня", color=MEMBER_COLORS[2], role="child", joined_at=now - 998 * HOUR_MS,
+                   oidc_sub=subs.get("Соня"))
     db.add_all([family, alex, maria, sonya])
     await db.flush()
 
@@ -116,6 +136,6 @@ async def create_demo_family(db: AsyncSession) -> SessionOut:
                         category="other", comment="Старые сломались", created_at=now - 3 * HOUR_MS),
     ])
     await db.commit()
-    return await families.issue_session(db, alex.id)
+    return alex
 
 

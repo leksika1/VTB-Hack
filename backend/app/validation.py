@@ -9,7 +9,7 @@ CATEGORIES = ("food", "housing", "transport", "kids", "other")
 MAX_AMOUNT_KOP = 100_000_000 * 100
 
 _MONTH_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
-_INVITE_RE = re.compile(r"^[A-Z0-9]{6}$")
+_INVITE_RE = re.compile(r"^[A-Z0-9]{6}([A-Z0-9]{10})?$")
 
 
 def amount_to_kop(value: float, field: str = "amount", allow_zero: bool = False) -> int:

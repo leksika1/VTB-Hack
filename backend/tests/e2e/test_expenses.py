@@ -63,7 +63,7 @@ def test_update_own_expense(api):
 
 def test_update_expense_errors(api, new_client):
     anna = create_family(api)
-    boris = join(new_client(), anna.invite_code)
+    boris = join(new_client(), anna)
     e = add_expense(anna)
     body = {"title": "x", "amount": 1, "category": "food", "date": TODAY}
     assert_error(boris.put(f"/api/expenses/{e['id']}", body), 403, "forbidden", message="Изменять можно только свои расходы")
@@ -73,7 +73,7 @@ def test_update_expense_errors(api, new_client):
 
 def test_delete_expense(api, new_client):
     anna = create_family(api)
-    boris = join(new_client(), anna.invite_code)
+    boris = join(new_client(), anna)
     e = add_expense(anna, 300)
     assert_error(boris.delete(f"/api/expenses/{e['id']}"), 403, "forbidden", message="Удалять можно только свои расходы")
     assert anna.delete(f"/api/expenses/{e['id']}").status_code == 204
@@ -84,7 +84,7 @@ def test_delete_expense(api, new_client):
 
 def test_expenses_update_totals(api, new_client):
     anna = create_family(api)
-    boris = join(new_client(), anna.invite_code)
+    boris = join(new_client(), anna)
     set_budget(anna, 100000)
     add_expense(anna, 1000, "food")
     add_expense(boris, 500, "food")

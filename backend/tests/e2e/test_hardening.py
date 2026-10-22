@@ -39,9 +39,11 @@ def test_body_without_length_is_rejected(api):
 
 def test_read_rate_limit_per_member(new_client):
     anna = create_family(new_client())
-    statuses = [anna.get("/api/family").status_code for _ in range(601)]
+    statuses = [anna.get("/api/family").status_code for _ in range(650)]
+    # Раньше лимита — никогда; после него — сразу или почти сразу: если пачка пришлась на стык минут,
+    # скользящее окно учитывает прошлую минуту с весом чуть меньше 1 и пропускает несколько лишних запросов
     assert statuses[:600] == [200] * 600
-    assert statuses[600] == 429
+    assert 429 in statuses[600:650]
 
 
 def test_event_streams_per_member_are_capped(api, new_client):
@@ -69,7 +71,7 @@ def test_event_streams_per_member_are_capped(api, new_client):
 
 def test_rotate_invite_code(api, new_client):
     anna = create_family(api)
-    boris = join(new_client(), anna.invite_code)
+    boris = join(new_client(), anna)
     old = anna.invite_code
     stream = EventStream(new_client(), boris.token)
     try:

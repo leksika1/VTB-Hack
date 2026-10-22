@@ -10,7 +10,7 @@ from sqlalchemy import delete
 
 from . import db
 from .config import get_settings
-from .models import Family, IdempotencyRecord, MemberSession, Notification, StatementImport, now_ms
+from .models import Family, IdempotencyRecord, InviteLink, MemberSession, Notification, StatementImport, now_ms
 
 log = logging.getLogger("app.maintenance")
 
@@ -42,6 +42,7 @@ async def cleanup_once(session_factory=None) -> dict[str, int]:
                     StatementImport.status == "pending", StatementImport.created_at < now - 7 * 24 * HOUR_MS
                 )
             )).rowcount,
+            "invite_links": (await session.execute(delete(InviteLink).where(InviteLink.expires_at < now))).rowcount,
             "demo_families": (await session.execute(
                 delete(Family).where(
                     Family.is_demo.is_(True), Family.created_at < now - settings.demo_ttl_hours * HOUR_MS
