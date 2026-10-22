@@ -5,6 +5,8 @@ import type { Family, User } from '../types';
 interface FamilyState {
   family: Family | null;
   currentUserId: string | null;
+  /** Session token from the backend, sent as Authorization: Bearer */
+  token: string | null;
 }
 
 export const useFamilyStore = create<FamilyState>()(
@@ -12,8 +14,10 @@ export const useFamilyStore = create<FamilyState>()(
     (): FamilyState => ({
       family: null,
       currentUserId: null,
+      token: null,
     }),
-    { name: 'fb-family-v2' }
+    // v3: data lives on the backend now; v2 held the local mock data
+    { name: 'fb-family-v3' }
   )
 );
 
@@ -22,7 +26,7 @@ export function useCurrentUser(): User | null {
 }
 
 /** Display name of the record author, tolerant to old data without an author */
-export function resolveAuthorName(family: Family | null, authorId: string | null, fallback?: string): string {
+export function resolveAuthorName(family: Family | null, authorId: string | null, fallback?: string | null): string {
   const member = authorId ? family?.members.find((m) => m.id === authorId) : undefined;
   return member?.name ?? fallback ?? 'Автор не указан';
 }

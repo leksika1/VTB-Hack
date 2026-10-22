@@ -1,10 +1,9 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 import type { Expense, MonthlyBudget, Payment } from '../types';
 
 /**
- * Raw family data. Components never mutate it directly — all writes go through
- * `src/api/client.ts`, which plays the role of the server (permissions, validation, idempotency).
+ * Family data loaded from the backend. Components never mutate it directly — all writes go through
+ * `src/api/client.ts`, which sends them to the server and applies the response here.
  */
 interface DataState {
   budgets: Record<string, MonthlyBudget>; // key: budgetKey(familyId, monthKey)
@@ -17,12 +16,9 @@ export function budgetKey(familyId: string, monthKey: string): string {
 }
 
 export const useDataStore = create<DataState>()(
-  persist(
-    (): DataState => ({
-      budgets: {},
-      expenses: [],
-      payments: [],
-    }),
-    { name: 'fb-data-v2' }
-  )
+  (): DataState => ({
+    budgets: {},
+    expenses: [],
+    payments: [],
+  })
 );

@@ -36,9 +36,9 @@ export interface Expense {
   date: string; // 'YYYY-MM-DD'
   /** Who created the record. Not the same as who paid. */
   authorId: string | null;
-  authorName?: string;
+  authorName?: string | null;
   /** Set when the expense was created by marking a mandatory payment as paid */
-  paymentId?: string;
+  paymentId?: string | null;
   createdAt: number;
 }
 
@@ -53,7 +53,7 @@ export interface Payment {
   category: ExpenseCategory;
   dueDate: string; // 'YYYY-MM-DD'
   status: PaymentStatus;
-  expenseId?: string;
+  expenseId?: string | null;
   authorId: string | null;
   createdAt: number;
 }

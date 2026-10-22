@@ -1,9 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { Calculator, CalendarClock, Sparkles, Users } from 'lucide-react';
-import { createFamily, joinFamily } from '../api/client';
+import { createFamily, errorMessage, joinFamily, startDemo } from '../api/client';
 import { useAsyncAction, useRequestId } from '../hooks/useAsyncAction';
 import { useUIStore } from '../store/uiStore';
-import { loadDemoData } from '../utils/demoData';
 import { clearInviteFromUrl } from '../components/family/invite';
 import { BrandMark } from '../components/layout/AppShell';
 import { Field, FormError } from '../components/ui/Field';
@@ -19,6 +18,7 @@ interface OnboardingPageProps {
 export function OnboardingPage({ invite, onInviteDismiss }: OnboardingPageProps) {
   const [mode, setMode] = useState<Mode>(invite ? 'join' : 'create');
   const addToast = useUIStore((s) => s.addToast);
+  const [demoPending, setDemoPending] = useState(false);
   const dismissInvite = () => {
     clearInviteFromUrl();
     onInviteDismiss();
@@ -92,10 +92,18 @@ export function OnboardingPage({ invite, onInviteDismiss }: OnboardingPageProps)
             <Button
               variant="ghost"
               icon={<Sparkles size={17} />}
-              onClick={() => {
-                loadDemoData();
-                dismissInvite();
-                addToast('Загружена демо-семья Смирновых');
+              loading={demoPending}
+              onClick={async () => {
+                setDemoPending(true);
+                try {
+                  await startDemo();
+                  dismissInvite();
+                  addToast('Загружена демо-семья Смирновых');
+                } catch (e) {
+                  addToast(errorMessage(e), 'error');
+                } finally {
+                  setDemoPending(false);
+                }
               }}
             >
               Посмотреть на примере демо-семьи

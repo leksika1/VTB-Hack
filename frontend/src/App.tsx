@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { errorMessage, loadInitialData } from './api/client';
+import { errorMessage, loadInitialData, refreshData, subscribeToChanges } from './api/client';
 import { useFamilyStore } from './store/familyStore';
 import { useUIStore } from './store/uiStore';
 import { AppShell } from './components/layout/AppShell';
@@ -28,6 +28,32 @@ function useThemeAttribute() {
   }, [theme]);
 }
 
+/** Safety net in case the event stream is cut by a proxy without the client noticing */
+const FALLBACK_SYNC_MS = 60_000;
+
+/** Pick up what other family members changed: instantly via the event stream, plus a rare fallback poll */
+function useFamilySync(sessionKey: string | null) {
+  useEffect(() => {
+    if (!sessionKey) return;
+    let pending: number | undefined;
+    // Several changes in a row → one reload
+    const sync = () => {
+      window.clearTimeout(pending);
+      pending = window.setTimeout(() => refreshData().catch(() => {}), 300);
+    };
+    const unsubscribe = subscribeToChanges(sync);
+    const timer = window.setInterval(() => document.visibilityState === 'visible' && sync(), FALLBACK_SYNC_MS);
+    const onVisible = () => document.visibilityState === 'visible' && sync();
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      unsubscribe();
+      window.clearTimeout(pending);
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [sessionKey]);
+}
+
 export default function App() {
   useThemeAttribute();
   const family = useFamilyStore((s) => s.family);
@@ -40,6 +66,9 @@ export default function App() {
   // An invite link opened by someone who already has a family still shows the invite screen
   const [invite, setInvite] = useState(readInviteFromUrl);
   const pendingInvite = invite && invite.code !== family?.inviteCode;
+  // Keyed by family id: switching family or demo user reconnects the stream with the new token
+  const currentUserId = useFamilyStore((s) => s.currentUserId);
+  useFamilySync(family && dataStatus === 'ready' ? `${family.id}:${currentUserId}` : null);
 
   const fetchData = useCallback(async () => {
     try {

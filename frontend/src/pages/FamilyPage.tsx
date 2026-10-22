@@ -1,10 +1,9 @@
 import { useState } from 'react';
 import { Check, Copy, Eye, LogOut, Monitor, Moon, Pencil, Share2, ShieldCheck, Sparkles, Sun, UserPlus, Users } from 'lucide-react';
-import { leaveFamily, switchDemoUser } from '../api/client';
+import { leaveFamily, startDemo, switchDemoUser } from '../api/client';
 import { useAsyncAction } from '../hooks/useAsyncAction';
 import { useFamilyStore } from '../store/familyStore';
 import { useUIStore, type Theme } from '../store/uiStore';
-import { loadDemoData } from '../utils/demoData';
 import { plural } from '../utils/date';
 import { buildInviteUrl } from '../components/family/invite';
 import { Card, PageHeader, SectionHeader } from '../components/ui/Card';
@@ -181,6 +180,7 @@ function DemoCard() {
   const addToast = useUIStore((s) => s.addToast);
   const setTab = useUIStore((s) => s.setTab);
   const switchUser = useAsyncAction(switchDemoUser);
+  const demo = useAsyncAction(startDemo);
   const [confirmDemo, setConfirmDemo] = useState(false);
   if (!family) return null;
 
@@ -245,15 +245,21 @@ function DemoCard() {
           title="Заменить данные демо-семьёй?"
           confirmLabel="Загрузить"
           tone="primary"
+          pending={demo.pending}
+          error={demo.error}
           onCancel={() => setConfirmDemo(false)}
-          onConfirm={() => {
-            loadDemoData();
+          onConfirm={async () => {
+            const res = await demo.run();
+            if (!res.ok) return;
             setConfirmDemo(false);
             setTab('overview');
             addToast('Загружена демо-семья Смирновых');
           }}
         >
-          <p>Текущая семья, бюджеты, расходы и платежи в этом браузере будут заменены примером «Семья Смирновых».</p>
+          <p>
+            Вы перейдёте в пример «Семья Смирновых». Ваша семья и её данные сохранятся на сервере, но вернуться в неё
+            в этом браузере можно будет только по приглашению.
+          </p>
         </ConfirmDialog>
       </Presence>
     </Card>
