@@ -68,7 +68,19 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
-      - run: npm audit --audit-level=high
+      # Найденная уязвимость валит сборку. Недоступность сервиса аудита (503, таймаут) — не уязвимость:
+      # 3 попытки, затем предупреждение, чтобы сбой на стороне npm не блокировал деплой
+      - name: npm audit
+        run: |
+          for attempt in 1 2 3; do
+            if npm audit --audit-level=high > audit.log 2>&1; then cat audit.log; exit 0; fi
+            cat audit.log
+            if ! grep -qiE "audit endpoint returned an error|service unavailable|ETIMEDOUT|ECONNRESET|EAI_AGAIN" audit.log; then
+              exit 1
+            fi
+            echo "Сервис аудита npm недоступен, попытка $attempt из 3"; sleep 20
+          done
+          echo "::warning::npm audit не выполнен: сервис аудита npm недоступен. Уязвимости проверит следующий запуск."
       - run: npm run lint
       - run: npm run build
 
