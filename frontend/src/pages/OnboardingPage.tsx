@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useId, useState, type ClipboardEvent, type FormEvent } from 'react';
 import { BadgeCheck, Calculator, CalendarClock, Landmark, Sparkles, Users } from 'lucide-react';
 import type { InvitePreview } from '../types';
 import {
@@ -15,10 +15,10 @@ import {
 } from '../api/client';
 import { useAsyncAction, useRequestId } from '../hooks/useAsyncAction';
 import { useUIStore } from '../store/uiStore';
-import { clearInviteFromUrl } from '../components/family/invite';
+import { buildInviteUrl, clearInviteFromUrl } from '../components/family/invite';
 import { plural } from '../utils/date';
 import { BrandMark } from '../components/layout/AppShell';
-import { Field, FormError } from '../components/ui/Field';
+import { Field, FieldError, FormError } from '../components/ui/Field';
 import { Button } from '../components/ui/Button';
 import { Skeleton } from '../components/ui/Feedback';
 
@@ -73,12 +73,14 @@ export function OnboardingPage({ invite, onInviteDismiss }: OnboardingPageProps)
 
   return (
     <div className="min-h-dvh grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-      <aside className="hidden lg:flex flex-col justify-between p-12 text-white bg-[linear-gradient(150deg,var(--brand)_0%,var(--brand-2)_100%)]">
-        <div className="flex items-center gap-3">
+
+      <aside className="hidden lg:flex flex-col relative justify-center p-12 text-white bg-[linear-gradient(150deg,var(--brand)_0%,var(--brand-2)_100%)]">
+        <div className="absolute top-0 mt-10">
           <BrandMark size={44} />
           <span className="text-lg font-semibold">Семейный бюджет</span>
         </div>
-        <div className="max-w-md">
+
+        <div className="max-w-md -top-5 relative">
           <h2 className="text-4xl font-bold leading-tight">Решайте о покупках вместе — с учётом будущих платежей</h2>
           <ul className="mt-8 space-y-5 text-[17px] text-brand-ink-2">
             <Promo icon={<Calculator size={20} />}>«Можем ли купить холодильник?» — ответ с расчётом за пару секунд</Promo>
@@ -86,10 +88,10 @@ export function OnboardingPage({ invite, onInviteDismiss }: OnboardingPageProps)
             <Promo icon={<Users size={20} />}>Общий план на двоих: каждый видит те же цифры</Promo>
           </ul>
         </div>
-        <p className="text-sm text-brand-ink-2">Прототип. Данные семьи хранятся на сервере и видны только её участникам.</p>
+
       </aside>
 
-      <main className="flex items-center justify-center px-4 py-10 sm:px-8">
+      <main className="flex items-center justify-center px-4 py-6 sm:px-8">
         <div className="w-full max-w-md">
           <div className="flex items-center gap-3 mb-8 lg:hidden">
             <BrandMark size={40} />
@@ -129,7 +131,7 @@ export function OnboardingPage({ invite, onInviteDismiss }: OnboardingPageProps)
             />
           ) : (
             <>
-              <h1 className="text-[28px] font-bold text-ink leading-tight">
+              <h1 className="text-[28px] font-bold text-ink leading-tight text-nowrap">
                 {mode === 'create' ? 'Создайте семейное пространство' : 'Присоединиться по коду'}
               </h1>
               <p className="text-ink-2 mt-2">
@@ -159,7 +161,7 @@ export function OnboardingPage({ invite, onInviteDismiss }: OnboardingPageProps)
           )}
 
           {oidc && !vtbConfirmed && (
-            <div className="mt-8">
+            <div className="mt-6">
               <div className="flex items-center gap-3 text-sm text-ink-3 mb-4" aria-hidden>
                 <span className="h-px flex-1 bg-line" />
                 или
@@ -174,7 +176,7 @@ export function OnboardingPage({ invite, onInviteDismiss }: OnboardingPageProps)
             </div>
           )}
 
-          <div className="mt-10 pt-6 border-t border-line">
+          <div className="mt-6 pt-5 border-t border-line flex justify-center">
             <Button
               variant="ghost"
               icon={<Sparkles size={17} />}
@@ -194,7 +196,6 @@ export function OnboardingPage({ invite, onInviteDismiss }: OnboardingPageProps)
             >
               Посмотреть на примере демо-семьи
             </Button>
-            <p className="text-sm text-ink-3 mt-1 px-1">Готовый бюджет, расходы и платежи — чтобы оценить приложение без ввода данных.</p>
           </div>
         </div>
       </main>
@@ -332,17 +333,11 @@ function JoinForm({
         </>
       )}
       {!invite && (
-        <Field
-          label="Код приглашения"
+        <CodeField
+          label="Код приглашения (вход подтверждает взрослый участник)"
           value={code}
-          onChange={(e) => setCode(e.target.value.toUpperCase())}
-          placeholder="6 символов или код из ссылки"
-          maxLength={16}
-          autoComplete="off"
-          autoCapitalize="characters"
-          className="[&_input]:font-mono [&_input]:tracking-[0.2em]"
+          onChange={setCode}
           error={submitted && !code.trim() ? 'Введите код' : join.errorField === 'code' ? join.error : null}
-          hint="Вход по коду семьи подтверждает взрослый участник"
         />
       )}
       <Field
@@ -385,4 +380,70 @@ function useInvitePreview(code: string | null): Loadable<InvitePreview> {
     };
   }, [code]);
   return state;
+}
+
+const CODE_LENGTH = 6;
+
+/**
+ * Six cells over one real input: native typing, backspace, paste and autofill keep working.
+ * A pasted invite link opens the invite screen; a 16-character link code does not fit the cells, so it goes there too.
+ */
+function CodeField({ label, value, onChange, error }: { label: string; value: string; onChange: (code: string) => void; error?: string | null }) {
+  const id = useId();
+  const [focused, setFocused] = useState(false);
+  const clean = (raw: string) => raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+  const onPaste = (e: ClipboardEvent<HTMLInputElement>) => {
+    const text = e.clipboardData.getData('text').trim();
+    let pasted = text;
+    try {
+      pasted = new URL(text).searchParams.get('invite') ?? text;
+    } catch {
+      // Not a link: a bare code
+    }
+    const code = clean(pasted);
+    if (code.length > CODE_LENGTH) {
+      e.preventDefault();
+      window.location.assign(buildInviteUrl(code));
+    }
+  };
+
+  return (
+    <div>
+      <label htmlFor={id} className="block text-sm font-medium text-ink-2 mb-1.5">
+        {label}
+      </label>
+      <div className="relative grid grid-cols-6 gap-2">
+        {Array.from({ length: CODE_LENGTH }, (_, i) => {
+          const active = focused && i === Math.min(value.length, CODE_LENGTH - 1);
+          return (
+            <span
+              key={i}
+              aria-hidden
+              className={`h-12 flex items-center justify-center rounded-[var(--radius-control)] border font-mono text-xl font-semibold text-ink transition-colors
+                ${active ? 'bg-surface border-accent ring-[3px] ring-accent/15' : error ? 'bg-surface-muted border-danger' : 'bg-surface-muted border-line'}`}
+            >
+              {value[i] ?? ''}
+            </span>
+          );
+        })}
+        <input
+          id={id}
+          value={value}
+          onChange={(e) => onChange(clean(e.target.value).slice(0, CODE_LENGTH))}
+          onPaste={onPaste}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          maxLength={CODE_LENGTH}
+          autoComplete="one-time-code"
+          autoCapitalize="characters"
+          spellCheck={false}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `${id}-error` : undefined}
+          className="absolute inset-0 w-full h-full opacity-0 cursor-text"
+        />
+      </div>
+      {error && <FieldError id={`${id}-error`}>{error}</FieldError>}
+    </div>
+  );
 }
