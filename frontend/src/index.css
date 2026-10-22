@@ -158,7 +158,7 @@
   --color-danger-soft: var(--danger-soft);
   --color-track: var(--track);
 
-  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-sans: 'Inter Variable', 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 
   --radius-card: 1.25rem;
   --radius-control: 0.875rem;
