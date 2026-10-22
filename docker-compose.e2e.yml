@@ -1,0 +1,26 @@
+# Добавка к docker-compose.yml для e2e-тестов и локального запуска всего стека.
+#   docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d --build --wait
+#   E2E_BASE_URL=http://127.0.0.1:18080 E2E_DATABASE_URL=postgresql+asyncpg://family:family@127.0.0.1:55433/family \
+#     pytest tests/e2e        (из backend/)
+services:
+  frontend:
+    ports:
+      - "127.0.0.1:18080:80"
+    environment:
+      # Тесты шлют сотни запросов с одного «устройства» — пороги nginx поднимаем,
+      # лимиты backend (по смыслу) остаются как в проде и проверяются тестами
+      API_RATE: 2000r/s
+      API_BURST: "4000"
+      CONN_PER_IP: "500"
+      EVENTS_PER_IP: "100"
+  backend:
+    # Две реплики: проверяем, что события и лимиты работают между экземплярами через Redis
+    scale: 2
+  db:
+    # Прямой доступ к базе для тестов, которым он нужен (срок сессии, очистка, предел записей)
+    ports:
+      - "127.0.0.1:55433:5432"
+
+networks:
+  data:
+    internal: false
