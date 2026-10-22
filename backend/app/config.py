@@ -70,6 +70,9 @@ class Settings(BaseSettings):
     # Встроенный тестовый провайдер для демо и тестов. В бою — false
     oidc_mock: bool = False
 
+    # Постоянная тестовая семья при старте (docs/TEST_DATA.md); идемпотентно
+    seed_showcase: bool = False
+
     log_level: str = "INFO"
 
     @property

@@ -33,6 +33,11 @@ class OidcError(ValidationFailed):
         super().__init__(message, "code")
 
 
+def mock_sub(login: str) -> str:
+    """sub, который тестовый провайдер выдаёт для логина «войти как …»."""
+    return "mock-" + hashlib.sha256(login.encode()).hexdigest()[:24]
+
+
 def pkce_challenge(verifier: str) -> str:
     return base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
 
@@ -107,7 +112,7 @@ class MockProvider:
     async def issue_code(self, login: str, client_id: str, redirect_uri: str, nonce: str, challenge: str) -> str:
         code = secrets.token_urlsafe(24)
         await get_redis().set(f"mockidp:code:{code}", json.dumps({
-            "sub": "mock-" + hashlib.sha256(login.encode()).hexdigest()[:24], "client_id": client_id,
+            "sub": mock_sub(login), "client_id": client_id,
             "redirect_uri": redirect_uri, "nonce": nonce, "challenge": challenge,
         }), ex=MOCK_CODE_TTL)
         return code

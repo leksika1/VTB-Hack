@@ -27,6 +27,10 @@ def create_app() -> FastAPI:
         if settings.oidc_mock:
             log.warning("OIDC_MOCK=true: включён тестовый провайдер входа — только для демо и тестов")
         realtime.start_listener()
+        if settings.seed_showcase:
+            from .seed import ensure_showcase
+
+            await ensure_showcase()
         cleanup = (
             asyncio.create_task(maintenance.run_periodically(settings.maintenance_interval_seconds))
             if settings.maintenance_interval_seconds > 0
