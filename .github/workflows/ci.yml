@@ -75,7 +75,8 @@ jobs:
   # Собирает образы, поднимает весь стек (nginx → 2 реплики backend → Postgres + Redis)
   # и прогоняет те же e2e-тесты по HTTP через nginx
   build:
-    name: build + e2e
+    # Имя "build" — его требует правило защиты веток на GitHub (required status check); не переименовывать
+    name: build
     needs: [backend-tests, frontend-checks]
     runs-on: ubuntu-latest
     env:
