@@ -19,7 +19,7 @@ def test_create_payment(api):
     anna = create_family(api)
     p = add_payment(anna, 38000, "housing", " Аренда ", f"{MONTH}-01")
     assert set(p) == {"id", "familyId", "title", "amount", "category", "dueDate", "status", "expenseId",
-                      "authorId", "createdAt"}
+                      "authorId", "createdAt", "recurring", "seriesId"}
     assert (p["title"], p["amount"], p["dueDate"], p["status"], p["expenseId"], p["authorId"]) == (
         "Аренда", 38000, f"{MONTH}-01", "upcoming", None, anna.id)
 

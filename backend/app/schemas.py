@@ -80,6 +80,25 @@ class PaymentIn(Schema):
     amount: float
     category: str
     due_date: str
+    # true — начать серию, false — остановить; не указано — не менять (docs/FEATURES.md §6)
+    recurring: bool | None = None
+
+
+class GoalIn(Schema):
+    title: str = Field(max_length=500)
+    target: float
+    deadline: str | None = None
+
+
+class ContributionIn(Schema):
+    amount: float
+    date: str | None = None
+
+
+class SettlementIn(Schema):
+    from_id: str
+    to_id: str
+    amount: float
 
 
 class PaymentPaidIn(Schema):
@@ -209,6 +228,8 @@ class PaymentOut(Schema):
     expense_id: str | None
     author_id: str | None
     created_at: int
+    recurring: bool
+    series_id: str | None
 
     @classmethod
     def of(cls, p: models.Payment) -> "PaymentOut":
@@ -223,6 +244,8 @@ class PaymentOut(Schema):
             expense_id=p.expense.id if p.expense else None,
             author_id=p.author_id,
             created_at=p.created_at,
+            recurring=p.recurring,
+            series_id=p.series_id,
         )
 
 
@@ -320,6 +343,99 @@ class PurchaseRequestOut(Schema):
             decided_by=r.decided_by, decided_at=r.decided_at, decision_comment=r.decision_comment,
             expense_id=r.expense.id if r.expense else None, created_at=r.created_at, check=check,
         )
+
+
+class GoalOut(Schema):
+    id: str
+    family_id: str
+    title: str
+    target: float
+    deadline: str | None
+    status: str  # active | achieved | archived
+    saved: float
+    left: float
+    percent: int
+    monthly_needed: float | None
+    eta_month: str | None
+    created_by: str | None
+    created_at: int
+    achieved_at: int | None
+
+
+class ContributionOut(Schema):
+    id: str
+    goal_id: str
+    member_id: str | None
+    amount: float
+    date: str
+    created_at: int
+
+    @classmethod
+    def of(cls, c: models.GoalContribution) -> "ContributionOut":
+        return cls(id=c.id, goal_id=c.goal_id, member_id=c.member_id, amount=kop_to_amount(c.amount_kop),
+                   date=c.date.isoformat(), created_at=c.created_at)
+
+
+class ContributionResultOut(Schema):
+    goal: GoalOut
+    contribution: ContributionOut
+
+
+class CategoryForecastOut(Schema):
+    key: str
+    plan: float
+    spent: float
+    projected: float
+    status: str
+
+
+class ForecastOut(Schema):
+    month_key: str
+    kind: str
+    plan: float
+    spent: float
+    reserved: float
+    variable_spent: float
+    daily_average: float
+    days_passed: int
+    days_in_month: int
+    projected_spent: float
+    projected_left: float
+    low_confidence: bool
+    categories: list[CategoryForecastOut]
+
+
+class SettlementMemberOut(Schema):
+    member_id: str
+    name: str
+    paid: float
+    share: float
+    sent: float
+    received: float
+    balance: float
+
+
+class TransferOut(Schema):
+    from_id: str
+    to_id: str
+    amount: float
+
+
+class RecordedSettlementOut(Schema):
+    id: str
+    from_id: str | None
+    to_id: str | None
+    amount: float
+    created_by: str | None
+    created_at: int
+
+
+class SettlementOut(Schema):
+    month_key: str
+    shared_total: float
+    members: list[SettlementMemberOut]
+    transfers: list[TransferOut]
+    recorded: list[RecordedSettlementOut]
 
 
 class ErrorBody(Schema):

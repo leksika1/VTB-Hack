@@ -4,7 +4,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import clock
-from . import allowance
+from . import allowance, recurring
 from ..domain.budget import MonthSummary, compute_month_summary
 from ..config import get_settings
 from ..errors import Conflict, Forbidden, NotFound, ValidationFailed
@@ -207,6 +207,8 @@ async def create_payment(db: AsyncSession, member: Member, body: PaymentIn) -> P
     )
     db.add(payment)
     await db.flush()
+    if body.recurring:
+        await recurring.start_series(db, payment)
     await db.refresh(payment, ["expense"])
     return payment
 
@@ -217,11 +219,20 @@ async def update_payment(db: AsyncSession, member: Member, payment_id: str, body
         raise NotFound("Платёж не найден — возможно, его уже удалили")
     if payment.status == "paid":
         raise ValidationFailed("Платёж уже оплачен. Сначала верните его в предстоящие.")
+    due = parse_date(body.due_date, "dueDate")
+    # Платёж серии остаётся в своём месяце: один платёж серии на месяц (docs/FEATURES.md §6)
+    if payment.series_month and due.strftime("%Y-%m") != payment.series_month:
+        raise ValidationFailed("Платёж серии можно перенести только в пределах его месяца", "dueDate")
     payment.title = clean_title(body.title)
     payment.amount_kop = amount_to_kop(body.amount)
     payment.category = check_category(body.category)
-    payment.due_date = parse_date(body.due_date, "dueDate")
+    payment.due_date = due
+    if body.recurring is False and payment.series_id:
+        await recurring.stop_series(db, payment.series_id)
     await db.flush()
+    if body.recurring and not payment.recurring:
+        await recurring.start_series(db, payment)
+    await db.refresh(payment)
     return payment
 
 
@@ -287,7 +298,8 @@ async def copy_payments_from_previous_month(db: AsyncSession, member: Member, mo
     await check_capacity(db, Payment, member.family_id, adding=len(previous))
     copies = []
     for p in previous:
-        if p.title in existing:
+        # Платежи серий создаются сами (§6)
+        if p.title in existing or p.series_id:
             continue
         existing.add(p.title)
         copy = Payment(

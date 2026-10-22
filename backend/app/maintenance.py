@@ -1,5 +1,6 @@
 """
-Фоновая очистка: старые ответы идемпотентности, просроченные сессии, демо-семьи.
+Фоновые задачи: очистка (старые ответы идемпотентности, просроченные сессии, демо-семьи)
+и продление повторяющихся платежей.
 Запросы идемпотентны, поэтому несколько реплик могут выполнять их одновременно без блокировок.
 """
 import asyncio
@@ -41,12 +42,23 @@ async def cleanup_once(session_factory=None) -> dict[str, int]:
     return removed
 
 
+async def extend_recurring_once(session_factory=None) -> int:
+    """Продлить серии повторяющихся платежей до следующего месяца (docs/FEATURES.md §6)."""
+    from .services import recurring
+
+    async with (session_factory or db.session)() as session:
+        created = await recurring.ensure_all(session)
+        await session.commit()
+    return created
+
+
 async def run_periodically(interval: int) -> None:
     while True:
         try:
             removed = await cleanup_once()
+            removed["recurring_created"] = await extend_recurring_once()
             if any(removed.values()):
-                log.info("cleanup", extra={"extra_fields": removed})
+                log.info("maintenance", extra={"extra_fields": removed})
         except asyncio.CancelledError:
             raise
         except Exception:

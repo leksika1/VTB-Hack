@@ -20,7 +20,7 @@ from ..schemas import (
     PurchaseCheckIn,
     PurchaseCheckOut,
 )
-from ..services import finance, idempotency
+from ..services import finance, goals, idempotency
 from ..validation import amount_to_kop, check_category, check_month_key
 
 router = APIRouter()
@@ -146,7 +146,8 @@ async def copy_payments(body: CopyPaymentsIn, member: ParentMember, db: Db, idem
 @router.get("/months/{month_key}/summary", response_model=MonthSummaryOut, tags=["summary"],
             summary="Бюджет, потрачено, зарезервировано и остатки за месяц")
 async def month_summary(month_key: str, member: ParentMember, db: Db):
-    return presenters.summary_out(await finance.month_summary(db, member.family_id, month_key))
+    summary = await finance.month_summary(db, member.family_id, month_key)
+    return presenters.summary_out(summary, await goals.saved_in_month(db, member.family_id, month_key))
 
 
 @router.post("/months/{month_key}/purchase-check", response_model=PurchaseCheckOut, tags=["summary"],
