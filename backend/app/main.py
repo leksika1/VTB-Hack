@@ -64,7 +64,8 @@ def create_app() -> FastAPI:
     )
     app.add_middleware(RequestContextMiddleware)
     # Последний добавленный — внешний: большие тела отсекаются раньше всего остального
-    app.add_middleware(BodySizeLimitMiddleware, max_bytes=settings.max_body_bytes)
+    app.add_middleware(BodySizeLimitMiddleware, max_bytes=settings.max_body_bytes,
+                       overrides={"/api/imports": settings.max_import_bytes})
     install_error_handlers(app)
 
     # /health без префикса — для healthcheck контейнера

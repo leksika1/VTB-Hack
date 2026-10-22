@@ -110,9 +110,11 @@ class BodySizeLimitMiddleware:
     """Тело запроса — только с Content-Length и не больше max_bytes. Браузеры, httpx и nginx
     всегда передают длину; chunked-тело неизвестного размера отклоняется до чтения."""
 
-    def __init__(self, app, max_bytes: int):
+    def __init__(self, app, max_bytes: int, overrides: dict[str, int] | None = None):
         self.app = app
         self.max_bytes = max_bytes
+        # Пути с другим лимитом: загрузка выписки (docs/FEATURES.md §10)
+        self.overrides = overrides or {}
 
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
@@ -120,7 +122,8 @@ class BodySizeLimitMiddleware:
         headers = dict(scope["headers"])
         length = headers.get(b"content-length")
         if length is not None:
-            if not length.isdigit() or int(length) > self.max_bytes:
+            limit = self.overrides.get(scope["path"], self.max_bytes)
+            if not length.isdigit() or int(length) > limit:
                 return await _reject(send, 413, "payload_too_large", "Слишком большой запрос")
         elif b"chunked" in headers.get(b"transfer-encoding", b"").lower():
             return await _reject(send, 411, "length_required", "Нужен заголовок Content-Length")

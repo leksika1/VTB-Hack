@@ -107,6 +107,21 @@ class NotificationSettingsIn(Schema):
     email: bool
 
 
+class ImportIn(Schema):
+    filename: str = Field(max_length=200)
+    content: str = Field(max_length=2_000_000)
+
+
+class ImportRowChoice(Schema):
+    id: str
+    category: str | None = None
+    include: bool = True
+
+
+class ImportConfirmIn(Schema):
+    rows: list[ImportRowChoice] = Field(default=[], max_length=1000)
+
+
 class SettlementIn(Schema):
     from_id: str
     to_id: str
@@ -475,6 +490,50 @@ class NotificationOut(Schema):
     def of(cls, n: models.Notification) -> "NotificationOut":
         return cls(id=n.id, kind=n.kind, title=n.title, body=n.body, data=n.data or {},
                    created_at=n.created_at, read_at=n.read_at)
+
+
+class ImportRowOut(Schema):
+    id: str
+    row_no: int
+    date: str | None
+    amount: float | None
+    description: str
+    mcc: str | None
+    suggested_category: str
+    duplicate: bool
+    error: str | None
+    expense_id: str | None
+
+
+class ImportOut(Schema):
+    id: str
+    status: str
+    filename: str
+    created_at: int
+    created_by: str | None
+    total_rows: int
+    spending_rows: int
+    skipped_income: int
+    duplicates: int
+    errors: int
+    imported: int
+    rows: list[ImportRowOut] | None = None
+
+    @classmethod
+    def of(cls, i: models.StatementImport, with_rows: bool = False) -> "ImportOut":
+        rows = i.rows
+        return cls(
+            id=i.id, status=i.status, filename=i.filename, created_at=i.created_at, created_by=i.created_by,
+            total_rows=i.total_rows, spending_rows=len(rows), skipped_income=i.skipped_income,
+            duplicates=sum(r.duplicate for r in rows), errors=sum(r.error is not None for r in rows),
+            imported=i.imported,
+            rows=[ImportRowOut(
+                id=r.id, row_no=r.row_no, date=r.date.isoformat() if r.date else None,
+                amount=kop_to_amount(r.amount_kop) if r.amount_kop is not None else None,
+                description=r.description, mcc=r.mcc, suggested_category=r.suggested_category,
+                duplicate=r.duplicate, error=r.error, expense_id=r.expense_id,
+            ) for r in rows] if with_rows else None,
+        )
 
 
 class ErrorBody(Schema):

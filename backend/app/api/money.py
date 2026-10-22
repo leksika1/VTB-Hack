@@ -3,8 +3,19 @@ from fastapi import APIRouter, Query, Request, Response
 
 from ..deps import CurrentMember, Db, IdempotencyKey, ParentMember, mark_silent
 from ..receipts import parse_receipt
-from ..schemas import AllowanceIn, AllowanceOut, DecisionIn, PurchaseRequestIn, PurchaseRequestOut, ReceiptIn, ReceiptOut
-from ..services import allowance, finance, idempotency, requests
+from ..schemas import (
+    AllowanceIn,
+    AllowanceOut,
+    DecisionIn,
+    ImportConfirmIn,
+    ImportIn,
+    ImportOut,
+    PurchaseRequestIn,
+    PurchaseRequestOut,
+    ReceiptIn,
+    ReceiptOut,
+)
+from ..services import allowance, finance, idempotency, imports, requests
 from ..validation import kop_to_amount
 
 router = APIRouter()
@@ -95,3 +106,41 @@ async def parse_receipt_qr(body: ReceiptIn, request: Request, member: CurrentMem
         duplicate=duplicate is not None,
         duplicate_of=duplicate_of,
     )
+
+
+# ── Импорт выписки ──
+
+
+@router.post("/imports", response_model=ImportOut, status_code=201, tags=["imports"],
+             summary="Загрузить CSV-выписку: строки ждут подтверждения")
+async def create_import(body: ImportIn, member: ParentMember, db: Db):
+    batch = await imports.create(db, member, body)
+    out = ImportOut.of(batch, with_rows=True)
+    await db.commit()
+    return out
+
+
+@router.get("/imports", response_model=list[ImportOut], tags=["imports"])
+async def list_imports(member: ParentMember, db: Db):
+    return [ImportOut.of(i) for i in await imports.list_imports(db, member)]
+
+
+@router.get("/imports/{import_id}", response_model=ImportOut, tags=["imports"])
+async def get_import(import_id: str, member: ParentMember, db: Db):
+    return ImportOut.of(await imports.get(db, member, import_id), with_rows=True)
+
+
+@router.post("/imports/{import_id}/confirm", response_model=ImportOut, tags=["imports"],
+             summary="Подтвердить импорт: выбранные строки становятся расходами")
+async def confirm_import(import_id: str, body: ImportConfirmIn, member: ParentMember, db: Db):
+    batch = await imports.confirm(db, member, import_id, body)
+    out = ImportOut.of(batch, with_rows=True)
+    await db.commit()
+    return out
+
+
+@router.delete("/imports/{import_id}", status_code=204, tags=["imports"])
+async def discard_import(import_id: str, member: ParentMember, db: Db):
+    await imports.discard(db, member, import_id)
+    await db.commit()
+    return Response(status_code=204)

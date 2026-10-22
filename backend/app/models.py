@@ -141,6 +141,8 @@ class Expense(Base):
         Index("ix_expenses_family_date", "family_id", "date"),
         # Один кассовый чек — один расход в семье (docs/FEATURES.md §8)
         UniqueConstraint("family_id", "receipt_key", name="uq_expenses_family_receipt"),
+        # Одна строка выписки — один расход в семье (docs/FEATURES.md §10)
+        UniqueConstraint("family_id", "import_fingerprint", name="uq_expenses_family_import"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
@@ -162,6 +164,7 @@ class Expense(Base):
     )
     # SHA-256 фискальных реквизитов чека (fn:i:fp); сами реквизиты не храним
     receipt_key: Mapped[str | None] = mapped_column(String(64), default=None)
+    import_fingerprint: Mapped[str | None] = mapped_column(String(64), default=None)
     created_at: Mapped[int] = mapped_column(BigInteger, default=now_ms)
 
     author: Mapped[Member | None] = relationship(lazy="selectin", foreign_keys=[author_id])
@@ -283,6 +286,53 @@ class EmailOutbox(Base):
     sent_at: Mapped[int | None] = mapped_column(BigInteger, default=None)
     attempts: Mapped[int] = mapped_column(default=0)
     last_error: Mapped[str | None] = mapped_column(String(300), default=None)
+
+
+class StatementImport(Base):
+    """Загруженная выписка: строки ждут подтверждения, расходами становятся только после него (§10)."""
+
+    __tablename__ = "statement_imports"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    family_id: Mapped[str] = mapped_column(ForeignKey("families.id", ondelete="CASCADE"), index=True)
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("members.id", ondelete="SET NULL"))
+    status: Mapped[str] = mapped_column(String(10), default="pending")  # pending | confirmed
+    filename: Mapped[str] = mapped_column(String(120))
+    total_rows: Mapped[int] = mapped_column(default=0)
+    skipped_income: Mapped[int] = mapped_column(default=0)
+    imported: Mapped[int] = mapped_column(default=0)
+    created_at: Mapped[int] = mapped_column(BigInteger, default=now_ms, index=True)
+
+    rows: Mapped[list["ImportRow"]] = relationship(lazy="selectin", order_by="ImportRow.row_no",
+                                                   cascade="all, delete-orphan", passive_deletes=True)
+
+
+class ImportRow(Base):
+    __tablename__ = "import_rows"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    import_id: Mapped[str] = mapped_column(ForeignKey("statement_imports.id", ondelete="CASCADE"), index=True)
+    row_no: Mapped[int] = mapped_column()
+    date: Mapped[date | None] = mapped_column(Date, default=None)
+    amount_kop: Mapped[int | None] = mapped_column(BigInteger, default=None)
+    description: Mapped[str] = mapped_column(String(120), default="")
+    mcc: Mapped[str | None] = mapped_column(String(4), default=None)
+    suggested_category: Mapped[str] = mapped_column(String(16), default="other")
+    fingerprint: Mapped[str | None] = mapped_column(String(64), default=None)
+    duplicate: Mapped[bool] = mapped_column(default=False)
+    error: Mapped[str | None] = mapped_column(String(120), default=None)
+    expense_id: Mapped[str | None] = mapped_column(ForeignKey("expenses.id", ondelete="SET NULL"), default=None)
+
+
+class CategoryRule(Base):
+    """Запомненное исправление категории: «описание похоже на X → категория Y» для семьи."""
+
+    __tablename__ = "category_rules"
+
+    family_id: Mapped[str] = mapped_column(ForeignKey("families.id", ondelete="CASCADE"), primary_key=True)
+    pattern: Mapped[str] = mapped_column(String(120), primary_key=True)
+    category: Mapped[str] = mapped_column(String(16))
+    updated_at: Mapped[int] = mapped_column(BigInteger, default=now_ms, onupdate=now_ms)
 
 
 class IdempotencyRecord(Base):

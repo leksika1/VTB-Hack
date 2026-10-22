@@ -39,6 +39,7 @@ class Settings(BaseSettings):
 
     # Защита от исчерпания ресурсов
     max_body_bytes: int = 64 * 1024  # тело запроса
+    max_import_bytes: int = 2 * 1024 * 1024  # POST /api/imports: CSV до 1 МБ в JSON
     max_streams_per_member: int = 5  # одновременных потоков /api/events у участника (на экземпляр)
     max_records_per_family: int = 20_000  # расходов и, отдельно, платежей у семьи
 

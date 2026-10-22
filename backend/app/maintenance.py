@@ -10,7 +10,7 @@ from sqlalchemy import delete
 
 from . import db
 from .config import get_settings
-from .models import Family, IdempotencyRecord, MemberSession, Notification, now_ms
+from .models import Family, IdempotencyRecord, MemberSession, Notification, StatementImport, now_ms
 
 log = logging.getLogger("app.maintenance")
 
@@ -35,6 +35,11 @@ async def cleanup_once(session_factory=None) -> dict[str, int]:
             "notifications": (await session.execute(
                 delete(Notification).where(
                     Notification.created_at < now - settings.notification_ttl_days * 24 * HOUR_MS
+                )
+            )).rowcount,
+            "stale_imports": (await session.execute(
+                delete(StatementImport).where(
+                    StatementImport.status == "pending", StatementImport.created_at < now - 7 * 24 * HOUR_MS
                 )
             )).rowcount,
             "demo_families": (await session.execute(

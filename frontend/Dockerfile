@@ -93,6 +93,20 @@ server {
         include /etc/nginx/snippets/api-headers.conf;
     }
 
+    # Загрузка выписки (docs/FEATURES.md §10): единственный путь с большим телом
+    location = /api/imports {
+        limit_req zone=api burst=${API_BURST} nodelay;
+        client_max_body_size 2m;
+        resolver 127.0.0.11 valid=10s ipv6=off;
+        set $backend_upstream ${BACKEND_UPSTREAM};
+        proxy_pass $backend_upstream;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 30s;
+        include /etc/nginx/snippets/api-headers.conf;
+    }
+
     location /api/ {
         limit_req zone=api burst=${API_BURST} nodelay;
         # Адрес через переменную и DNS Docker: nginx стартует, даже если бэкенд ещё не поднят
