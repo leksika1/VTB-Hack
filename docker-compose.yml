@@ -1,6 +1,6 @@
-# Деплоится через Dokploy. Домены назначаются в Dokploy (вкладка Domains),
-# поэтому здесь нет ports: и container_name: — иначе prod и dev на одном сервере конфликтуют.
-# Переменные задаются в Dokploy → Environment (локально — файл .env рядом, см. .env.example):
+# Весь стек одной командой — для локального запуска и CI. В Dokploy — два сервиса из
+# backend/docker-compose.yml и frontend/docker-compose.yml (docs/OPERATIONS.md); определения держать в согласии.
+# Переменные — в файле .env рядом (см. .env.example):
 #   POSTGRES_PASSWORD, REDIS_PASSWORD — обязательны, только латиница и цифры (входят в URL подключения)
 #   CORS_ORIGINS — домены фронтенда, если он ходит в API с другого домена
 

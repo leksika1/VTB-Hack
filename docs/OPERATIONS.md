@@ -19,26 +19,49 @@
 
 ## Развёртывание в Dokploy
 
-1. Сервис типа **Compose**, источник — этот репозиторий, файл `docker-compose.yml`.
-2. **Environment** сервиса:
-   ```
-   POSTGRES_PASSWORD=<длинный случайный пароль, только латиница и цифры>
-   REDIS_PASSWORD=<другой длинный случайный пароль, только латиница и цифры>
-   CORS_ORIGINS=https://<домен фронтенда>
-   ```
-   Без паролей compose не запустится — это намеренно. Сгенерировать: `openssl rand -hex 32`.
-3. **Domains**: домен → сервис `frontend`, порт 80. Отдельный домен для `backend` не нужен.
-4. Деплой запускает GitHub Actions после успешных тестов (вебхуки `DOKPLOY_WEBHOOK_FRONTEND`
-   и `DOKPLOY_WEBHOOK_BACKEND` в окружениях `dev`/`prod` репозитория). Ветка `dev` → окружение dev,
-   `main` → prod.
+Два Compose-сервиса в проекте Dokploy (в каждом окружении: prod — ветка `main`, dev — `dev`):
 
-> Если frontend и backend заведены в Dokploy как два отдельных **Application** (а не один Compose),
-> то `db` и `redis` из compose не поднимутся. Тогда создайте в Dokploy базы данных PostgreSQL и Redis
-> (раздел Databases) и задайте backend переменные `DATABASE_URL` и `REDIS_URL`, а frontend —
-> `BACKEND_UPSTREAM=http://<внутреннее имя backend>:8000`. Без `DATABASE_URL` и `REDIS_URL` backend
-> не запустится (ошибка подключения в журнале) — молча работать без базы он не умеет.
+| Сервис | Compose Path | Что поднимает | Domains |
+|---|---|---|---|
+| **Backend** | `./backend/docker-compose.yml` | backend + PostgreSQL + Redis | не нужен |
+| **Frontend** | `./frontend/docker-compose.yml` | nginx с фронтендом | домен → сервис `frontend`, порт `80` |
 
-При старте контейнер backend применяет миграции (`alembic upgrade head`) и только потом принимает запросы.
+```
+Интернет → Traefik → frontend ──dokploy-network──▶ backend ──внутренняя сеть──▶ PostgreSQL, Redis
+```
+
+Фронтенд находит бэкенд в общей сети Dokploy (`dokploy-network`) по имени `BACKEND_ALIAS`. База и Redis — во
+внутренней сети сервиса Backend: из фронтенда и снаружи их не видно. Корневой `docker-compose.yml` в Dokploy
+не используется — это весь стек для локального запуска и CI.
+
+**Backend → Environment**
+
+```
+POSTGRES_PASSWORD=<openssl rand -hex 32>
+REDIS_PASSWORD=<openssl rand -hex 32>
+BACKEND_ALIAS=family-backend-prod        # в dev: family-backend-dev
+CORS_ORIGINS=https://<домен фронтенда>
+```
+
+**Frontend → Environment**
+
+```
+BACKEND_ALIAS=family-backend-prod        # то же, что у Backend этого окружения
+```
+
+`BACKEND_ALIAS` должен быть разным у prod и dev: оба окружения на одном сервере делят `dokploy-network`, и с одинаковым
+именем фронтенд prod мог бы попасть в бэкенд dev. Без переменных сервисы не запустятся — это намеренно.
+
+Порядок: сначала **Deploy** Backend (при старте применяются миграции), затем Frontend.
+Проверка: `https://<домен>/api/ready` → `database` и `redis` — `ok`.
+
+Автодеплой: у каждого сервиса свой Deploy Webhook — секреты `DOKPLOY_WEBHOOK_BACKEND` и `DOKPLOY_WEBHOOK_FRONTEND`
+в GitHub → Settings → Environments (`prod`, `dev`). Файлы `backend/` и `frontend/docker-compose.yml` повторяют
+определения из корневого — при изменении одного меняйте и другой (CI проверяет, что оба собираются в валидный конфиг).
+
+**Переход со старой схемы** (оба сервиса указывали на корневой `docker-compose.yml`): поменяйте Compose Path и
+Environment как выше, Deploy Backend, затем Frontend. Старые копии базы и Redis, которые поднимал сервис Frontend,
+исчезнут; их том (`…_pgdata` у проекта Frontend) можно удалить. Данные живут в томе проекта Backend.
 
 ## Переменные окружения
 

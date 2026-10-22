@@ -44,7 +44,9 @@ frontend/            React-приложение и nginx (Dockerfile)
 backend/app/         FastAPI: api/ → services/ → domain/, модели, миграции
 backend/tests/       unit/ — формулы; e2e/ — все эндпоинты по HTTP
 docs/                документация
-docker-compose.yml   прод-стек: frontend, backend, PostgreSQL, Redis
+docker-compose.yml   весь стек для локального запуска и CI
+backend/docker-compose.yml   сервис «Backend» в Dokploy: backend + PostgreSQL + Redis
+frontend/docker-compose.yml  сервис «Frontend» в Dokploy: nginx с фронтендом
 docker-compose.dev.yml  добавка для разработки: PostgreSQL и Redis на localhost
 docker-compose.e2e.yml  добавка для запуска всего стека и e2e: порт 18080, 2 копии backend
 ```

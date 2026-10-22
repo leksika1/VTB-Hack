@@ -1,0 +1,26 @@
+# Сервис «Frontend» в Dokploy: только nginx с собранным фронтендом (Compose Path: ./frontend/docker-compose.yml).
+# /api проксируется в сервис «Backend» (backend/docker-compose.yml) через общую сеть Dokploy.
+# Domains в Dokploy: домен → сервис frontend, порт 80.
+#
+# Environment в Dokploy:
+#   BACKEND_ALIAS — то же значение, что у сервиса Backend: family-backend-prod / family-backend-dev
+
+services:
+  frontend:
+    build:
+      context: .
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    expose:
+      - "80"
+    environment:
+      BACKEND_UPSTREAM: http://${BACKEND_ALIAS:?Задайте BACKEND_ALIAS (как у сервиса Backend)}:8000
+    mem_limit: 128m
+    networks: [shared]
+
+networks:
+  shared:
+    external: true
+    name: ${SHARED_NETWORK:-dokploy-network}

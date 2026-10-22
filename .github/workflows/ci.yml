@@ -91,6 +91,13 @@ jobs:
           cache: pip
           cache-dependency-path: backend/requirements*.txt
 
+      - name: Validate Dokploy compose files
+        env:
+          BACKEND_ALIAS: family-backend-ci
+        run: |
+          docker compose -f backend/docker-compose.yml config -q
+          docker compose -f frontend/docker-compose.yml config -q
+
       - name: Build images
         run: $COMPOSE build
 
