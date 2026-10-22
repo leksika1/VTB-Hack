@@ -75,13 +75,13 @@ Authorization: Bearer <token>
 
 | Группа | Эндпоинты | Лимит (по умолчанию) | Ключ |
 |---|---|---|---|
-| invite | `GET /invites/{code}`, `POST /invites/{code}/join` | 20 в минуту | IP |
-| signup | `POST /families`, `POST /demo` | 10 в минуту | IP |
+| invite | `GET /invites/{code}`, `POST /invites/{code}/join` | 120 в минуту | IP |
+| signup | `POST /families`, `POST /demo` | 60 в минуту | IP |
 | write | все POST/PUT/DELETE с токеном | 120 в минуту | участник |
 | read | все GET с токеном, включая подключение к `/events` | 600 в минуту | участник |
 | streams | одновременно открытых `GET /events` | 5 | участник |
 
-Окно скользящее. Перед backend nginx дополнительно ограничивает 20 запросов/с (всплеск 40) и 50 соединений
+Окно скользящее. Перед backend nginx дополнительно ограничивает 50 запросов/с (всплеск 200) и 300 соединений
 с одного IP — см. [SECURITY.md](SECURITY.md). Объём данных: до 10 участников в семье, до 20 000 расходов
 и 20 000 платежей.
 

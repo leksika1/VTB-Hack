@@ -3,6 +3,7 @@ import time
 
 import pytest
 
+from app.config import get_settings
 from tests.conftest import run_sql
 
 from .helpers import MONTH, TODAY, add_expense, add_payment, assert_error, auth, create_family, set_budget
@@ -77,10 +78,10 @@ def test_inactive_session_expires(api, needs_db):
 
 
 def test_rate_limit_on_invite_codes(new_client):
-    """Перебор кодов приглашения: после 20 попыток в минуту с одного IP — 429."""
+    """Перебор кодов приглашения: после RATE_LIMIT_INVITE попыток в минуту с одного IP — 429."""
     attacker = new_client()
-    for i in range(20):
-        assert attacker.get(f"/api/invites/AAAA{i:02d}").status_code == 404
+    for i in range(get_settings().rate_limit_invite):
+        assert attacker.get(f"/api/invites/AA{i:04d}").status_code in (404, 422)
     assert_error(attacker.get("/api/invites/AAAA99"), 429, "rate_limited")
     assert_error(attacker.post("/api/invites/AAAA99/join", json={"userName": "x"}), 429, "rate_limited")
     # Другой IP не страдает
@@ -89,7 +90,7 @@ def test_rate_limit_on_invite_codes(new_client):
 
 def test_rate_limit_on_signup(new_client):
     client = new_client()
-    for i in range(10):
+    for i in range(get_settings().rate_limit_signup):
         assert client.post("/api/families", json={"familyName": f"Ф{i}", "userName": "А"}).status_code == 201
     assert_error(client.post("/api/families", json={"familyName": "Ф", "userName": "А"}), 429, "rate_limited")
     assert_error(client.post("/api/demo"), 429, "rate_limited")
@@ -114,7 +115,7 @@ def test_spoofed_forwarded_for_from_untrusted_client_is_ignored(base_url, local_
 
     real_ip = "198.51.100.77"
     with httpx.Client(base_url=base_url) as client:
-        for i in range(20):
+        for i in range(get_settings().rate_limit_invite):
             fake = f"8.8.{i}.{i}"
             r = client.get("/api/invites/BBBB00", headers={"X-Forwarded-For": f"{fake}, {real_ip}"})
             assert r.status_code == 404

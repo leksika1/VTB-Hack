@@ -80,8 +80,8 @@ Environment как выше, Deploy Backend, затем Frontend. Старые �
 | `MAINTENANCE_INTERVAL_SECONDS` | `3600` | Период фоновой очистки; `0` — выключить |
 | `RATE_LIMIT_ENABLED` | `true` | Включить лимиты запросов |
 | `RATE_LIMIT_WINDOW_SECONDS` | `60` | Окно лимитов |
-| `RATE_LIMIT_INVITE` | `20` | Запросов к приглашениям с IP за окно |
-| `RATE_LIMIT_SIGNUP` | `10` | Созданий семьи/демо с IP за окно |
+| `RATE_LIMIT_INVITE` | `120` | Запросов к приглашениям с IP за окно |
+| `RATE_LIMIT_SIGNUP` | `60` | Созданий семьи/демо с IP за окно |
 | `RATE_LIMIT_WRITE` | `120` | Изменений данных на участника за окно |
 | `EVENTS_HEARTBEAT_SECONDS` | `15` | Интервал `: ping` в потоке событий |
 | `RATE_LIMIT_READ` | `600` | Чтений на участника за окно |
@@ -112,9 +112,9 @@ Environment как выше, Deploy Backend, затем Frontend. Старые �
 | `BACKEND_UPSTREAM` | при запуске контейнера | `http://backend:8000` | Куда nginx проксирует `/api` |
 | `VITE_API_URL` | при сборке (build arg) | пусто | Адрес API, если он на другом домене. Пусто — тот же домен |
 | `VITE_API_PROXY` | `npm run dev` | `http://localhost:8000` | Куда dev-сервер vite проксирует `/api` |
-| `API_RATE`, `API_BURST` | при запуске | `20r/s`, `40` | Лимит запросов к `/api` с одного IP в nginx |
+| `API_RATE`, `API_BURST` | при запуске | `50r/s`, `200` | Лимит запросов к `/api` с одного IP в nginx |
 | `STATIC_RATE` | при запуске | `50r/s` | Лимит запросов к статике с одного IP |
-| `CONN_PER_IP`, `EVENTS_PER_IP` | при запуске | `50`, `10` | Одновременных соединений и потоков событий с одного IP |
+| `CONN_PER_IP`, `EVENTS_PER_IP` | при запуске | `300`, `150` | Одновременных соединений и потоков событий с одного IP |
 | `CSP_CONNECT_EXTRA` | при запуске | пусто | Доп. адрес API для CSP, если фронтенд собран с `VITE_API_URL` на другой домен |
 
 ### docker-compose

@@ -7,6 +7,8 @@
 #   POSTGRES_PASSWORD, REDIS_PASSWORD
 #   BACKEND_ALIAS     — уникальное имя на сервере: family-backend-prod / family-backend-dev
 #   CORS_ORIGINS      — домен фронтенда, если он ходит в API с другого домена
+# Необязательные (вход через ВТБ ID, витрина, лимиты, почта) перечислены в environment ниже:
+# заданные в Dokploy, они доходят до backend только потому, что есть в этом списке
 
 x-hardening: &hardening
   restart: unless-stopped
@@ -26,6 +28,32 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD:?Задайте REDIS_PASSWORD}@redis:6379/0
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
       TIMEZONE: Europe/Moscow
+      # Необязательные: значения по умолчанию — как в app/config.py (docs/OPERATIONS.md)
+      ENABLE_DOCS: ${ENABLE_DOCS:-true}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
+      RATE_LIMIT_INVITE: ${RATE_LIMIT_INVITE:-120}
+      RATE_LIMIT_SIGNUP: ${RATE_LIMIT_SIGNUP:-60}
+      RATE_LIMIT_WRITE: ${RATE_LIMIT_WRITE:-120}
+      RATE_LIMIT_READ: ${RATE_LIMIT_READ:-600}
+      DEMO_TTL_HOURS: ${DEMO_TTL_HOURS:-24}
+      SEED_SHOWCASE: ${SEED_SHOWCASE:-false}
+      SHOWCASE_INVITE_CODE: ${SHOWCASE_INVITE_CODE:-}
+      OIDC_ENABLED: ${OIDC_ENABLED:-false}
+      OIDC_MOCK: ${OIDC_MOCK:-false}
+      OIDC_PROVIDER_NAME: ${OIDC_PROVIDER_NAME:-ВТБ ID}
+      OIDC_ISSUER: ${OIDC_ISSUER:-}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+      OIDC_REDIRECT_URIS: ${OIDC_REDIRECT_URIS:-}
+      OIDC_SCOPES: ${OIDC_SCOPES:-openid}
+      EMAIL_BACKEND: ${EMAIL_BACKEND:-outbox}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-Семейный бюджет <no-reply@example.ru>}
+      SMTP_STARTTLS: ${SMTP_STARTTLS:-true}
     depends_on:
       db:
         condition: service_healthy

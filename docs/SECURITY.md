@@ -33,7 +33,7 @@
 | Менять и удалять расход может только автор | `services/finance.py` | `test_update_expense_errors`, `test_delete_expense` |
 | Сессия закрывается после 90 дней без запросов и при выходе из семьи | `deps.resolve_member`, `maintenance.py` | `test_inactive_session_expires`, `test_leave_family_*` |
 | Код приглашения можно сменить — старые ссылки перестают работать | `POST /api/family/invite-code` | `test_rotate_invite_code` |
-| Код приглашения: 6 символов без похожих букв (32⁶ ≈ 10⁹) + лимит 20 попыток/мин с IP | `security.py`, `ratelimit.py` | `test_rate_limit_on_invite_codes` |
+| Код приглашения: 6 символов без похожих букв (32⁶ ≈ 10⁹) + лимит 120 попыток/мин с IP и подтверждение входа взрослым | `security.py`, `ratelimit.py` | `test_rate_limit_on_invite_codes` |
 | Ключ идемпотентности: ≥ 16 символов, криптослучайный (`crypto.randomUUID`); для анонимных запросов привязан к IP | `deps.py`, `services/families.py`, `useRequestId` | `test_anonymous_idempotency_key_is_bound_to_client_ip`, `test_short_idempotency_key_is_rejected` |
 | Токен в заголовке `Authorization`, не в cookie — CSRF неприменим; CORS только для `CORS_ORIGINS` | `main.py` | `test_cors_*` |
 
@@ -57,12 +57,12 @@
 | Уровень | Мера | Значение по умолчанию |
 |---|---|---|
 | Хостинг / банк | Объёмные атаки (L3/L4, SYN-flood) отражаются на сети провайдера или анти-DDoS банка — приложению это не по силам | — |
-| nginx | `limit_req` на IP для `/api` | 20 запросов/с, всплеск 40 |
-| nginx | `limit_req` на IP для статики | 50 запросов/с |
-| nginx | `limit_conn` на IP | 50 соединений, 10 потоков событий |
+| nginx | `limit_req` на IP для `/api` | 50 запросов/с, всплеск 200 |
+| nginx | `limit_req` на IP для статики | 100 запросов/с |
+| nginx | `limit_conn` на IP | 300 соединений, 150 потоков событий (за одним NAT — десятки людей) |
 | nginx | Таймауты медленных клиентов (slowloris) | заголовки и тело 10 с |
 | nginx | Реальный IP из `X-Forwarded-For` только от прокси из частных сетей | — |
-| backend | Лимиты по смыслу в Redis (скользящее окно, общие для всех копий) | приглашения 20/мин/IP, регистрация 10/мин/IP, запись 120/мин и чтение 600/мин на участника |
+| backend | Лимиты по смыслу в Redis (скользящее окно, общие для всех копий) | приглашения 120/мин/IP, регистрация 60/мин/IP, запись 120/мин и чтение 600/мин на участника |
 | backend | Потоков событий на участника | 5 |
 | backend | Записей у семьи (расходы, платежи отдельно) | 20 000 |
 | backend | Участников в семье | 10 |

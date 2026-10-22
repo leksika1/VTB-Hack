@@ -19,7 +19,8 @@ COPY --from=build /app/dist /usr/share/nginx/html
 # Куда проксировать /api. По умолчанию — сервис backend из docker-compose
 ENV BACKEND_UPSTREAM=http://backend:8000
 # Пороги защиты от флуда (на один IP); для нагрузочных и e2e-тестов поднимаются через окружение
-ENV API_RATE=20r/s API_BURST=40 STATIC_RATE=50r/s CONN_PER_IP=50 EVENTS_PER_IP=10
+# С одного IP: за одним Wi-Fi или NAT бывают десятки людей, у каждого вкладка с потоком событий
+ENV API_RATE=50r/s API_BURST=200 STATIC_RATE=100r/s CONN_PER_IP=300 EVENTS_PER_IP=150
 # Дополнительные адреса API для CSP connect-src, если фронтенд собран с VITE_API_URL на другой домен
 ENV CSP_CONNECT_EXTRA=""
 
@@ -75,7 +76,7 @@ server {
     gzip on;
     gzip_types text/css application/javascript application/json image/svg+xml;
 
-    # Поток событий (SSE): без буферизации и с долгим таймаутом; не больше 10 потоков с IP
+    # Поток событий (SSE): без буферизации и с долгим таймаутом; не больше EVENTS_PER_IP потоков с IP
     location = /api/events {
         limit_req zone=api burst=${API_BURST} nodelay;
         limit_conn perip ${EVENTS_PER_IP};
