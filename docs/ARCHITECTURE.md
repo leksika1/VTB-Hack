@@ -144,6 +144,24 @@ erDiagram
     idempotency_records { string scope PK; string key PK; string fingerprint; json response; bigint created_at }
 ```
 
+Таблицы второй очереди (правила — [FEATURES.md](FEATURES.md)):
+
+| Таблица | Что хранит |
+|---|---|
+| `members.role`, `child_invites` | Роли parent/child; одноразовые детские приглашения |
+| `allowances` | Карманные деньги ребёнка: сумма и период |
+| `purchase_requests` | Запросы на покупку и решения; `expenses.request_id` — созданный расход |
+| `goals`, `goal_contributions` | Цели-копилки и взносы |
+| `payments.recurring / series_id / series_month` | Серии повторяющихся платежей, уникально (серия, месяц) |
+| `expenses.paid_by`, `settlements` | Кто платил; отмеченные переводы между взрослыми |
+| `expenses.receipt_key`, `expenses.import_fingerprint` | Защита от повторного чека и повторной строки выписки (уникально в семье) |
+| `notifications`, `email_outbox`, поля `members.email*` | Уведомления, очередь писем, подтверждённый адрес |
+| `statement_imports`, `import_rows`, `category_rules` | Загруженные выписки до подтверждения; запомненные категории семьи |
+| `members.oidc_sub` | Привязка к учётной записи ВТБ ID |
+
+Фоновые задачи (`maintenance.py`, раз в час, безопасны на нескольких копиях): очистка устаревших записей,
+продление серий платежей, напоминания о платежах; отдельный цикл разбирает очередь писем (`SKIP LOCKED`).
+
 Решения и их причины:
 
 | Решение | Почему |

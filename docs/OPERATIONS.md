@@ -66,6 +66,18 @@
 | `MAX_STREAMS_PER_MEMBER` | `5` | Одновременных потоков событий у участника (на копию backend) |
 | `MAX_RECORDS_PER_FAMILY` | `20000` | Расходов и, отдельно, платежей у семьи |
 | `ENABLE_DOCS` | `true` | Swagger и OpenAPI на `/api/docs` |
+| `MAX_IMPORT_BYTES` | `2097152` | Тело `POST /api/imports` (выписка в JSON) |
+| `NOTIFICATION_TTL_DAYS` | `90` | Сколько хранить уведомления |
+| `EMAIL_BACKEND` | `outbox` | `outbox` — письма только в таблице `email_outbox`; `smtp` — отправлять |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_STARTTLS` | —, `587`, —, —, `true` | Почтовый сервер |
+| `SMTP_FROM` | `Семейный бюджет <no-reply@example.ru>` | Отправитель |
+| `EMAIL_SEND_INTERVAL_SECONDS` | `10` | Период разбора очереди писем |
+| `OIDC_ENABLED` | `false` | Вход через ВТБ ID |
+| `OIDC_PROVIDER_NAME` | `ВТБ ID` | Название на кнопке |
+| `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` | — | Параметры провайдера (выдаёт банк) |
+| `OIDC_REDIRECT_URIS` | — | Разрешённые адреса возврата во фронтенд, через запятую (точное совпадение) |
+| `OIDC_SCOPES` | `openid` | Запрашиваемые scope |
+| `OIDC_MOCK` | `false` | Встроенный тестовый провайдер (только демо и тесты!); тогда `OIDC_ISSUER=https://<домен>/api/mock-idp` |
 | `LOG_LEVEL` | `INFO` | Уровень журнала |
 
 ### frontend

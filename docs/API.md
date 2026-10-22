@@ -92,6 +92,40 @@ Authorization: Bearer <token>
 - Изменяющий запрос (POST/PUT/DELETE с ответом < 400, кроме проверки покупки и смены участника демо)
   рассылает участникам семьи событие `changed` — см. [`GET /events`](#get-apievents).
 
+### Роли и что изменилось в существующих ответах
+
+С ролями ([FEATURES.md §1](FEATURES.md#1-роли-в-семье)) часть эндпоинтов доступна только взрослым: бюджет,
+платежи, сводка, проверка покупки, смена кода приглашения — ребёнок получает `403`
+«Это доступно только взрослым участникам семьи». Новые поля в уже существующих ответах:
+
+| Где | Поле | Смысл |
+|---|---|---|
+| участник в `family.members` | `role` | `parent` или `child` |
+| `family` | `inviteCode` | `null` для ребёнка (по коду семьи входят взрослые) |
+| `GET /invites/{code}` | `role` | с какой ролью войдёт приглашённый |
+| расход | `paidBy`, `requestId` | кто платил; из какого одобренного запроса создан |
+| платёж | `recurring`, `seriesId` | повторяющийся ли, к какой серии относится |
+| `GET /state` | `allowances`, `unreadNotifications` | карманные деньги; непрочитанные уведомления |
+| сводка месяца | `savedThisMonth` | взносы в цели за месяц (в формулы не входят) |
+
+### Эндпоинты второй очереди
+
+Правила, тела запросов и ответов — в [FEATURES.md](FEATURES.md).
+
+| Группа | Эндпоинты | Раздел |
+|---|---|---|
+| Участники | `POST /family/child-invites`, `PUT/DELETE /family/members/{id}` | [§1](FEATURES.md#1-роли-в-семье) |
+| Карманные деньги | `GET /allowances`, `PUT/DELETE /family/members/{id}/allowance` | [§2](FEATURES.md#2-карманные-деньги) |
+| Запросы на покупку | `GET/POST /purchase-requests`, `POST /purchase-requests/{id}/approve\|reject\|cancel` | [§3](FEATURES.md#3-запросы-на-покупку) |
+| Цели | `GET/POST /goals`, `PUT/DELETE /goals/{id}`, `POST /goals/{id}/archive`, `GET/POST /goals/{id}/contributions`, `DELETE /goals/{id}/contributions/{cid}` | [§4](FEATURES.md#4-цели-копилки) |
+| Прогноз | `GET /months/{month}/forecast` | [§5](FEATURES.md#5-прогноз-на-конец-месяца) |
+| Повторяющиеся платежи | поле `recurring` в `POST/PUT /payments` | [§6](FEATURES.md#6-повторяющиеся-платежи) |
+| Кто кому должен | `GET /months/{month}/settlement`, `POST /months/{month}/settlements`, `DELETE /months/{month}/settlements/{id}` | [§7](FEATURES.md#7-кто-кому-должен) |
+| Чек | `POST /receipts/parse`, поле `receipt` в `POST /expenses` | [§8](FEATURES.md#8-qr-код-чека) |
+| Уведомления и профиль | `GET /notifications`, `POST /notifications/{id}/read`, `POST /notifications/read-all`, `GET /me`, `PUT/DELETE /me/email`, `POST /me/email/verify`, `PUT /me/notifications` | [§9](FEATURES.md#9-уведомления) |
+| Импорт выписки | `GET/POST /imports`, `GET/DELETE /imports/{id}`, `POST /imports/{id}/confirm` | [§10](FEATURES.md#10-импорт-выписки) |
+| ВТБ ID | `GET /auth/oidc/config`, `POST /auth/oidc/start`, `POST /auth/oidc/callback`, `DELETE /me/oidc` | [§11](FEATURES.md#11-вход-через-втб-id) |
+
 ---
 
 ## Семья

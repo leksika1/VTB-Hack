@@ -65,6 +65,14 @@ backend/tests/
   e2e/test_summary.py       сводка, статусы категорий, проверка покупки
   e2e/test_security.py      токены, изоляция семей, срок сессий, лимиты, X-Forwarded-For
   e2e/test_hardening.py     заголовки, размер тела, лимит чтений и потоков, смена кода, предел записей
+  e2e/test_roles.py         роли, детские приглашения, права ребёнка, смена роли, исключение
+  e2e/test_allowance.py     карманные деньги, «кто платил», запросы на покупку
+  e2e/test_receipts.py      QR-код чека и защита от повторного добавления
+  e2e/test_planning.py      цели, повторяющиеся платежи, прогноз, расчёты между взрослыми
+  e2e/test_notifications.py уведомления, e-mail с подтверждением
+  e2e/test_imports.py       импорт выписки
+  e2e/test_oidc.py          вход через ВТБ ID на тестовом провайдере
+  unit/test_planning_rules.py, unit/test_statement.py, unit/test_oidc_tokens.py — чистые функции и проверка токенов
   e2e/test_realtime.py      поток событий: кто что получает и не получает
   e2e/test_concurrency.py   двойные клики и одновременные действия двух участников
   e2e/test_maintenance.py   фоновая очистка
