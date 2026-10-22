@@ -4,7 +4,7 @@ import asyncio
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.db import make_engine
-from app.seed import SHOWCASE_ID, SHOWCASE_NAME, ensure_showcase
+from app.seed import SHOWCASE_ID, SHOWCASE_NAME, ensure_showcase, showcase_codes
 
 from .test_oidc import bank_login, callback
 
@@ -47,3 +47,21 @@ def test_showcase_is_idempotent_and_reachable_by_test_logins(api, new_client, ne
     assert run_seed(needs_db, reset=True) is True
     assert api.get("/api/state", headers=headers).status_code == 401
     assert login_as(api, "alexey")["family"]["id"] == SHOWCASE_ID
+
+
+def test_showcase_codes_let_jury_join(api, new_client, needs_db):
+    run_seed(needs_db, reset=True)
+
+    async def go():
+        engine = make_engine(needs_db)
+        try:
+            return await showcase_codes(async_sessionmaker(engine, expire_on_commit=False))
+        finally:
+            await engine.dispose()
+
+    family_code, child_code = asyncio.run(go())
+    adult = new_client().post(f"/api/invites/{family_code}/join", json={"userName": "Жюри"}).json()
+    assert adult["family"]["id"] == SHOWCASE_ID
+    assert len(api.get("/api/state", headers={"Authorization": f"Bearer {adult['token']}"}).json()["expenses"]) == 13
+    child = new_client().post(f"/api/invites/{child_code}/join", json={"userName": "Ребёнок жюри"}).json()
+    assert child["family"]["id"] == SHOWCASE_ID and child["family"]["inviteCode"] is None

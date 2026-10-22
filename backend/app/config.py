@@ -72,6 +72,8 @@ class Settings(BaseSettings):
 
     # Постоянная тестовая семья при старте (docs/TEST_DATA.md); идемпотентно
     seed_showcase: bool = False
+    # Постоянный код приглашения витрины (6 латинских букв/цифр); пусто — случайный
+    showcase_invite_code: str = ""
 
     log_level: str = "INFO"
 

@@ -102,6 +102,7 @@ Environment как выше, Deploy Backend, затем Frontend. Старые �
 | `OIDC_SCOPES` | `openid` | Запрашиваемые scope |
 | `OIDC_MOCK` | `false` | Встроенный тестовый провайдер (только демо и тесты!); тогда `OIDC_ISSUER=https://<домен>/api/mock-idp` |
 | `SEED_SHOWCASE` | `false` | Создать постоянную тестовую семью при старте — [TEST_DATA.md](TEST_DATA.md) |
+| `SHOWCASE_INVITE_CODE` | пусто | Постоянный код приглашения тестовой семьи; пусто — случайный |
 | `LOG_LEVEL` | `INFO` | Уровень журнала |
 
 ### frontend
