@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Calculator, ChevronDown, Plus, TriangleAlert } from 'lucide-react';
+import { Calculator, ChevronDown, Pencil, Plus, TriangleAlert } from 'lucide-react';
 import type { MonthSummary } from '../../domain/budget';
 import { formatBalance, formatCurrency } from '../../utils/currency';
 import { formatMonthLower, plural } from '../../utils/date';
@@ -34,6 +34,13 @@ export function FreeAmountCard({ summary, monthKey }: { summary: MonthSummary; m
             ? `Уже за вычетом ${paymentsCount} ${plural(paymentsCount, 'предстоящего платежа', 'предстоящих платежей', 'предстоящих платежей')}`
             : 'Предстоящих обязательных платежей нет'}
       </p>
+
+      {/* The three numbers of the month: plan, spent, left (negative when the plan is exceeded) */}
+      <dl className="mt-5 grid grid-cols-3 gap-2 rounded-xl bg-white/10 px-3 py-3 sm:px-4">
+        <Total label="Бюджет" value={formatCurrency(summary.plan)} />
+        <Total label="Потрачено" value={formatCurrency(summary.spent)} />
+        <Total label="Осталось" value={formatBalance(summary.leftByPlan)} warn={overspent} />
+      </dl>
 
       <div className="mt-5">
         <ProgressBar
@@ -100,7 +107,21 @@ export function FreeAmountCard({ summary, monthKey }: { summary: MonthSummary; m
           Добавить расход
         </Button>
       </div>
+      <Button variant="onBrand" className="mt-2.5 w-full" icon={<Pencil size={16} />} onClick={() => openModal({ type: 'budgetForm' })}>
+        Настроить бюджет
+      </Button>
     </section>
+  );
+}
+
+function Total({ label, value, warn }: { label: string; value: string; warn?: boolean }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-[13px] text-brand-ink-2">{label}</dt>
+      <dd className={`font-semibold tabular text-[15px] sm:text-[17px] truncate ${warn ? 'text-[#ffc46b]' : 'text-white'}`} title={value}>
+        {value}
+      </dd>
+    </div>
   );
 }
 

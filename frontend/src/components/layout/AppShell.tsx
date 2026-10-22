@@ -2,7 +2,7 @@ import { useEffect, type ReactNode } from 'react';
 import { LayoutDashboard, ReceiptText, ClipboardList, Users, type LucideIcon } from 'lucide-react';
 import type { Tab } from '../../types';
 import { useUIStore } from '../../store/uiStore';
-import { useCurrentUser, useFamilyStore } from '../../store/familyStore';
+import { useCurrentUser, useFamilyStore, useIsParent } from '../../store/familyStore';
 import { Avatar, Badge } from '../ui/Misc';
 
 const NAV: { tab: Tab; label: string; icon: LucideIcon }[] = [
@@ -34,6 +34,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const setTab = useUIStore((s) => s.setTab);
   const family = useFamilyStore((s) => s.family);
   const user = useCurrentUser();
+  // The plan (budget and payments) is for adults only
+  const isParent = useIsParent();
+  const nav = isParent ? NAV : NAV.filter((n) => n.tab !== 'plan');
 
   // Each section opens from its top instead of inheriting the previous scroll position
   useEffect(() => {
@@ -55,7 +58,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
 
           <nav aria-label="Разделы" className="hidden lg:flex flex-1 justify-center gap-1">
-            {NAV.map(({ tab: t, label }) => (
+            {nav.map(({ tab: t, label }) => (
               <button
                 key={t}
                 type="button"
@@ -94,8 +97,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         aria-label="Разделы"
         className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-surface border-t border-line pb-[env(safe-area-inset-bottom)]"
       >
-        <div className="grid grid-cols-4 max-w-lg mx-auto">
-          {NAV.map(({ tab: t, label, icon: Icon }) => {
+        <div className={`grid ${nav.length === 4 ? 'grid-cols-4' : 'grid-cols-3'} max-w-lg mx-auto`}>
+          {nav.map(({ tab: t, label, icon: Icon }) => {
             const active = tab === t;
             return (
               <button

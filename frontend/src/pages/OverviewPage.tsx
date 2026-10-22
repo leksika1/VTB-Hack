@@ -1,8 +1,12 @@
-import { ArrowRight, CalendarClock, ReceiptText, UserPlus } from 'lucide-react';
+import { ArrowRight, CalendarClock, PiggyBank, Plus, ReceiptText, UserPlus } from 'lucide-react';
 import { problemCategories } from '../domain/budget';
 import { useMonthSummary } from '../hooks/useMonthSummary';
 import { useUIStore } from '../store/uiStore';
-import { useFamilyStore } from '../store/familyStore';
+import { useFamilyStore, useIsParent } from '../store/familyStore';
+import { useDataStore } from '../store/dataStore';
+import { formatCurrency } from '../utils/currency';
+import { formatDateShort } from '../utils/date';
+import { ProgressBar } from '../components/ui/ProgressBar';
 import { formatMonthLower } from '../utils/date';
 import { Card, PageHeader, SectionHeader } from '../components/ui/Card';
 import { Avatar, MonthSwitcher } from '../components/ui/Misc';
@@ -17,11 +21,16 @@ const RECENT_LIMIT = 5;
 const PAYMENTS_LIMIT = 3;
 
 export function OverviewPage() {
+  return useIsParent() ? <FamilyOverview /> : <ChildOverview />;
+}
+
+/** Main screen of an adult: the family budget of the month */
+function FamilyOverview() {
   const monthKey = useUIStore((s) => s.monthKey);
   const openModal = useUIStore((s) => s.openModal);
   const setTab = useUIStore((s) => s.setTab);
   const summary = useMonthSummary();
-  const problems = problemCategories(summary).slice(0, 3);
+  const problems = problemCategories(summary);
   const recent = summary.expenses.slice(0, RECENT_LIMIT);
 
   const payments = <UpcomingPaymentsCard />;
@@ -41,18 +50,19 @@ export function OverviewPage() {
             {summary.hasBudget && (
               <Card className="p-5">
                 <SectionHeader
-                  title="Требует внимания"
+                  title="Категории"
+                  subtitle={
+                    problems.length > 0
+                      ? `Требуют внимания: ${problems.length}`
+                      : 'Все категории в пределах лимитов, с учётом предстоящих платежей'
+                  }
                   action={
                     <Button size="sm" variant="ghost" onClick={() => setTab('plan')} icon={<ArrowRight size={16} />} className="flex-row-reverse">
-                      Все
+                      План
                     </Button>
                   }
                 />
-                {problems.length > 0 ? (
-                  <CategoryList categories={problems} />
-                ) : (
-                  <p className="text-ink-2">Все категории в пределах лимитов, с учётом предстоящих платежей.</p>
-                )}
+                <CategoryList categories={summary.categories} />
               </Card>
             )}
 
@@ -136,6 +146,7 @@ function FamilyStatusCard() {
   const family = useFamilyStore((s) => s.family);
   const currentUserId = useFamilyStore((s) => s.currentUserId);
   const openModal = useUIStore((s) => s.openModal);
+  const isParent = useIsParent();
   if (!family) return null;
   const alone = family.members.length === 1;
 
@@ -151,7 +162,7 @@ function FamilyStatusCard() {
           </li>
         ))}
       </ul>
-      {alone && (
+      {alone && isParent && (
         <div className="mt-4 p-4 rounded-xl bg-accent-soft">
           <p className="text-[15px] text-ink">Пока вы ведёте бюджет один. Пригласите партнёра, чтобы планировать вместе.</p>
           <Button className="mt-3" size="sm" icon={<UserPlus size={16} />} onClick={() => openModal({ type: 'invite' })}>
@@ -160,5 +171,80 @@ function FamilyStatusCard() {
         </div>
       )}
     </Card>
+  );
+}
+
+/**
+ * Main screen of a child: own pocket money and own expenses. The family budget, payments and other
+ * members' expenses are not available to a child (the server does not send them).
+ */
+function ChildOverview() {
+  const monthKey = useUIStore((s) => s.monthKey);
+  const openModal = useUIStore((s) => s.openModal);
+  const currentUserId = useFamilyStore((s) => s.currentUserId);
+  const allowance = useDataStore((s) => s.allowances.find((a) => a.memberId === currentUserId) ?? null);
+  const summary = useMonthSummary();
+
+  return (
+    <>
+      <PageHeader title="Мои траты">
+        <MonthSwitcher />
+      </PageHeader>
+
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_23rem] items-start">
+        <div className="space-y-5 min-w-0">
+          <section className="rounded-[var(--radius-card)] brand-surface p-5 sm:p-6 shadow-[var(--shadow-card)]">
+            {allowance ? (
+              <>
+                <h2 className="text-[15px] text-brand-ink-2">
+                  Карманные деньги на {allowance.period === 'week' ? 'неделю' : 'месяц'}: осталось
+                </h2>
+                <p className={`text-[40px] leading-tight font-bold tracking-tight tabular mt-1 ${allowance.left < 0 ? 'text-[#ffc46b]' : ''}`}>
+                  {formatCurrency(allowance.left)}
+                </p>
+                <p className="text-[15px] text-brand-ink-2 mt-1">
+                  из {formatCurrency(allowance.amount)} · {formatDateShort(allowance.periodStart)} — {formatDateShort(allowance.periodEnd)}
+                </p>
+                <div className="mt-5">
+                  <ProgressBar
+                    tone="inverse"
+                    value={allowance.spent}
+                    max={allowance.amount}
+                    label={`Потрачено ${formatCurrency(allowance.spent)} из ${formatCurrency(allowance.amount)}`}
+                  />
+                  <p className="text-sm text-brand-ink-2 mt-2">
+                    Потрачено <span className="text-white font-medium tabular">{formatCurrency(allowance.spent)}</span>
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                <h2 className="text-[15px] text-brand-ink-2 flex items-center gap-2">
+                  <PiggyBank size={18} aria-hidden /> Карманные деньги
+                </h2>
+                <p className="text-xl font-semibold mt-2">Пока не назначены</p>
+                <p className="text-[15px] text-brand-ink-2 mt-1">Попросите взрослого назначить карманные деньги — тогда вы сможете добавлять свои траты.</p>
+              </>
+            )}
+            <Button variant="onBrand" size="lg" className="mt-5 w-full sm:w-auto" icon={<Plus size={18} />} onClick={() => openModal({ type: 'expenseForm' })}>
+              Добавить расход
+            </Button>
+          </section>
+
+          <Card key={monthKey} className="p-5 animate-month-in">
+            <SectionHeader title={`Мои расходы за ${formatMonthLower(monthKey)}`} />
+            {summary.expenses.length > 0 ? (
+              <ExpenseList expenses={summary.expenses} showDate />
+            ) : (
+              <EmptyState compact icon={<ReceiptText size={22} />} title="Расходов пока нет" description="Здесь появятся ваши покупки" />
+            )}
+          </Card>
+        </div>
+
+        <aside className="space-y-5 min-w-0">
+          <FamilyStatusCard />
+        </aside>
+      </div>
+    </>
   );
 }

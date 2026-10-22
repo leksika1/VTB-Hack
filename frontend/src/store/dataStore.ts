@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Expense, MonthlyBudget, Payment } from '../types';
+import type { Allowance, Expense, MonthlyBudget, Payment } from '../types';
 
 /**
  * Family data loaded from the backend. Components never mutate it directly — all writes go through
@@ -9,6 +9,8 @@ interface DataState {
   budgets: Record<string, MonthlyBudget>; // key: budgetKey(familyId, monthKey)
   expenses: Expense[];
   payments: Payment[];
+  /** Pocket money: an adult sees every child, a child — only own */
+  allowances: Allowance[];
 }
 
 export function budgetKey(familyId: string, monthKey: string): string {
@@ -20,5 +22,6 @@ export const useDataStore = create<DataState>()(
     budgets: {},
     expenses: [],
     payments: [],
+    allowances: [],
   })
 );

@@ -1,27 +1,74 @@
-import { useState, type FormEvent } from 'react';
-import { Calculator, CalendarClock, Sparkles, Users } from 'lucide-react';
-import { createFamily, errorMessage, joinFamily, startDemo } from '../api/client';
+import { useEffect, useState, type FormEvent } from 'react';
+import { BadgeCheck, Calculator, CalendarClock, Landmark, Sparkles, Users } from 'lucide-react';
+import type { InvitePreview } from '../types';
+import {
+  clearLinkToken,
+  createFamily,
+  errorMessage,
+  getInvitePreview,
+  getLinkToken,
+  getOidcConfig,
+  joinFamily,
+  startDemo,
+  startOidc,
+  type OidcConfig,
+} from '../api/client';
 import { useAsyncAction, useRequestId } from '../hooks/useAsyncAction';
 import { useUIStore } from '../store/uiStore';
 import { clearInviteFromUrl } from '../components/family/invite';
+import { plural } from '../utils/date';
 import { BrandMark } from '../components/layout/AppShell';
 import { Field, FormError } from '../components/ui/Field';
 import { Button } from '../components/ui/Button';
+import { Skeleton } from '../components/ui/Feedback';
 
 type Mode = 'create' | 'join';
 
 interface OnboardingPageProps {
-  invite: { code: string; familyName: string | null } | null;
+  /** Code from an invite link (?invite=…) */
+  invite: string | null;
   onInviteDismiss: () => void;
+}
+
+/** «Войти через ВТБ ID» is shown only when the backend has the bank sign-in enabled */
+function useOidcConfig(): OidcConfig | null {
+  const [config, setConfig] = useState<OidcConfig | null>(null);
+  useEffect(() => {
+    let alive = true;
+    getOidcConfig().then((c) => alive && setConfig(c));
+    return () => {
+      alive = false;
+    };
+  }, []);
+  return config;
 }
 
 export function OnboardingPage({ invite, onInviteDismiss }: OnboardingPageProps) {
   const [mode, setMode] = useState<Mode>(invite ? 'join' : 'create');
   const addToast = useUIStore((s) => s.addToast);
   const [demoPending, setDemoPending] = useState(false);
+  const oidc = useOidcConfig();
+  const [oidcPending, setOidcPending] = useState(false);
+  // The bank confirmed the person, but no family member is linked to this VTB ID yet
+  const [vtbConfirmed, setVtbConfirmed] = useState(() => getLinkToken() !== null);
   const dismissInvite = () => {
     clearInviteFromUrl();
     onInviteDismiss();
+  };
+
+  const signInWithBank = async () => {
+    if (!oidc?.enabled) {
+      addToast('Вход через ВТБ ID выключен на сервере: в настройках бэкенда нужно задать OIDC_ENABLED=true', 'error');
+      return;
+    }
+    setOidcPending(true);
+    try {
+      await startOidc('login', invite);
+      // The page is navigating to the bank; keep the spinner
+    } catch (e) {
+      addToast(errorMessage(e), 'error');
+      setOidcPending(false);
+    }
   };
 
   return (
@@ -39,7 +86,7 @@ export function OnboardingPage({ invite, onInviteDismiss }: OnboardingPageProps)
             <Promo icon={<Users size={20} />}>Общий план на двоих: каждый видит те же цифры</Promo>
           </ul>
         </div>
-        <p className="text-sm text-brand-ink-2">Прототип. Данные хранятся только в этом браузере.</p>
+        <p className="text-sm text-brand-ink-2">Прототип. Данные семьи хранятся на сервере и видны только её участникам.</p>
       </aside>
 
       <main className="flex items-center justify-center px-4 py-10 sm:px-8">
@@ -48,6 +95,28 @@ export function OnboardingPage({ invite, onInviteDismiss }: OnboardingPageProps)
             <BrandMark size={40} />
             <span className="text-lg font-semibold text-ink">Семейный бюджет</span>
           </div>
+
+          {vtbConfirmed && (
+            <div className="mb-6 flex gap-3 rounded-xl bg-success-soft px-4 py-3 text-[15px] text-ink">
+              <BadgeCheck size={20} className="shrink-0 mt-0.5 text-success" aria-hidden />
+              <div className="min-w-0">
+                <p>
+                  {oidc?.providerName ?? 'ВТБ ID'} подтверждён, но пока не привязан ни к одной семье. Создайте семью или
+                  присоединитесь по приглашению — в следующий раз войдёте через банк сразу.
+                </p>
+                <button
+                  type="button"
+                  className="mt-1 text-sm font-medium text-accent-ink hover:underline"
+                  onClick={() => {
+                    clearLinkToken();
+                    setVtbConfirmed(false);
+                  }}
+                >
+                  Не привязывать
+                </button>
+              </div>
+            </div>
+          )}
 
           {invite && mode === 'join' ? (
             <JoinForm
@@ -87,6 +156,22 @@ export function OnboardingPage({ invite, onInviteDismiss }: OnboardingPageProps)
 
               <div className="mt-6">{mode === 'create' ? <CreateForm /> : <JoinForm invite={null} />}</div>
             </>
+          )}
+
+          {oidc && !vtbConfirmed && (
+            <div className="mt-8">
+              <div className="flex items-center gap-3 text-sm text-ink-3 mb-4" aria-hidden>
+                <span className="h-px flex-1 bg-line" />
+                или
+                <span className="h-px flex-1 bg-line" />
+              </div>
+              <Button variant="outline" fullWidth size="lg" icon={<Landmark size={18} />} loading={oidcPending} onClick={signInWithBank}>
+                Войти через {oidc.providerName}
+              </Button>
+              <p className="text-sm text-ink-3 mt-2 px-1">
+                Уже есть семья — откроется ваш аккаунт. Нет — после входа создадите семью или присоединитесь по приглашению.
+              </p>
+            </div>
           )}
 
           <div className="mt-10 pt-6 border-t border-line">
@@ -151,7 +236,7 @@ function CreateForm() {
         value={familyName}
         onChange={(e) => setFamilyName(e.target.value)}
         placeholder="Например, Семья Ивановых"
-        maxLength={60}
+        maxLength={80}
         autoComplete="off"
         error={submitted && !familyName.trim() ? 'Придумайте название' : null}
       />
@@ -160,9 +245,9 @@ function CreateForm() {
         value={userName}
         onChange={(e) => setUserName(e.target.value)}
         placeholder="Имя"
-        maxLength={40}
+        maxLength={60}
         autoComplete="given-name"
-        error={submitted && !userName.trim() ? 'Укажите имя — его увидят участники' : null}
+        error={submitted && !userName.trim() ? 'Укажите имя — его увидят участники' : create.errorField === 'userName' ? create.error : null}
       />
       {create.error && !create.errorField && <FormError>{create.error}</FormError>}
       <Button type="submit" fullWidth size="lg" loading={create.pending}>
@@ -177,36 +262,73 @@ function JoinForm({
   onCancel,
   onJoined,
 }: {
-  invite: { code: string; familyName: string | null } | null;
+  invite: string | null;
   onCancel?: () => void;
   onJoined?: () => void;
 }) {
   const addToast = useUIStore((s) => s.addToast);
   const requestId = useRequestId();
   const join = useAsyncAction(joinFamily);
-  const [code, setCode] = useState(invite?.code ?? '');
+  const [code, setCode] = useState(invite ?? '');
   const [userName, setUserName] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const preview = useInvitePreview(invite);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setSubmitted(true);
     if (!code.trim() || !userName.trim()) return;
-    const res = await join.run(code, invite?.familyName ?? null, userName, requestId);
+    const res = await join.run(code, userName, requestId);
     if (!res.ok) return;
     clearInviteFromUrl();
     // Link and child codes never equal family.inviteCode, so App cannot tell on its own that the invite is used
     onJoined?.();
-    addToast(`Вы присоединились к «${res.value.name}»`);
+    if (res.value.pending) addToast('Заявка отправлена. Ждём, когда взрослый участник подтвердит вход.', 'info');
+    else addToast(`Вы присоединились к «${res.value.name}»`);
   };
+
+  if (invite && preview.status === 'loading') {
+    return (
+      <div className="space-y-4" aria-busy="true" aria-label="Загружаем приглашение">
+        <Skeleton className="h-5 w-56" />
+        <Skeleton className="h-9 w-72" />
+        <Skeleton className="h-12 w-full" />
+      </div>
+    );
+  }
+
+  if (invite && preview.status === 'error') {
+    return (
+      <div className="space-y-4">
+        <h1 className="text-[28px] font-bold text-ink leading-tight">Приглашение не открылось</h1>
+        <FormError>{preview.error}</FormError>
+        {onCancel && (
+          <Button variant="secondary" fullWidth onClick={onCancel}>
+            Создать свою семью
+          </Button>
+        )}
+      </div>
+    );
+  }
+
+  const info = preview.status === 'ready' ? preview.value : null;
 
   return (
     <form onSubmit={onSubmit} noValidate className="space-y-4">
-      {invite && (
+      {info && (
         <>
           <p className="text-ink-2">Вас пригласили в семейное пространство</p>
-          <h1 className="text-[28px] font-bold text-ink leading-tight break-words">«{invite.familyName || 'Семья'}»</h1>
-          <p className="text-ink-2">После присоединения вы будете видеть общий план, расходы и платежи и сможете добавлять свои.</p>
+          <h1 className="text-[28px] font-bold text-ink leading-tight break-words">«{info.familyName}»</h1>
+          <p className="text-ink-2">
+            {info.membersCount} {plural(info.membersCount, 'участник', 'участника', 'участников')} ·{' '}
+            {info.role === 'child' ? 'вы войдёте как ребёнок' : 'вы войдёте как взрослый участник'}
+          </p>
+          <p className="text-ink-2">
+            {info.role === 'child'
+              ? 'Вы будете видеть свои расходы и карманные деньги и сможете просить о покупках.'
+              : 'Вы будете видеть общий план, расходы и платежи и сможете добавлять свои.'}
+            {info.needsApproval && ' Вход по коду подтверждает взрослый участник семьи — до этого данные семьи не видны.'}
+          </p>
         </>
       )}
       {!invite && (
@@ -214,12 +336,13 @@ function JoinForm({
           label="Код приглашения"
           value={code}
           onChange={(e) => setCode(e.target.value.toUpperCase())}
-          placeholder="6 символов"
-          maxLength={6}
+          placeholder="6 символов или код из ссылки"
+          maxLength={16}
           autoComplete="off"
           autoCapitalize="characters"
           className="[&_input]:font-mono [&_input]:tracking-[0.2em]"
           error={submitted && !code.trim() ? 'Введите код' : join.errorField === 'code' ? join.error : null}
+          hint="Вход по коду семьи подтверждает взрослый участник"
         />
       )}
       <Field
@@ -227,11 +350,12 @@ function JoinForm({
         value={userName}
         onChange={(e) => setUserName(e.target.value)}
         placeholder="Имя"
-        maxLength={40}
+        maxLength={60}
         autoComplete="given-name"
-        error={submitted && !userName.trim() ? 'Укажите имя — его увидят участники' : null}
+        error={submitted && !userName.trim() ? 'Укажите имя — его увидят участники' : join.errorField === 'userName' ? join.error : null}
       />
       {join.error && join.errorField !== 'code' && join.errorField !== 'userName' && <FormError>{join.error}</FormError>}
+      {invite && join.errorField === 'code' && <FormError>{join.error}</FormError>}
       <Button type="submit" fullWidth size="lg" loading={join.pending}>
         Присоединиться
       </Button>
@@ -242,4 +366,23 @@ function JoinForm({
       )}
     </form>
   );
+}
+
+type Loadable<T> = { status: 'loading' } | { status: 'ready'; value: T } | { status: 'error'; error: string } | { status: 'idle' };
+
+/** The family behind an invite link, from the server — the link itself carries only the code */
+function useInvitePreview(code: string | null): Loadable<InvitePreview> {
+  const [state, setState] = useState<Loadable<InvitePreview>>(code ? { status: 'loading' } : { status: 'idle' });
+  useEffect(() => {
+    if (!code) return;
+    let alive = true;
+    getInvitePreview(code).then(
+      (value) => alive && setState({ status: 'ready', value }),
+      (e) => alive && setState({ status: 'error', error: errorMessage(e) })
+    );
+    return () => {
+      alive = false;
+    };
+  }, [code]);
+  return state;
 }

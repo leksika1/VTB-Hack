@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { errorMessage, loadInitialData, refreshData, subscribeToChanges } from './api/client';
-import { useFamilyStore } from './store/familyStore';
+import { errorMessage, loadInitialData, OIDC_CALLBACK_PATH, refreshData, subscribeToChanges, takeReturnInvite } from './api/client';
+import { useFamilyStore, useIsParent } from './store/familyStore';
 import { useUIStore } from './store/uiStore';
 import { AppShell } from './components/layout/AppShell';
 import { ModalHost } from './components/layout/ModalHost';
@@ -11,7 +11,9 @@ import { OperationsPage } from './pages/OperationsPage';
 import { PlanPage } from './pages/PlanPage';
 import { FamilyPage } from './pages/FamilyPage';
 import { OnboardingPage } from './pages/OnboardingPage';
-import { readInviteFromUrl } from './components/family/invite';
+import { AuthCallbackPage, type OidcOutcome } from './pages/AuthCallbackPage';
+import { WaitingApprovalPage } from './pages/WaitingApprovalPage';
+import { buildInviteUrl, readInviteFromUrl } from './components/family/invite';
 
 function useThemeAttribute() {
   const theme = useUIStore((s) => s.theme);
@@ -57,7 +59,10 @@ function useFamilySync(sessionKey: string | null) {
 export default function App() {
   useThemeAttribute();
   const family = useFamilyStore((s) => s.family);
-  const tab = useUIStore((s) => s.tab);
+  const isParent = useIsParent();
+  // A child has no «План» tab; a tab left over from an adult session falls back to the overview
+  const storedTab = useUIStore((s) => s.tab);
+  const tab = storedTab === 'plan' && !isParent ? 'overview' : storedTab;
   const dataStatus = useUIStore((s) => s.dataStatus);
   const setDataStatus = useUIStore((s) => s.setDataStatus);
   const simulateErrors = useUIStore((s) => s.simulateErrors);
@@ -65,7 +70,11 @@ export default function App() {
   const [loadError, setLoadError] = useState('');
   // An invite link opened by someone who already has a family still shows the invite screen
   const [invite, setInvite] = useState(readInviteFromUrl);
-  const pendingInvite = invite && invite.code !== family?.inviteCode;
+  const pendingInvite = invite && invite !== family?.inviteCode;
+  // The bank returns to /auth/callback; the rest of the app waits until the sign-in is finished
+  const [oidcCallback, setOidcCallback] = useState(() => window.location.pathname === OIDC_CALLBACK_PATH);
+  const setTab = useUIStore((s) => s.setTab);
+  const addToast = useUIStore((s) => s.addToast);
   // Keyed by family id: switching family or demo user reconnects the stream with the new token
   const currentUserId = useFamilyStore((s) => s.currentUserId);
   useFamilySync(family && dataStatus === 'ready' ? `${family.id}:${currentUserId}` : null);
@@ -90,10 +99,46 @@ export default function App() {
     fetchData();
   }, [fetchData]);
 
+  const onOidcDone = useCallback(
+    (outcome: OidcOutcome) => {
+      // Back to the invite that was open before going to the bank, otherwise to the start page
+      const returnInvite = outcome === 'unlinked' ? takeReturnInvite() : null;
+      window.history.replaceState(null, '', returnInvite ? buildInviteUrl(returnInvite) : '/');
+      setInvite(returnInvite);
+      setOidcCallback(false);
+      setDataStatus('ready');
+      const name = useFamilyStore.getState().family?.members.find((m) => m.id === useFamilyStore.getState().currentUserId)?.name;
+      if (outcome === 'session') addToast(name ? `Вы вошли как ${name}` : 'Вы вошли через банк');
+      if (outcome === 'linked') {
+        setTab('family');
+        addToast('ВТБ ID привязан — теперь можно входить через банк');
+      }
+    },
+    [addToast, setDataStatus, setTab]
+  );
+
+  if (oidcCallback) {
+    return (
+      <>
+        <AuthCallbackPage onDone={onOidcDone} />
+        <Toasts />
+      </>
+    );
+  }
+
   if (!family || pendingInvite) {
     return (
       <>
         <OnboardingPage invite={pendingInvite ? invite : null} onInviteDismiss={() => setInvite(null)} />
+        <Toasts />
+      </>
+    );
+  }
+
+  if (family.pending) {
+    return (
+      <>
+        <WaitingApprovalPage />
         <Toasts />
       </>
     );

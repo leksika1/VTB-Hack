@@ -30,3 +30,8 @@ export function resolveAuthorName(family: Family | null, authorId: string | null
   const member = authorId ? family?.members.find((m) => m.id === authorId) : undefined;
   return member?.name ?? fallback ?? 'Автор не указан';
 }
+
+/** Adults manage the budget, payments and invites; a child only sees own expenses and pocket money */
+export function useIsParent(): boolean {
+  return useFamilyStore((s) => s.family?.members.find((m) => m.id === s.currentUserId)?.role !== 'child');
+}

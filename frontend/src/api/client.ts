@@ -6,7 +6,7 @@
 import { budgetKey, useDataStore } from '../store/dataStore';
 import { useFamilyStore } from '../store/familyStore';
 import { useUIStore } from '../store/uiStore';
-import type { Expense, ExpenseCategory, Family, MonthlyBudget, Payment } from '../types';
+import type { Allowance, Expense, ExpenseCategory, Family, InviteLink, InvitePreview, Me, MonthlyBudget, Payment, Role } from '../types';
 
 export class ApiError extends Error {
   readonly field?: string;
@@ -81,11 +81,12 @@ interface StateResponse {
   budgets: MonthlyBudget[];
   expenses: Expense[];
   payments: Payment[];
+  allowances?: Allowance[];
 }
 
 function clearSession() {
   useFamilyStore.setState({ family: null, currentUserId: null, token: null });
-  useDataStore.setState({ budgets: {}, expenses: [], payments: [] });
+  useDataStore.setState({ budgets: {}, expenses: [], payments: [], allowances: [] });
 }
 
 function applyState(state: StateResponse) {
@@ -94,6 +95,7 @@ function applyState(state: StateResponse) {
     budgets: Object.fromEntries(state.budgets.map((b) => [budgetKey(b.familyId, b.monthKey), b])),
     expenses: state.expenses,
     payments: state.payments,
+    allowances: state.allowances ?? [],
   });
 }
 
@@ -182,26 +184,43 @@ export function subscribeToChanges(onChange: () => void): () => void {
 /* ── Family ── */
 
 export async function createFamily(familyName: string, userName: string, requestId: string): Promise<Family> {
-  const session = await request<SessionResponse>('/families', {
-    method: 'POST',
-    body: { familyName, userName },
-    requestId,
-    anonymous: true,
-  });
+  const session = await withLinkToken((oidcLinkToken) =>
+    request<SessionResponse>('/families', {
+      method: 'POST',
+      body: { familyName, userName, oidcLinkToken },
+      requestId,
+      anonymous: true,
+    })
+  );
   return startSession(session);
 }
 
-/** Join by invite code. The family name hint from the link is only for display, the server knows the family. */
-export async function joinFamily(code: string, _familyNameHint: string | null, userName: string, requestId: string): Promise<Family> {
+/** What the invited person sees before joining: family name, members, with which role and whether an adult approves */
+export async function getInvitePreview(code: string): Promise<InvitePreview> {
+  const normalized = normalizeInviteCode(code);
+  return request<InvitePreview>(`/invites/${normalized}`, { anonymous: true });
+}
+
+function normalizeInviteCode(code: string): string {
   const normalized = code.trim().toUpperCase();
   // 6 characters: family or child code; 16: invite link (joins without approval)
-  if (!/^[A-Z0-9]{6}([A-Z0-9]{10})?$/.test(normalized)) throw new ApiError('Код состоит из 6 латинских букв и цифр', 'code');
-  const session = await request<SessionResponse>(`/invites/${normalized}/join`, {
-    method: 'POST',
-    body: { userName },
-    requestId,
-    anonymous: true,
-  });
+  if (!/^[A-Z0-9]{6}([A-Z0-9]{10})?$/.test(normalized)) {
+    throw new ApiError('Код — 6 латинских букв и цифр, код из ссылки — 16', 'code');
+  }
+  return normalized;
+}
+
+/** Join by a family code, child code or invite link. By code the member waits for approval (family.pending). */
+export async function joinFamily(code: string, userName: string, requestId: string): Promise<Family> {
+  const normalized = normalizeInviteCode(code);
+  const session = await withLinkToken((oidcLinkToken) =>
+    request<SessionResponse>(`/invites/${normalized}/join`, {
+      method: 'POST',
+      body: { userName, oidcLinkToken },
+      requestId,
+      anonymous: true,
+    })
+  );
   return startSession(session);
 }
 
@@ -219,6 +238,160 @@ export async function leaveFamily(): Promise<void> {
 export async function switchDemoUser(userId: string): Promise<void> {
   const session = await request<SessionResponse>('/family/switch-user', { method: 'POST', body: { userId } });
   await startSession(session);
+}
+
+/** Re-read the family: used while waiting for approval */
+export async function reloadState(): Promise<void> {
+  applyState(await request<StateResponse>('/state'));
+}
+
+/* ── Members and invites (adults) ── */
+
+/** Invite link: whoever opens it joins at once, without approval. The code is shown only now */
+export async function createInviteLink(role: Role): Promise<InviteLink> {
+  return request<InviteLink>('/family/invite-links', { method: 'POST', body: { role } });
+}
+
+export async function approveMember(memberId: string): Promise<void> {
+  const family = await request<Family>(`/family/members/${memberId}/approve`, { method: 'POST' });
+  useFamilyStore.setState({ family });
+}
+
+/** Decline a join request (or remove a member) */
+export async function removeMember(memberId: string): Promise<void> {
+  await request<void>(`/family/members/${memberId}`, { method: 'DELETE' });
+  useFamilyStore.setState((s) =>
+    s.family
+      ? {
+          family: {
+            ...s.family,
+            members: s.family.members.filter((m) => m.id !== memberId),
+            pendingMembers: s.family.pendingMembers?.filter((m) => m.id !== memberId),
+          },
+        }
+      : s
+  );
+}
+
+/* ── VTB ID (OpenID Connect, docs/FEATURES.md §11) ── */
+
+export interface OidcConfig {
+  enabled: boolean;
+  providerName: string;
+}
+
+type OidcCallbackResponse =
+  | { status: 'session'; session: SessionResponse; linkToken: null }
+  | { status: 'unlinked'; session: null; linkToken: string }
+  | { status: 'linked'; session: null; linkToken: null };
+
+/** The page the bank returns to. It must be listed in OIDC_REDIRECT_URIS on the backend */
+export const OIDC_CALLBACK_PATH = '/auth/callback';
+const LINK_TOKEN_KEY = 'fb-oidc-link';
+/** linkToken lives 10 minutes on the server */
+const LINK_TOKEN_TTL_MS = 10 * 60_000;
+const RETURN_INVITE_KEY = 'fb-oidc-invite';
+
+let oidcConfig: Promise<OidcConfig> | null = null;
+
+/** Whether «Войти через ВТБ ID» is available. Cached: the setting does not change while the page is open */
+export function getOidcConfig(): Promise<OidcConfig> {
+  oidcConfig ??= request<OidcConfig>('/auth/oidc/config', { anonymous: true }).catch(() => {
+    oidcConfig = null;
+    return { enabled: false, providerName: 'ВТБ ID' };
+  });
+  return oidcConfig;
+}
+
+/**
+ * Go to the bank. login — sign in (or get a linkToken for a new member); link — attach VTB ID to the current member.
+ * An invite that was open is remembered, so after the bank the person lands on the same invite.
+ */
+export async function startOidc(intent: 'login' | 'link', inviteCode?: string | null): Promise<void> {
+  const { authorizationUrl } = await request<{ authorizationUrl: string }>('/auth/oidc/start', {
+    method: 'POST',
+    body: { intent, redirectUri: `${window.location.origin}${OIDC_CALLBACK_PATH}` },
+    anonymous: intent === 'login',
+  });
+  try {
+    if (inviteCode) sessionStorage.setItem(RETURN_INVITE_KEY, inviteCode);
+    else sessionStorage.removeItem(RETURN_INVITE_KEY);
+  } catch {
+    /* storage is unavailable — the invite will have to be opened again */
+  }
+  window.location.assign(authorizationUrl);
+}
+
+/** Invite code that was open before going to the bank (read once) */
+export function takeReturnInvite(): string | null {
+  try {
+    const code = sessionStorage.getItem(RETURN_INVITE_KEY);
+    sessionStorage.removeItem(RETURN_INVITE_KEY);
+    return code;
+  } catch {
+    return null;
+  }
+}
+
+/** Finish the bank sign-in on /auth/callback */
+export async function completeOidc(code: string, state: string): Promise<OidcCallbackResponse['status']> {
+  const result = await request<OidcCallbackResponse>('/auth/oidc/callback', {
+    method: 'POST',
+    body: { code, state },
+    anonymous: true,
+  });
+  if (result.status === 'session') await startSession(result.session);
+  if (result.status === 'unlinked') saveLinkToken(result.linkToken);
+  return result.status;
+}
+
+function saveLinkToken(token: string) {
+  try {
+    sessionStorage.setItem(LINK_TOKEN_KEY, JSON.stringify({ token, expiresAt: Date.now() + LINK_TOKEN_TTL_MS }));
+  } catch {
+    /* without storage the new member is simply not linked */
+  }
+}
+
+/** A VTB ID confirmed by the bank but not linked to anyone yet: it is attached to the family member created next */
+export function getLinkToken(): string | null {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(LINK_TOKEN_KEY) ?? 'null') as { token: string; expiresAt: number } | null;
+    if (saved && saved.expiresAt > Date.now()) return saved.token;
+  } catch {
+    /* broken value — treat as absent */
+  }
+  clearLinkToken();
+  return null;
+}
+
+export function clearLinkToken() {
+  try {
+    sessionStorage.removeItem(LINK_TOKEN_KEY);
+  } catch {
+    /* nothing to clear */
+  }
+}
+
+/** Send the pending linkToken with create/join; it is one-time, so it is dropped after success or when stale */
+async function withLinkToken<T>(send: (oidcLinkToken: string | undefined) => Promise<T>): Promise<T> {
+  const token = getLinkToken() ?? undefined;
+  try {
+    const result = await send(token);
+    if (token) clearLinkToken();
+    return result;
+  } catch (e) {
+    if (e instanceof ApiError && e.field === 'oidcLinkToken') clearLinkToken();
+    throw e;
+  }
+}
+
+export async function getMe(): Promise<Me> {
+  return request<Me>('/me');
+}
+
+export async function unlinkOidc(): Promise<void> {
+  await request<void>('/me/oidc', { method: 'DELETE' });
 }
 
 /* ── Budget ── */
