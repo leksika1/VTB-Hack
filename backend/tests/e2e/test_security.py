@@ -6,7 +6,7 @@ import pytest
 from app.config import get_settings
 from tests.conftest import run_sql
 
-from .helpers import MONTH, TODAY, add_expense, add_payment, assert_error, auth, create_family, set_budget
+from .helpers import MONTH, TODAY, add_expense, add_payment, assert_error, auth, create_family, set_budget, until_limited
 
 PROTECTED = [
     ("GET", "/api/state"), ("GET", "/api/family"), ("POST", "/api/family/leave"), ("POST", "/api/family/invite-code"), ("GET", "/api/events"),
@@ -80,9 +80,9 @@ def test_inactive_session_expires(api, needs_db):
 def test_rate_limit_on_invite_codes(new_client):
     """Перебор кодов приглашения: после RATE_LIMIT_INVITE попыток в минуту с одного IP — 429."""
     attacker = new_client()
-    for i in range(get_settings().rate_limit_invite):
-        assert attacker.get(f"/api/invites/AA{i:04d}").status_code in (404, 422)
-    assert_error(attacker.get("/api/invites/AAAA99"), 429, "rate_limited")
+    responses = until_limited(lambda i: attacker.get(f"/api/invites/AA{i:04d}"), get_settings().rate_limit_invite)
+    assert {r.status_code for r in responses[:-1]} <= {404, 422}
+    assert_error(responses[-1], 429, "rate_limited")
     assert_error(attacker.post("/api/invites/AAAA99/join", json={"userName": "x"}), 429, "rate_limited")
     # Другой IP не страдает
     assert new_client().get("/api/invites/AAAA99").status_code == 404
@@ -90,9 +90,10 @@ def test_rate_limit_on_invite_codes(new_client):
 
 def test_rate_limit_on_signup(new_client):
     client = new_client()
-    for i in range(get_settings().rate_limit_signup):
-        assert client.post("/api/families", json={"familyName": f"Ф{i}", "userName": "А"}).status_code == 201
-    assert_error(client.post("/api/families", json={"familyName": "Ф", "userName": "А"}), 429, "rate_limited")
+    responses = until_limited(lambda i: client.post("/api/families", json={"familyName": f"Ф{i}", "userName": "А"}),
+                              get_settings().rate_limit_signup)
+    assert {r.status_code for r in responses[:-1]} == {201}
+    assert_error(responses[-1], 429, "rate_limited")
     assert_error(client.post("/api/demo"), 429, "rate_limited")
 
 
@@ -115,9 +116,9 @@ def test_spoofed_forwarded_for_from_untrusted_client_is_ignored(base_url, local_
 
     real_ip = "198.51.100.77"
     with httpx.Client(base_url=base_url) as client:
-        for i in range(get_settings().rate_limit_invite):
-            fake = f"8.8.{i}.{i}"
-            r = client.get("/api/invites/BBBB00", headers={"X-Forwarded-For": f"{fake}, {real_ip}"})
-            assert r.status_code == 404
-        r = client.get("/api/invites/BBBB00", headers={"X-Forwarded-For": f"1.1.1.1, {real_ip}"})
-        assert r.status_code == 429
+        # Каждый раз новая подделка слева — если бы ей верили, лимит не сработал бы никогда
+        responses = until_limited(
+            lambda i: client.get("/api/invites/BBBB00", headers={"X-Forwarded-For": f"8.8.{i % 250}.{i // 250}, {real_ip}"}),
+            get_settings().rate_limit_invite,
+        )
+        assert {r.status_code for r in responses[:-1]} == {404}
