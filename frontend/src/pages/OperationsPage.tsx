@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Plus, ReceiptText, Search, SearchX, SlidersHorizontal, X } from 'lucide-react';
 import type { ExpenseCategory } from '../types';
 import { useMonthSummary } from '../hooks/useMonthSummary';
+import { useMonthChanged } from '../hooks/useMonthChanged';
 import { useUIStore } from '../store/uiStore';
 import { useFamilyStore } from '../store/familyStore';
 import { ALL_CATEGORIES, CATEGORIES } from '../utils/categories';
@@ -21,6 +22,7 @@ export function OperationsPage() {
   const family = useFamilyStore((s) => s.family);
   const currentUserId = useFamilyStore((s) => s.currentUserId);
   const { expenses } = useMonthSummary();
+  const monthIn = useMonthChanged() ? 'animate-month-in' : '';
 
   const [query, setQuery] = useState('');
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
@@ -149,10 +151,10 @@ export function OperationsPage() {
       </Card>
 
       {searched.length > 0 && (
-        <SpendingCharts key={`charts-${monthKey}`} expenses={searched} selected={categories} onToggle={toggleCategory} />
+        <SpendingCharts key={`charts-${monthKey}`} expenses={searched} selected={categories} onToggle={toggleCategory} className={monthIn} />
       )}
 
-      <Card key={`list-${monthKey}`} className="p-4 sm:p-5 mt-5 animate-month-in">
+      <Card key={`list-${monthKey}`} className={`p-4 sm:p-5 mt-5 ${monthIn}`}>
         {expenses.length === 0 ? (
           <EmptyState
             icon={<ReceiptText size={22} />}

@@ -4,6 +4,7 @@ import type { ExpenseCategory, User } from '../../types';
 import { CATEGORIES } from '../../utils/categories';
 import { formatMonthKey, shiftMonth, toMonthKey } from '../../utils/date';
 import { useUIStore } from '../../store/uiStore';
+import { useMonthChanged } from '../../hooks/useMonthChanged';
 import { IconButton } from './Button';
 
 export function Avatar({ user, size = 'md' }: { user: Pick<User, 'name' | 'color'>; size?: 'sm' | 'md' | 'lg' }) {
@@ -40,6 +41,7 @@ export function MonthSwitcher() {
   const setMonthKey = useUIStore((s) => s.setMonthKey);
   const direction = useUIStore((s) => s.monthDirection);
   const isCurrent = monthKey === toMonthKey();
+  const changed = useMonthChanged();
 
   return (
     <div className="inline-flex items-center gap-1 bg-surface rounded-full shadow-card p-0.5">
@@ -48,7 +50,7 @@ export function MonthSwitcher() {
       </IconButton>
       <div className="min-w-34 text-center leading-tight overflow-hidden" aria-live="polite">
         {/* Name and the «back to current» link slide together as one unit; the link exists only off the current month */}
-        <div key={monthKey} className={direction > 0 ? 'animate-label-next' : 'animate-label-prev'}>
+        <div key={monthKey} className={!changed ? '' : direction > 0 ? 'animate-label-next' : 'animate-label-prev'}>
           <div className="text-[15px] font-semibold text-ink">{formatMonthKey(monthKey)}</div>
           {!isCurrent && (
             <button type="button" onClick={() => setMonthKey(toMonthKey())} className="text-xs font-medium text-accent-ink hover:underline">

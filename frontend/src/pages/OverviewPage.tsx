@@ -1,6 +1,7 @@
 import { ArrowRight, CalendarClock, PiggyBank, Plus, ReceiptText, UserPlus } from 'lucide-react';
 import { problemCategories } from '../domain/budget';
 import { useMonthSummary } from '../hooks/useMonthSummary';
+import { useMonthChanged } from '../hooks/useMonthChanged';
 import { useUIStore } from '../store/uiStore';
 import { useFamilyStore, useIsParent } from '../store/familyStore';
 import { useDataStore } from '../store/dataStore';
@@ -34,6 +35,7 @@ function FamilyOverview() {
   const recent = summary.expenses.slice(0, RECENT_LIMIT);
 
   const payments = <UpcomingPaymentsCard />;
+  const monthIn = useMonthChanged() ? 'animate-month-in' : '';
 
   return (
     <>
@@ -46,7 +48,7 @@ function FamilyOverview() {
           <MonthCarousel />
 
           {/* Month-dependent blocks fade in while the main block slides */}
-          <div key={monthKey} className="space-y-5 animate-month-in">
+          <div key={monthKey} className={`space-y-5 ${monthIn}`}>
             {summary.hasBudget && (
               <Card className="p-5">
                 <SectionHeader
@@ -99,7 +101,7 @@ function FamilyOverview() {
         </div>
 
         <aside className="space-y-5 min-w-0">
-          <div key={monthKey} className="hidden lg:block animate-month-in">{payments}</div>
+          <div key={monthKey} className={`hidden lg:block ${monthIn}`}>{payments}</div>
           <FamilyStatusCard />
         </aside>
       </div>
@@ -184,6 +186,7 @@ function ChildOverview() {
   const currentUserId = useFamilyStore((s) => s.currentUserId);
   const allowance = useDataStore((s) => s.allowances.find((a) => a.memberId === currentUserId) ?? null);
   const summary = useMonthSummary();
+  const monthIn = useMonthChanged() ? 'animate-month-in' : '';
 
   return (
     <>
@@ -231,7 +234,7 @@ function ChildOverview() {
             </Button>
           </section>
 
-          <Card key={monthKey} className="p-5 animate-month-in">
+          <Card key={monthKey} className={`p-5 ${monthIn}`}>
             <SectionHeader title={`Мои расходы за ${formatMonthLower(monthKey)}`} />
             {summary.expenses.length > 0 ? (
               <ExpenseList expenses={summary.expenses} showDate />

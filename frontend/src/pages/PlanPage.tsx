@@ -2,6 +2,7 @@ import { CalendarClock, ClipboardList, CopyPlus, Pencil, Plus } from 'lucide-rea
 import { copyPaymentsFromPreviousMonth } from '../api/client';
 import { useAsyncAction } from '../hooks/useAsyncAction';
 import { useMonthSummary } from '../hooks/useMonthSummary';
+import { useMonthChanged } from '../hooks/useMonthChanged';
 import { useUIStore } from '../store/uiStore';
 import { formatCurrency, formatBalance } from '../utils/currency';
 import { formatMonthIn, formatMonthLower, plural, shiftMonth } from '../utils/date';
@@ -17,6 +18,7 @@ export function PlanPage() {
   const monthKey = useUIStore((s) => s.monthKey);
   const openModal = useUIStore((s) => s.openModal);
   const summary = useMonthSummary();
+  const monthIn = useMonthChanged() ? 'animate-month-in' : '';
 
   return (
     <>
@@ -24,7 +26,7 @@ export function PlanPage() {
         <MonthSwitcher />
       </PageHeader>
 
-      <div key={monthKey} className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-start animate-month-in">
+      <div key={monthKey} className={`grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-start ${monthIn}`}>
         <Card className="p-5">
           {summary.hasBudget ? (
             <>
@@ -63,12 +65,14 @@ export function PlanPage() {
           )}
         </Card>
 
-        <PaymentsCard />
+        <div className="space-y-5 min-w-0">
+          <PaymentsCard />
 
-        <Card className="p-5 lg:col-span-2">
-          <SectionHeader title="Структура расходов" subtitle={`Куда ушли деньги ${formatMonthIn(monthKey)}`} />
-          <SpendingStructure summary={summary} />
-        </Card>
+          <Card className="p-5">
+            <SectionHeader title="Структура расходов" subtitle={`Куда ушли деньги ${formatMonthIn(monthKey)}`} />
+            <SpendingStructure summary={summary} />
+          </Card>
+        </div>
       </div>
     </>
   );
