@@ -85,8 +85,15 @@ interface StateResponse {
 }
 
 function clearSession() {
-  useFamilyStore.setState({ family: null, currentUserId: null, token: null });
+  const { family, savedSession } = useFamilyStore.getState();
   useDataStore.setState({ budgets: {}, expenses: [], payments: [], allowances: [] });
+  // The demo copy was left or has expired: back to the real account that was open before it
+  if (family?.isDemo && savedSession) {
+    useFamilyStore.setState({ ...savedSession, savedSession: null });
+    refreshData().catch(() => {});
+    return;
+  }
+  useFamilyStore.setState({ family: null, currentUserId: null, token: null, savedSession: null });
 }
 
 function applyState(state: StateResponse) {
@@ -224,12 +231,31 @@ export async function joinFamily(code: string, userName: string, requestId: stri
   return startSession(session);
 }
 
-/** A personal copy of the demo family on the server */
+/**
+ * A personal copy of the demo family on the server — a sandbox: nobody can join it, VTB ID and e-mail are not
+ * attached to it. The real account that was open is kept aside and comes back when the demo is left.
+ */
 export async function startDemo(): Promise<Family> {
-  return startSession(await request<SessionResponse>('/demo', { method: 'POST', anonymous: true }));
+  const session = await request<SessionResponse>('/demo', { method: 'POST', anonymous: true });
+  const { token, family, currentUserId } = useFamilyStore.getState();
+  if (token && family && !family.isDemo) useFamilyStore.setState({ savedSession: { token, family, currentUserId } });
+  return startSession(session);
+}
+
+/** Close the demo copy: the server ends its sessions (real families are untouched), the real account returns */
+export async function exitDemo(): Promise<void> {
+  const demoToken = useFamilyStore.getState().token;
+  try {
+    await request<void>('/family/leave', { method: 'POST' });
+  } catch {
+    /* the copy may be gone already — leave it anyway */
+  }
+  // A 401 above has already switched back to the real account
+  if (useFamilyStore.getState().token === demoToken) clearSession();
 }
 
 export async function leaveFamily(): Promise<void> {
+  if (useFamilyStore.getState().family?.isDemo) return exitDemo();
   await request<void>('/family/leave', { method: 'POST' });
   clearSession();
 }

@@ -28,6 +28,14 @@ export function InvitePanel() {
   const [role, setRole] = useState<Role>('parent');
   const [copied, setCopied] = useState(false);
   if (!family) return null;
+  if (family.isDemo) {
+    return (
+      <p className="text-ink-2">
+        Демо-семья видна только вам: пригласить в неё нельзя. Чтобы показать совместную работу, создайте свою семью
+        или войдите в тестовую через ВТБ ID.
+      </p>
+    );
+  }
 
   // Kept only for this tab, so it cannot outlive its 7 days unnoticed
   const link = links[`${family.id}:${role}`] ?? null;

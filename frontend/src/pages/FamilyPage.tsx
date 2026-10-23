@@ -65,7 +65,7 @@ export function FamilyPage() {
             )}
           </Card>
 
-          {isParent && <JoinRequestsCard />}
+          {isParent && !family.isDemo && <JoinRequestsCard />}
           {isParent && (
             <Card className="p-5">
               <SectionHeader title="Приглашение" subtitle="Отправьте ссылку — по ней увидят название семьи и смогут присоединиться" />
@@ -92,14 +92,14 @@ export function FamilyPage() {
                 Права проверяются на сервере: скрытая кнопка не даёт доступа к чужим данным.
               </Rule>
             </ul>
-            {isParent && (
+            {isParent && !family.isDemo && (
               <Button className="mt-5" variant="secondary" icon={<UserPlus size={16} />} onClick={() => openModal({ type: 'invite' })}>
                 Пригласить участника
               </Button>
             )}
           </Card>
 
-          <VtbIdCard />
+          {!family.isDemo && <VtbIdCard />}
           <AppearanceCard />
           <DemoCard />
           <LeaveCard />
@@ -394,8 +394,8 @@ function DemoCard() {
           }}
         >
           <p>
-            Вы перейдёте в пример «Семья Смирновых». Ваша семья и её данные сохранятся на сервере, но вернуться в неё
-            в этом браузере можно будет только по приглашению.
+            Откроется пример «Семья Смирновых» — песочница: изменения в ней не затрагивают вашу семью. Вернуться
+            в свою семью — кнопкой «Выйти из демо».
           </p>
         </ConfirmDialog>
       </Presence>
@@ -405,32 +405,47 @@ function DemoCard() {
 
 function LeaveCard() {
   const family = useFamilyStore((s) => s.family);
+  const savedFamily = useFamilyStore((s) => s.savedSession?.family ?? null);
   const addToast = useUIStore((s) => s.addToast);
+  const setTab = useUIStore((s) => s.setTab);
   const leave = useAsyncAction(leaveFamily);
   const [confirm, setConfirm] = useState(false);
+  const demo = family?.isDemo ?? false;
+  // In the demo the button only closes the sandbox; the real account is never touched
+  const back = demo && savedFamily ? savedFamily.name : null;
 
   const onLeave = async () => {
     const res = await leave.run();
-    if (res.ok) addToast('Вы вышли из семьи', 'info');
+    if (!res.ok) return;
+    setTab('overview');
+    addToast(demo ? (back ? `Вы вернулись в «${back}»` : 'Демо закрыто') : 'Вы вышли из семьи', 'info');
   };
 
   return (
     <div className="px-1">
       <Button variant="dangerGhost" icon={<LogOut size={16} />} onClick={() => setConfirm(true)}>
-        Выйти из семьи
+        {demo ? 'Выйти из демо' : 'Выйти из семьи'}
       </Button>
       <Presence show={confirm}>
         <ConfirmDialog
-          title="Выйти из семьи?"
+          title={demo ? 'Выйти из демо?' : 'Выйти из семьи?'}
           confirmLabel="Выйти"
+          tone={demo ? 'primary' : undefined}
           pending={leave.pending}
           error={leave.error}
           onCancel={() => setConfirm(false)}
           onConfirm={onLeave}
         >
-          <p>
-            Вы перестанете видеть общий бюджет «{family?.name}». Чтобы вернуться, понадобится новое приглашение.
-          </p>
+          {demo ? (
+            <p>
+              Демо-семья закроется, изменения в ней не сохранятся.{' '}
+              {back ? <>Вы вернётесь в свою семью «{back}».</> : 'Вы вернётесь на начальный экран.'}
+            </p>
+          ) : (
+            <p>
+              Вы перестанете видеть общий бюджет «{family?.name}». Чтобы вернуться, понадобится новое приглашение.
+            </p>
+          )}
         </ConfirmDialog>
       </Presence>
     </div>
