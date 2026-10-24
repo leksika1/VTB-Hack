@@ -11,6 +11,10 @@ export type ModalState =
   | { type: 'paymentForm'; paymentId?: string }
   | { type: 'purchaseCheck' }
   | { type: 'invite' }
+  | { type: 'allowanceForm'; memberId: string }
+  | { type: 'purchaseRequestForm' }
+  | { type: 'goalForm'; goalId?: string }
+  | { type: 'goalContribution'; goalId: string }
   | null;
 
 export type Theme = 'light' | 'dark' | 'system';

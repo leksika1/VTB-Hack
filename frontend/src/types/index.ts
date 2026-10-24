@@ -114,6 +114,73 @@ export interface Payment {
   expenseId?: string | null;
   authorId: string | null;
   createdAt: number;
+  /** Monthly series: the server keeps a payment in this and the next month (docs/FEATURES.md §6) */
+  recurring?: boolean;
+  seriesId?: string | null;
+}
+
+/** Result of «Можем ли купить?» computed by the server for the current month */
+export type PurchaseVerdict = 'ok' | 'tight' | 'category-over' | 'not-enough';
+
+export interface ServerPurchaseCheck {
+  verdict: PurchaseVerdict;
+  amount: number;
+  freeBefore: number;
+  freeAfter: number;
+  categoryLeftAfter: number | null;
+}
+
+export type PurchaseRequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
+
+/** «Можно купить?»: any member asks, an adult other than the author decides (docs/FEATURES.md §3) */
+export interface PurchaseRequest {
+  id: string;
+  familyId: string;
+  authorId: string | null;
+  title: string;
+  amount: number;
+  category: ExpenseCategory;
+  comment: string | null;
+  status: PurchaseRequestStatus;
+  decidedBy: string | null;
+  decidedAt: number | null;
+  decisionComment: string | null;
+  /** Expense created on approval */
+  expenseId: string | null;
+  createdAt: number;
+  /** Adults only, pending only: how the purchase fits this month's plan */
+  check?: ServerPurchaseCheck | null;
+}
+
+/** Family savings goal. Contributions are set aside money, not spending: they do not enter the budget (§4) */
+export interface Goal {
+  id: string;
+  familyId: string;
+  title: string;
+  target: number;
+  deadline: string | null; // 'YYYY-MM-DD'
+  status: 'active' | 'achieved' | 'archived';
+  saved: number;
+  left: number;
+  /** 0–100, rounded down */
+  percent: number;
+  /** How much to put aside monthly to make the deadline */
+  monthlyNeeded: number | null;
+  /** 'YYYY-MM' when the goal is reached at the current pace */
+  etaMonth: string | null;
+  createdBy: string | null;
+  createdAt: number;
+  achievedAt: number | null;
+}
+
+/** In-app notification about something that happened in the family (docs/FEATURES.md §9) */
+export interface AppNotification {
+  id: string;
+  kind: string;
+  title: string;
+  body: string;
+  createdAt: number;
+  readAt: number | null;
 }
 
 export interface Toast {

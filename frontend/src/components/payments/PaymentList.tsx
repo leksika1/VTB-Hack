@@ -1,4 +1,4 @@
-import { Check, Undo2 } from 'lucide-react';
+import { Check, Repeat, Undo2 } from 'lucide-react';
 import type { Payment } from '../../types';
 import { formatCurrency } from '../../utils/currency';
 import { formatDueIn, formatMonthIn } from '../../utils/date';
@@ -51,6 +51,9 @@ export function PaymentRow({ payment, editable = true }: { payment: Payment; edi
               <PaymentStatusBadge payment={payment} />
             ) : (
               <Badge tone={isOverdue(payment) ? 'danger' : 'accent'}>{formatDueIn(payment.dueDate)}</Badge>
+            )}
+            {payment.recurring && (
+              <Badge icon={<Repeat size={12} aria-hidden />}>Каждый месяц</Badge>
             )}
           </span>
         </button>

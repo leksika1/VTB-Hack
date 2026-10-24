@@ -13,6 +13,7 @@ import { EmptyState } from '../components/ui/Feedback';
 import { CategoryList } from '../components/budget/CategoryList';
 import { SpendingStructure } from '../components/budget/SpendingStructure';
 import { PaymentList } from '../components/payments/PaymentList';
+import { GoalsCard } from '../components/goals/GoalsCard';
 
 export function PlanPage() {
   const monthKey = useUIStore((s) => s.monthKey);
@@ -27,43 +28,47 @@ export function PlanPage() {
       </PageHeader>
 
       <div key={monthKey} className={`grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-start ${monthIn}`}>
-        <Card className="p-5">
-          {summary.hasBudget ? (
-            <>
-              <SectionHeader
-                title={`Бюджет на ${formatMonthLower(monthKey)}`}
-                action={
-                  <Button size="sm" variant="secondary" icon={<Pencil size={15} />} onClick={() => openModal({ type: 'budgetForm' })}>
-                    Изменить
-                  </Button>
-                }
-              />
-              <div className="rounded-xl brand-surface px-4 py-3 mb-4 text-[15px]">
-                <AmountRow label="Общий план" value={formatCurrency(summary.plan)} strong />
-                <AmountRow label="Потрачено" value={formatCurrency(summary.spent)} />
-                <AmountRow label="Зарезервировано на платежи" value={formatCurrency(summary.reserved)} />
-                <AmountRow
-                  label="Свободно по плану"
-                  value={formatBalance(summary.freeByPlan)}
-                  strong
-                  tone={summary.freeByPlan < 0 ? 'danger' : undefined}
+        <div className="space-y-5 min-w-0">
+          <Card className="p-5">
+            {summary.hasBudget ? (
+              <>
+                <SectionHeader
+                  title={`Бюджет на ${formatMonthLower(monthKey)}`}
+                  action={
+                    <Button size="sm" variant="secondary" icon={<Pencil size={15} />} onClick={() => openModal({ type: 'budgetForm' })}>
+                      Изменить
+                    </Button>
+                  }
                 />
-                {summary.unallocated > 0 && (
-                  <AmountRow label="Не распределено по категориям" value={formatCurrency(summary.unallocated)} tone="muted" />
-                )}
-              </div>
-              <h3 className="font-semibold text-ink mb-1">Лимиты категорий</h3>
-              <CategoryList categories={summary.categories} />
-            </>
-          ) : (
-            <EmptyState
-              icon={<ClipboardList size={22} />}
-              title={`Бюджет на ${formatMonthLower(monthKey)} не задан`}
-              description="Укажите общую сумму на месяц и распределите её по категориям. Можно взять за основу прошлый месяц."
-              action={<Button onClick={() => openModal({ type: 'budgetForm' })}>Задать бюджет</Button>}
-            />
-          )}
-        </Card>
+                <div className="rounded-xl brand-surface px-4 py-3 mb-4 text-[15px]">
+                  <AmountRow label="Общий план" value={formatCurrency(summary.plan)} strong />
+                  <AmountRow label="Потрачено" value={formatCurrency(summary.spent)} />
+                  <AmountRow label="Зарезервировано на платежи" value={formatCurrency(summary.reserved)} />
+                  <AmountRow
+                    label="Свободно по плану"
+                    value={formatBalance(summary.freeByPlan)}
+                    strong
+                    tone={summary.freeByPlan < 0 ? 'danger' : undefined}
+                  />
+                  {summary.unallocated > 0 && (
+                    <AmountRow label="Не распределено по категориям" value={formatCurrency(summary.unallocated)} tone="muted" />
+                  )}
+                </div>
+                <h3 className="font-semibold text-ink mb-1">Лимиты категорий</h3>
+                <CategoryList categories={summary.categories} />
+              </>
+            ) : (
+              <EmptyState
+                icon={<ClipboardList size={22} />}
+                title={`Бюджет на ${formatMonthLower(monthKey)} не задан`}
+                description="Укажите общую сумму на месяц или лимиты только для важных категорий. Можно взять за основу прошлый месяц."
+                action={<Button onClick={() => openModal({ type: 'budgetForm' })}>Задать бюджет</Button>}
+              />
+            )}
+          </Card>
+
+          <GoalsCard />
+        </div>
 
         <div className="space-y-5 min-w-0">
           <PaymentsCard />

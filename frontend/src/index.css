@@ -70,6 +70,8 @@
 
   --shadow-card: 0 1px 2px rgba(10, 28, 51, 0.04), 0 2px 8px rgba(10, 28, 51, 0.04);
   --shadow-pop: 0 12px 40px rgba(10, 28, 51, 0.18);
+  /* A card that waits for an action: soft glow in the accent hue */
+  --shadow-accent: 0 1px 2px rgba(11, 85, 217, 0.08), 0 6px 20px -4px rgba(11, 85, 217, 0.22);
   --overlay: rgba(10, 20, 40, 0.48);
 }
 
@@ -128,6 +130,7 @@
 
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-pop: 0 12px 40px rgba(0, 0, 0, 0.5);
+  --shadow-accent: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 22px -4px rgba(76, 141, 255, 0.3);
   --overlay: rgba(2, 6, 14, 0.7);
 }
 
@@ -165,6 +168,7 @@
 
   --shadow-card: var(--shadow-card);
   --shadow-pop: var(--shadow-pop);
+  --shadow-accent: var(--shadow-accent);
 }
 
 /* ── Base ── */
@@ -235,6 +239,10 @@ input[type='number']::-webkit-inner-spin-button {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: none; }
 }
+@keyframes tab-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
 @keyframes sheet-in {
   from { opacity: 0; transform: translateY(24px); }
   to { opacity: 1; transform: none; }
@@ -280,9 +288,12 @@ input[type='number']::-webkit-inner-spin-button {
   --dur-exit: 200ms;
   --dur-carousel: 700ms;
   --dur-month: 550ms;
+  /* Switching sections: the header pill slides and the new page fades in over this time */
+  --dur-tab: 600ms;
 }
 
 .animate-fade-in { animation: fade-in 0.28s var(--ease-out) both; }
+.animate-tab-in { animation: tab-in var(--dur-tab) var(--ease-out) both; }
 .animate-backdrop-in { animation: backdrop-in 0.22s ease-out both; }
 .animate-backdrop-out { animation: backdrop-out var(--dur-exit) ease-in both; }
 .animate-toast-out { animation: toast-out var(--dur-exit) ease-in both; }

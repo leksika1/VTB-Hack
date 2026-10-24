@@ -23,7 +23,7 @@ export function SpendingStructure({ summary }: { summary: MonthSummary }) {
           <div key={c.key} style={{ width: `${(c.spent / total) * 100}%`, background: CATEGORIES[c.key].color }} />
         ))}
       </div>
-      <ul className="mt-4 rounded-xl brand-surface px-4 py-2">
+      <ul className="mt-4">
         {byCategory.map((c) => (
           <li key={c.key} className="flex items-center gap-2.5 py-1.5 text-[15px]">
             <span className="w-3 h-3 rounded-sm shrink-0" style={{ background: CATEGORIES[c.key].color }} aria-hidden />

@@ -162,7 +162,7 @@ export default function App() {
           </>
         )}
         {dataStatus === 'ready' && (
-          <div key={tab} className="animate-fade-in">
+          <div key={tab} className="animate-tab-in">
             {tab === 'overview' && <OverviewPage />}
             {tab === 'operations' && <OperationsPage />}
             {tab === 'plan' && <PlanPage />}

@@ -27,6 +27,7 @@ export function PaymentFormModal({ paymentId }: { paymentId?: string }) {
   const [amount, setAmount] = useState(amountToInput(existing?.amount));
   const [category, setCategory] = useState<ExpenseCategory | null>(existing?.category ?? null);
   const [dueDate, setDueDate] = useState(existing?.dueDate ?? (viewedMonth === toMonthKey() ? todayISO() : `${viewedMonth}-01`));
+  const [recurring, setRecurring] = useState(existing?.recurring ?? false);
   const [submitted, setSubmitted] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -39,14 +40,20 @@ export function PaymentFormModal({ paymentId }: { paymentId?: string }) {
     setSubmitted(true);
     const value = parseAmount(amount);
     if (!title.trim() || validateAmount(amount) || !category || !dueDate || value === null) return;
-    const res = await save.run({ id: paymentId, title, amount: value, category, dueDate }, requestId);
+    const res = await save.run({ id: paymentId, title, amount: value, category, dueDate, recurring }, requestId);
     if (!res.ok) return;
     closeModal();
     const month = dueDate.slice(0, 7);
     if (month !== viewedMonth) {
       addToast(`Платёж сохранён ${formatMonthIn(month)}`, 'success', { label: 'Показать', onClick: () => setMonthKey(month) });
     } else {
-      addToast(paymentId ? 'Платёж изменён' : `Платёж добавлен — ${formatCurrency(value)} зарезервировано`);
+      addToast(
+        paymentId
+          ? 'Платёж изменён'
+          : recurring
+            ? `Платёж добавлен и будет повторяться каждый месяц — ${formatCurrency(value)} зарезервировано`
+            : `Платёж добавлен — ${formatCurrency(value)} зарезервировано`
+      );
     }
   };
 
@@ -116,13 +123,35 @@ export function PaymentFormModal({ paymentId }: { paymentId?: string }) {
           type="date"
           value={dueDate}
           onChange={(e) => setDueDate(e.target.value)}
-          error={submitted && !dueDate ? 'Укажите дату' : null}
-          hint={dueDate && dueDate.slice(0, 7) !== viewedMonth ? `Платёж будет учтён в плане ${formatMonthIn(dueDate.slice(0, 7))}` : undefined}
+          error={submitted && !dueDate ? 'Укажите дату' : save.errorField === 'dueDate' ? save.error : null}
+          hint={
+            existing?.seriesId
+              ? 'Платёж из ежемесячной серии: дату можно менять только в пределах его месяца'
+              : dueDate && dueDate.slice(0, 7) !== viewedMonth
+                ? `Платёж будет учтён в плане ${formatMonthIn(dueDate.slice(0, 7))}`
+                : undefined
+          }
         />
         <div>
           <CategoryPicker value={category} onChange={setCategory} label="Категория бюджета" />
           {categoryError && <FieldError>{categoryError}</FieldError>}
         </div>
+        <label className="flex items-start gap-3 p-3.5 rounded-xl bg-surface-muted border border-line cursor-pointer">
+          <input
+            type="checkbox"
+            checked={recurring}
+            onChange={(e) => setRecurring(e.target.checked)}
+            className="mt-0.5 w-5 h-5 accent-[var(--accent)] shrink-0"
+          />
+          <span>
+            <span className="block font-medium text-ink">Повторять каждый месяц</span>
+            <span className="block text-sm text-ink-2">
+              {existing?.recurring && !recurring
+                ? 'Новые платежи перестанут появляться. Уже созданные останутся — их можно удалить отдельно.'
+                : 'Аренда, ипотека, садик, связь. Платёж сам появится в следующем месяце с тем же днём и суммой.'}
+            </span>
+          </span>
+        </label>
         {save.error && !save.errorField && <FormError>{save.error}</FormError>}
       </form>
     </Modal>

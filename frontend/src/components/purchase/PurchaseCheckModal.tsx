@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { CircleAlert, CircleCheck, TriangleAlert } from 'lucide-react';
 import type { ExpenseCategory } from '../../types';
 import { checkPurchase, type PurchaseCheck } from '../../domain/budget';
 import { useMonthSummary } from '../../hooks/useMonthSummary';
@@ -8,6 +7,7 @@ import { CATEGORIES } from '../../utils/categories';
 import { formatBalance, formatCurrency, parseAmount, validateAmount } from '../../utils/currency';
 import { formatDateShort, formatMonthLower, toMonthKey } from '../../utils/date';
 import { Modal } from '../ui/Modal';
+import { VERDICT } from './verdict';
 import { AmountField, Field } from '../ui/Field';
 import { Button } from '../ui/Button';
 import { CategoryPicker } from '../ui/CategoryPicker';
@@ -99,12 +99,6 @@ export function PurchaseCheckModal() {
   );
 }
 
-const VERDICT = {
-  ok: { icon: CircleCheck, tone: 'bg-success-soft text-success', title: 'Покупка помещается в план' },
-  tight: { icon: TriangleAlert, tone: 'bg-warning-soft text-warning', title: 'Хватает, но запас будет маленьким' },
-  'category-over': { icon: TriangleAlert, tone: 'bg-warning-soft text-warning', title: 'В бюджет помещается, но категория выйдет за лимит' },
-  'not-enough': { icon: CircleAlert, tone: 'bg-danger-soft text-danger', title: 'Не хватает с учётом обязательных платежей' },
-} as const;
 
 function PurchaseResult({ result }: { result: PurchaseCheck }) {
   const v = VERDICT[result.verdict];

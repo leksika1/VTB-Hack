@@ -60,20 +60,27 @@ export function BudgetFormModal() {
     setPlans(toInputs(previous.categoryPlans));
   };
 
-  const totalNum = parseAmount(total) ?? 0;
   const planErrors = Object.fromEntries(
     ALL_CATEGORIES.map((k) => [k, plans[k].trim() ? validateAmount(plans[k], { allowZero: true }) : null])
   ) as Record<ExpenseCategory, string | null>;
-  const allocated = ALL_CATEGORIES.reduce((s, k) => s + (parseAmount(plans[k]) ?? 0), 0);
+  const allocated = Math.round(ALL_CATEGORIES.reduce((s, k) => s + (parseAmount(plans[k]) ?? 0), 0) * 100) / 100;
+  // The total is optional: limits for a few categories are enough, then the plan is their sum
+  const autoTotal = !total.trim();
+  const totalNum = autoTotal ? allocated : parseAmount(total) ?? 0;
   const unallocated = Math.round((totalNum - allocated) * 100) / 100;
   const overAllocated = unallocated < 0;
-  const totalError = submitted ? validateAmount(total) : null;
+  const totalProblem = autoTotal
+    ? allocated > 0
+      ? null
+      : 'Укажите общий бюджет или лимит хотя бы одной категории'
+    : validateAmount(total) ?? (overAllocated ? 'Лимиты категорий больше общего бюджета — поднимите бюджет или уменьшите лимиты' : null);
+  const totalError = submitted ? totalProblem : null;
   const committed = current.spent + current.reserved;
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setSubmitted(true);
-    if (validateAmount(total) || overAllocated || ALL_CATEGORIES.some((k) => planErrors[k])) return;
+    if (totalProblem || ALL_CATEGORIES.some((k) => planErrors[k])) return;
     const categoryPlans = emptyCategoryRecord();
     for (const k of ALL_CATEGORIES) categoryPlans[k] = parseAmount(plans[k]) ?? 0;
 
@@ -91,18 +98,29 @@ export function BudgetFormModal() {
     <Modal
       size="lg"
       title={`Бюджет на ${formatMonthLower(month)}`}
-      description="План — это договорённость семьи о лимитах. Категории помогают не выйти за общий бюджет."
+      description="План — ориентир семьи, а не запрет: расходы можно вносить и сверх него. Лимиты достаточно задать только важным категориям."
       onClose={closeModal}
       footer={
         <div className="space-y-3">
           <div
-            className={`flex items-center justify-between gap-3 text-[15px] ${overAllocated ? 'text-danger font-medium' : 'text-ink-2'}`}
+            className={`flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[15px] ${overAllocated ? 'text-danger font-medium' : 'text-ink-2'}`}
             role="status"
           >
-            <span>{overAllocated ? 'Лимиты больше бюджета на' : 'Не распределено по категориям'}</span>
-            <span className="tabular font-semibold">{formatCurrency(Math.abs(unallocated))}</span>
+            <span>
+              {overAllocated ? 'Лимиты больше бюджета на' : autoTotal ? 'Общий бюджет = сумма лимитов' : 'Не распределено по категориям'}
+            </span>
+            <span className="tabular font-semibold">{formatCurrency(autoTotal ? allocated : Math.abs(unallocated))}</span>
+            {overAllocated && (
+              <button
+                type="button"
+                onClick={() => setTotal(amountToInput(allocated))}
+                className="basis-full text-left text-sm font-semibold text-accent-ink hover:underline"
+              >
+                Поднять бюджет до {formatCurrency(allocated)}
+              </button>
+            )}
           </div>
-          <Button type="submit" form="budget-form" fullWidth size="lg" loading={save.pending} disabled={overAllocated}>
+          <Button type="submit" form="budget-form" fullWidth size="lg" loading={save.pending}>
             Сохранить бюджет
           </Button>
         </div>
@@ -133,11 +151,12 @@ export function BudgetFormModal() {
           label="Общий бюджет на месяц"
           value={total}
           onChange={(e) => setTotal(e.target.value)}
-          placeholder="0"
+          placeholder={allocated > 0 ? amountToInput(allocated) : 'Необязательно'}
           emphasis
           error={totalError ?? (save.errorField === 'total' ? save.error : null)}
           hint={
             [
+              autoTotal ? 'Можно не заполнять — тогда бюджет равен сумме лимитов категорий' : null,
               committed > 0 ? `Уже потрачено и зарезервировано: ${formatCurrency(committed)}` : null,
               previous ? `План ${formatMonthIn(prevMonth)}: ${formatCurrency(previous.totalAmount)}` : null,
             ]
@@ -147,7 +166,7 @@ export function BudgetFormModal() {
         />
 
         <fieldset>
-          <legend className="text-sm font-medium text-ink-2 mb-2">Лимиты по категориям</legend>
+          <legend className="text-sm font-medium text-ink-2 mb-2">Лимиты по категориям — необязательно</legend>
           <ul className="divide-y divide-line">
             {ALL_CATEGORIES.map((k) => {
               const cat = current.categories.find((c) => c.key === k)!;

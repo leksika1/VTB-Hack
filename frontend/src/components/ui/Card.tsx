@@ -4,14 +4,14 @@ interface CardProps {
   children: ReactNode;
   className?: string;
   as?: 'section' | 'div';
-  /** brand — the single navy-gradient block of a page */
-  tone?: 'default' | 'brand';
+  /** brand — the single navy-gradient block of a page; accent — a card waiting for an action, with an accent glow */
+  tone?: 'default' | 'brand' | 'accent';
 }
 
 export function Card({ children, className = '', as: Tag = 'section', tone = 'default' }: CardProps) {
   return (
     <Tag
-      className={`rounded-card ${tone === 'brand' ? 'brand-surface' : 'bg-surface shadow-card'} ${className}`}
+      className={`rounded-card ${tone === 'brand' ? 'brand-surface' : `bg-surface ${tone === 'accent' ? 'shadow-accent' : 'shadow-card'}`} ${className}`}
     >
       {children}
     </Tag>

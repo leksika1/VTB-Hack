@@ -1,8 +1,9 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { LayoutDashboard, ReceiptText, ClipboardList, Users, type LucideIcon } from 'lucide-react';
 import type { Tab } from '../../types';
 import { useUIStore } from '../../store/uiStore';
 import { useCurrentUser, useFamilyStore, useIsParent } from '../../store/familyStore';
+import { useDataStore } from '../../store/dataStore';
 import { Avatar, Badge } from '../ui/Misc';
 
 const NAV: { tab: Tab; label: string; icon: LucideIcon }[] = [
@@ -37,6 +38,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   // The plan (budget and payments) is for adults only
   const isParent = useIsParent();
   const nav = isParent ? NAV : NAV.filter((n) => n.tab !== 'plan');
+  // Unread family events live on the «Семья» page; the tab carries their count
+  const unread = useDataStore((s) => s.unreadNotifications);
+  const unreadLabel = (t: Tab) => (t === 'family' && unread > 0 ? `, непрочитанных событий: ${unread}` : '');
 
   // Each section opens from its top instead of inheriting the previous scroll position
   useEffect(() => {
@@ -45,7 +49,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-dvh">
-      <header className="sticky top-0 z-30 bg-surface/95 backdrop-blur border-b border-line">
+      <header className="sticky top-0 z-30 bg-surface/80 backdrop-blur border-b border-line">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 h-16 flex items-center gap-4">
           <div className="flex items-center gap-3 min-w-0 flex-1 lg:flex-none lg:w-64">
             <BrandMark />
@@ -57,20 +61,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
           </div>
 
-          <nav aria-label="Разделы" className="hidden lg:flex flex-1 justify-center gap-1">
-            {nav.map(({ tab: t, label }) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setTab(t)}
-                aria-current={tab === t ? 'page' : undefined}
-                className={`h-10 px-4 rounded-full text-[15px] font-medium transition-colors
-                  ${tab === t ? 'bg-accent-soft text-accent-ink' : 'text-ink-2 hover:text-ink hover:bg-surface-sunken'}`}
-              >
-                {label}
-              </button>
-            ))}
-          </nav>
+          <DesktopNav nav={nav} tab={tab} onSelect={setTab} unread={unread} unreadLabel={unreadLabel} />
           {family?.isDemo && <span className="hidden left-3 relative sm:inline"><Badge tone="warning">Демо</Badge></span>}
 
           {user && (
@@ -106,11 +97,17 @@ export function AppShell({ children }: { children: ReactNode }) {
                 type="button"
                 onClick={() => setTab(t)}
                 aria-current={active ? 'page' : undefined}
-                className={`h-16 flex flex-col items-center justify-center gap-1 text-xs font-medium transition-colors
+                aria-label={`${label}${unreadLabel(t)}`}
+                className={`h-16 flex flex-col items-center justify-center gap-1 text-xs font-medium transition-colors duration-(--dur-tab) ease-(--ease-out)
                   ${active ? 'text-accent-ink' : 'text-ink-3 hover:text-ink'}`}
               >
-                <span className={`w-14 h-7 rounded-full flex items-center justify-center ${active ? 'bg-accent-soft' : ''}`}>
+                <span className={`relative w-14 h-7 rounded-full flex items-center justify-center transition-colors duration-(--dur-tab) ease-(--ease-out) ${active ? 'bg-accent-soft' : ''}`}>
                   <Icon size={21} strokeWidth={active ? 2.3 : 1.9} aria-hidden />
+                  {t === 'family' && (
+                    <span className="absolute -top-1 right-1.5">
+                      <UnreadCount count={unread} />
+                    </span>
+                  )}
                 </span>
                 {label}
               </button>
@@ -119,5 +116,87 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </nav>
     </div>
+  );
+}
+
+/** onAccent — on the selected (accent-filled) tab the counter turns white, otherwise it would vanish */
+interface DesktopNavProps {
+  nav: typeof NAV;
+  tab: Tab;
+  onSelect: (tab: Tab) => void;
+  unread: number;
+  unreadLabel: (tab: Tab) => string;
+}
+
+/** Section tabs with one accent pill that slides to the selected tab (duration: --dur-tab in index.css) */
+function DesktopNav({ nav, tab, onSelect, unread, unreadLabel }: DesktopNavProps) {
+  const refs = useRef<Partial<Record<Tab, HTMLButtonElement | null>>>({});
+  const [pill, setPill] = useState<{ left: number; width: number } | null>(null);
+  // Slides only after the user picks a tab: on the first placement it would fly in from the left edge
+  const [animated, setAnimated] = useState(false);
+
+  useLayoutEffect(() => {
+    const place = () => {
+      const el = refs.current[tab];
+      if (!el) return;
+      const next = { left: el.offsetLeft, width: el.offsetWidth };
+      setPill((prev) => (prev && prev.left === next.left && prev.width === next.width ? prev : next));
+    };
+    place();
+    // Widths change when the unread counter appears or the font loads
+    const observer = new ResizeObserver(place);
+    Object.values(refs.current).forEach((el) => el && observer.observe(el));
+    return () => observer.disconnect();
+  }, [tab, nav.length]);
+
+  return (
+    <nav aria-label="Разделы" className="hidden lg:flex flex-1 justify-center">
+      <div className="relative flex gap-1">
+        {pill && (
+          <span
+            aria-hidden
+            className={`absolute inset-y-0 rounded-full bg-accent ${animated ? 'transition-[left,width] duration-(--dur-tab) ease-(--ease-out)' : ''}`}
+            style={{ left: pill.left, width: pill.width }}
+          />
+        )}
+        {nav.map(({ tab: t, label }) => {
+          const active = tab === t;
+          return (
+            <button
+              key={t}
+              ref={(el) => {
+                refs.current[t] = el;
+              }}
+              type="button"
+              onClick={() => {
+                setAnimated(true);
+                onSelect(t);
+              }}
+              aria-current={active ? 'page' : undefined}
+              aria-label={`${label}${unreadLabel(t)}`}
+              className={`relative h-10 px-4 rounded-full text-[15px] font-medium inline-flex items-center gap-1.5
+                transition-colors duration-(--dur-tab) ease-(--ease-out)
+                ${active ? 'text-ink-inverse' : 'text-ink-2 hover:text-ink hover:bg-accent-soft'}`}
+            >
+              {label}
+              {t === 'family' && <UnreadCount count={unread} onAccent={active} />}
+            </button>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
+
+function UnreadCount({ count, onAccent }: { count: number; onAccent?: boolean }) {
+  if (count <= 0) return null;
+  return (
+    <span
+      className={`min-w-5 h-5 px-1.5 rounded-full text-[11px] font-semibold leading-5 text-center tabular transition-colors duration-(--dur-tab)
+        ${onAccent ? 'bg-white text-accent-ink' : 'bg-accent text-white'}`}
+      aria-hidden
+    >
+      {count > 99 ? '99+' : count}
+    </span>
   );
 }

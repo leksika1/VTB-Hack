@@ -1,4 +1,4 @@
-import { ArrowRight, CalendarClock, PiggyBank, Plus, ReceiptText, UserPlus } from 'lucide-react';
+import { ArrowRight, CalendarClock, HandCoins, PiggyBank, Plus, ReceiptText, UserPlus } from 'lucide-react';
 import { problemCategories } from '../domain/budget';
 import { useMonthSummary } from '../hooks/useMonthSummary';
 import { useMonthChanged } from '../hooks/useMonthChanged';
@@ -17,6 +17,8 @@ import { MonthCarousel } from '../components/budget/MonthCarousel';
 import { CategoryList } from '../components/budget/CategoryList';
 import { ExpenseList } from '../components/expenses/ExpenseList';
 import { PaymentList } from '../components/payments/PaymentList';
+import { MyRequestsCard, PendingRequestsCard } from '../components/purchase/RequestCards';
+import { GoalsCard } from '../components/goals/GoalsCard';
 
 const RECENT_LIMIT = 5;
 const PAYMENTS_LIMIT = 3;
@@ -46,6 +48,8 @@ function FamilyOverview() {
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_23rem] items-start">
         <div className="space-y-5 min-w-0">
           <MonthCarousel />
+
+          <PendingRequestsCard />
 
           {/* Month-dependent blocks fade in while the main block slides */}
           <div key={monthKey} className={`space-y-5 ${monthIn}`}>
@@ -160,7 +164,8 @@ function FamilyStatusCard() {
           <li key={m.id} className="flex items-center gap-3">
             <Avatar user={m} size="sm" />
             <span className="flex-1 min-w-0 truncate text-ink">{m.name}</span>
-            {m.id === currentUserId && <span className="text-sm text-ink-3">это вы</span>}
+            {m.id === currentUserId && <span className="text-sm text-ink-3">Это вы</span>}
+            {m.role === 'child' && <span className="text-sm text-ink-3">Ребёнок</span>}
           </li>
         ))}
       </ul>
@@ -226,12 +231,28 @@ function ChildOverview() {
                   <PiggyBank size={18} aria-hidden /> Карманные деньги
                 </h2>
                 <p className="text-xl font-semibold mt-2">Пока не назначены</p>
-                <p className="text-[15px] text-brand-ink-2 mt-1">Попросите взрослого назначить карманные деньги — тогда вы сможете добавлять свои траты.</p>
+                <p className="text-[15px] text-brand-ink-2 mt-1">
+                  Когда взрослые назначат карманные деньги, вы сможете сами записывать траты. А купить что-то можно попросить уже сейчас.
+                </p>
               </>
             )}
-            <Button variant="onBrand" size="lg" className="mt-5 w-full sm:w-auto" icon={<Plus size={18} />} onClick={() => openModal({ type: 'expenseForm' })}>
-              Добавить расход
-            </Button>
+            {/* Without pocket money the server does not accept own expenses — only a request */}
+            <div className="mt-5 flex flex-col sm:flex-row gap-2.5">
+              {allowance && (
+                <Button variant="inverse" size="lg" className="sm:flex-1" icon={<Plus size={18} />} onClick={() => openModal({ type: 'expenseForm' })}>
+                  Добавить расход
+                </Button>
+              )}
+              <Button
+                variant={allowance ? 'onBrand' : 'inverse'}
+                size="lg"
+                className="sm:flex-1"
+                icon={<HandCoins size={18} />}
+                onClick={() => openModal({ type: 'purchaseRequestForm' })}
+              >
+                Попросить покупку
+              </Button>
+            </div>
           </section>
 
           <Card key={monthKey} className={`p-5 ${monthIn}`}>
@@ -245,6 +266,8 @@ function ChildOverview() {
         </div>
 
         <aside className="space-y-5 min-w-0">
+          <MyRequestsCard />
+          <GoalsCard />
           <FamilyStatusCard />
         </aside>
       </div>

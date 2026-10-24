@@ -6,7 +6,21 @@
 import { budgetKey, useDataStore } from '../store/dataStore';
 import { useFamilyStore } from '../store/familyStore';
 import { useUIStore } from '../store/uiStore';
-import type { Allowance, Expense, ExpenseCategory, Family, InviteLink, InvitePreview, Me, MonthlyBudget, Payment, Role } from '../types';
+import type {
+  Allowance,
+  AppNotification,
+  Expense,
+  ExpenseCategory,
+  Family,
+  Goal,
+  InviteLink,
+  InvitePreview,
+  Me,
+  MonthlyBudget,
+  Payment,
+  PurchaseRequest,
+  Role,
+} from '../types';
 
 export class ApiError extends Error {
   readonly field?: string;
@@ -82,11 +96,12 @@ interface StateResponse {
   expenses: Expense[];
   payments: Payment[];
   allowances?: Allowance[];
+  unreadNotifications?: number;
 }
 
 function clearSession() {
   const { family, savedSession } = useFamilyStore.getState();
-  useDataStore.setState({ budgets: {}, expenses: [], payments: [], allowances: [] });
+  useDataStore.setState({ budgets: {}, expenses: [], payments: [], allowances: [], purchaseRequests: [], goals: [], unreadNotifications: 0 });
   // The demo copy was left or has expired: back to the real account that was open before it
   if (family?.isDemo && savedSession) {
     useFamilyStore.setState({ ...savedSession, savedSession: null });
@@ -103,12 +118,32 @@ function applyState(state: StateResponse) {
     expenses: state.expenses,
     payments: state.payments,
     allowances: state.allowances ?? [],
+    unreadNotifications: state.unreadNotifications ?? 0,
   });
+}
+
+/**
+ * /state plus what the server keeps in separate lists: purchase requests and goals.
+ * Someone still waiting for approval may read only /state, so the lists are skipped for them.
+ */
+async function loadState(): Promise<void> {
+  const state = await request<StateResponse>('/state');
+  if (state.family.pending) {
+    applyState(state);
+    useDataStore.setState({ purchaseRequests: [], goals: [] });
+    return;
+  }
+  const [purchaseRequests, goals] = await Promise.all([
+    request<PurchaseRequest[]>('/purchase-requests'),
+    request<Goal[]>('/goals'),
+  ]);
+  applyState(state);
+  useDataStore.setState({ purchaseRequests, goals });
 }
 
 async function startSession(session: SessionResponse): Promise<Family> {
   useFamilyStore.setState({ token: session.token, family: session.family, currentUserId: session.currentUserId });
-  applyState(await request<StateResponse>('/state'));
+  await loadState();
   return session.family;
 }
 
@@ -121,7 +156,7 @@ export async function loadInitialData(): Promise<void> {
     return;
   }
   try {
-    applyState(await request<StateResponse>('/state'));
+    await loadState();
   } catch (e) {
     // The session is gone (member left, family deleted) — back to onboarding instead of an error screen
     if (e instanceof ApiError && e.status === 401) return;
@@ -132,7 +167,7 @@ export async function loadInitialData(): Promise<void> {
 /** Silent refresh to pick up changes made by other family members */
 export async function refreshData(): Promise<void> {
   if (!useFamilyStore.getState().token || useUIStore.getState().simulateErrors) return;
-  applyState(await request<StateResponse>('/state'));
+  await loadState();
 }
 
 /**
@@ -268,7 +303,7 @@ export async function switchDemoUser(userId: string): Promise<void> {
 
 /** Re-read the family: used while waiting for approval */
 export async function reloadState(): Promise<void> {
-  applyState(await request<StateResponse>('/state'));
+  await loadState();
 }
 
 /* ── Members and invites (adults) ── */
@@ -446,10 +481,12 @@ export interface ExpenseInput {
   amount: number;
   category: ExpenseCategory;
   date: string;
+  /** Who paid; omitted — the author (new) or unchanged (edit) */
+  paidBy?: string;
 }
 
 export async function saveExpense(input: ExpenseInput, requestId: string): Promise<Expense> {
-  const body = { title: input.title, amount: input.amount, category: input.category, date: input.date };
+  const body = { title: input.title, amount: input.amount, category: input.category, date: input.date, paidBy: input.paidBy };
   if (input.id) {
     const updated = await request<Expense>(`/expenses/${input.id}`, { method: 'PUT', body, requestId });
     useDataStore.setState((s) => ({ expenses: s.expenses.map((e) => (e.id === updated.id ? updated : e)) }));
@@ -482,18 +519,24 @@ export interface PaymentInput {
   amount: number;
   category: ExpenseCategory;
   dueDate: string;
+  /** true — monthly series, false — stop the series */
+  recurring: boolean;
 }
 
 export async function savePayment(input: PaymentInput, requestId: string): Promise<Payment> {
-  const body = { title: input.title, amount: input.amount, category: input.category, dueDate: input.dueDate };
+  const body = { title: input.title, amount: input.amount, category: input.category, dueDate: input.dueDate, recurring: input.recurring };
+  const wasRecurring = input.id ? useDataStore.getState().payments.find((p) => p.id === input.id)?.recurring : false;
+  let saved: Payment;
   if (input.id) {
-    const updated = await request<Payment>(`/payments/${input.id}`, { method: 'PUT', body, requestId });
-    useDataStore.setState((s) => ({ payments: s.payments.map((p) => (p.id === updated.id ? updated : p)) }));
-    return updated;
+    saved = await request<Payment>(`/payments/${input.id}`, { method: 'PUT', body, requestId });
+    useDataStore.setState((s) => ({ payments: s.payments.map((p) => (p.id === saved.id ? saved : p)) }));
+  } else {
+    saved = await request<Payment>('/payments', { method: 'POST', body, requestId });
+    useDataStore.setState((s) => ({ payments: [...s.payments.filter((p) => p.id !== saved.id), saved] }));
   }
-  const created = await request<Payment>('/payments', { method: 'POST', body, requestId });
-  useDataStore.setState((s) => ({ payments: [...s.payments.filter((p) => p.id !== created.id), created] }));
-  return created;
+  // Starting or stopping a series changes other months on the server (it creates next month's payment)
+  if (Boolean(wasRecurring) !== input.recurring) await refreshData().catch(() => {});
+  return saved;
 }
 
 export async function deletePayment(id: string): Promise<void> {
@@ -528,6 +571,118 @@ export async function copyPaymentsFromPreviousMonth(monthKey: string): Promise<n
   });
   useDataStore.setState((s) => ({ payments: [...s.payments, ...result.payments] }));
   return result.added;
+}
+
+/* ── Pocket money (docs/FEATURES.md §2, adults) ── */
+
+export async function saveAllowance(memberId: string, amount: number, period: 'week' | 'month', requestId: string): Promise<Allowance> {
+  const saved = await request<Allowance>(`/family/members/${memberId}/allowance`, {
+    method: 'PUT',
+    body: { amount, period },
+    requestId,
+  });
+  useDataStore.setState((s) => ({ allowances: [...s.allowances.filter((a) => a.memberId !== memberId), saved] }));
+  return saved;
+}
+
+export async function deleteAllowance(memberId: string): Promise<void> {
+  await request<void>(`/family/members/${memberId}/allowance`, { method: 'DELETE' });
+  useDataStore.setState((s) => ({ allowances: s.allowances.filter((a) => a.memberId !== memberId) }));
+}
+
+/* ── Purchase requests (§3) ── */
+
+export interface PurchaseRequestInput {
+  title: string;
+  amount: number;
+  category: ExpenseCategory;
+  comment?: string;
+}
+
+function putRequest(updated: PurchaseRequest) {
+  useDataStore.setState((s) => ({
+    purchaseRequests: s.purchaseRequests.some((r) => r.id === updated.id)
+      ? s.purchaseRequests.map((r) => (r.id === updated.id ? updated : r))
+      : [updated, ...s.purchaseRequests],
+  }));
+}
+
+export async function createPurchaseRequest(input: PurchaseRequestInput, requestId: string): Promise<PurchaseRequest> {
+  const created = await request<PurchaseRequest>('/purchase-requests', { method: 'POST', body: input, requestId });
+  putRequest(created);
+  return created;
+}
+
+/** Approve creates the expense on the server (author — who asked, paid — who approved), so the state is reloaded */
+export async function decidePurchaseRequest(id: string, decision: 'approve' | 'reject', comment?: string): Promise<PurchaseRequest> {
+  const updated = await request<PurchaseRequest>(`/purchase-requests/${id}/${decision}`, {
+    method: 'POST',
+    body: { comment: comment || null },
+  });
+  putRequest(updated);
+  if (decision === 'approve') await refreshData().catch(() => {});
+  return updated;
+}
+
+export async function cancelPurchaseRequest(id: string): Promise<PurchaseRequest> {
+  const updated = await request<PurchaseRequest>(`/purchase-requests/${id}/cancel`, { method: 'POST' });
+  putRequest(updated);
+  return updated;
+}
+
+/* ── Savings goals (§4) ── */
+
+export interface GoalInput {
+  id?: string;
+  title: string;
+  target: number;
+  deadline: string | null;
+}
+
+function putGoal(goal: Goal) {
+  useDataStore.setState((s) => ({
+    goals: s.goals.some((g) => g.id === goal.id) ? s.goals.map((g) => (g.id === goal.id ? goal : g)) : [...s.goals, goal],
+  }));
+}
+
+export async function saveGoal(input: GoalInput, requestId: string): Promise<Goal> {
+  const body = { title: input.title, target: input.target, deadline: input.deadline };
+  const goal = input.id
+    ? await request<Goal>(`/goals/${input.id}`, { method: 'PUT', body, requestId })
+    : await request<Goal>('/goals', { method: 'POST', body, requestId });
+  putGoal(goal);
+  return goal;
+}
+
+export async function archiveGoal(id: string): Promise<Goal> {
+  const goal = await request<Goal>(`/goals/${id}/archive`, { method: 'POST' });
+  putGoal(goal);
+  return goal;
+}
+
+/** Only a goal without contributions can be deleted; otherwise the server answers 409 and it can be archived */
+export async function deleteGoal(id: string): Promise<void> {
+  await request<void>(`/goals/${id}`, { method: 'DELETE' });
+  useDataStore.setState((s) => ({ goals: s.goals.filter((g) => g.id !== id) }));
+}
+
+/** A child contributes from pocket money, so the allowance changes too — the state is reloaded */
+export async function contributeToGoal(id: string, amount: number, requestId: string): Promise<Goal> {
+  const { goal } = await request<{ goal: Goal }>(`/goals/${id}/contributions`, { method: 'POST', body: { amount }, requestId });
+  putGoal(goal);
+  await refreshData().catch(() => {});
+  return goal;
+}
+
+/* ── Notifications (§9) ── */
+
+export async function listNotifications(): Promise<AppNotification[]> {
+  return request<AppNotification[]>('/notifications');
+}
+
+export async function markNotificationsRead(): Promise<void> {
+  await request<void>('/notifications/read-all', { method: 'POST' });
+  useDataStore.setState({ unreadNotifications: 0 });
 }
 
 export function errorMessage(error: unknown): string {

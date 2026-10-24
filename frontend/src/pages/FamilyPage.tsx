@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
-import { BadgeCheck, Check, Eye, Landmark, LogOut, Monitor, Moon, Pencil, ShieldCheck, Sparkles, Sun, UserPlus, Users, X } from 'lucide-react';
-import type { Me, User } from '../types';
+import { BadgeCheck, Bell, Check, Eye, Landmark, LogOut, Monitor, Moon, Pencil, PiggyBank, ShieldCheck, Sparkles, Sun, UserPlus, Users, X } from 'lucide-react';
+import type { AppNotification, Me, User } from '../types';
 import {
   approveMember,
   errorMessage,
   getMe,
   getOidcConfig,
   leaveFamily,
+  listNotifications,
+  markNotificationsRead,
   removeMember,
   startDemo,
   startOidc,
@@ -15,14 +17,17 @@ import {
   type OidcConfig,
 } from '../api/client';
 import { useAsyncAction } from '../hooks/useAsyncAction';
+import { useDataStore } from '../store/dataStore';
 import { useFamilyStore, useIsParent } from '../store/familyStore';
 import { useUIStore, type Theme } from '../store/uiStore';
+import { formatCurrency } from '../utils/currency';
 import { plural } from '../utils/date';
 import { InvitePanel } from '../components/family/InvitePanel';
 import { Card, PageHeader, SectionHeader } from '../components/ui/Card';
 import { Avatar, Badge } from '../components/ui/Misc';
 import { Button } from '../components/ui/Button';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { ErrorState, Skeleton } from '../components/ui/Feedback';
 import { Presence } from '../components/ui/Presence';
 
 export function FamilyPage() {
@@ -31,6 +36,7 @@ export function FamilyPage() {
   const openModal = useUIStore((s) => s.openModal);
   const isParent = useIsParent();
   if (!family) return null;
+  const children = family.members.filter((m) => m.role === 'child');
 
   return (
     <>
@@ -65,6 +71,7 @@ export function FamilyPage() {
             )}
           </Card>
 
+          {isParent && children.length > 0 && <AllowancesCard members={children} />}
           {isParent && !family.isDemo && <JoinRequestsCard />}
           {isParent && (
             <Card className="p-5">
@@ -72,6 +79,7 @@ export function FamilyPage() {
               <InvitePanel />
             </Card>
           )}
+          <EventsCard />
         </div>
 
         <div className="space-y-5 min-w-0">
@@ -82,8 +90,8 @@ export function FamilyPage() {
                 Участники видят только общие расходы и платежи, которые внесли сюда. Личные счета и покупки вне приложения не видны.
               </Rule>
               <Rule icon={<Pencil size={18} />}>
-                Изменять и удалять можно только свои расходы. Бюджет месяца и обязательные платежи — общие: их может менять любой
-                взрослый участник.
+                Бюджет месяца, обязательные платежи и расходы — общие: любой взрослый может их исправить, например указать, кто платил.
+                Ребёнок меняет только свои траты.
               </Rule>
               <Rule icon={<UserPlus size={18} />}>
                 По ссылке-приглашению входят сразу. Вошедший по коду семьи видит данные только после подтверждения взрослым.
@@ -117,6 +125,132 @@ function Rule({ icon, children }: { icon: React.ReactNode; children: React.React
       </span>
       <span className="text-ink-2">{children}</span>
     </li>
+  );
+}
+
+/** Adults set each child's pocket money; spent and left come from the server */
+function AllowancesCard({ members }: { members: User[] }) {
+  const allowances = useDataStore((s) => s.allowances);
+  const openModal = useUIStore((s) => s.openModal);
+
+  return (
+    <Card className="p-5">
+      <SectionHeader title="Карманные деньги" subtitle="Лимит трат ребёнка на неделю или месяц. Без него ребёнок может только просить покупки." />
+      <ul className="divide-y divide-line">
+        {members.map((child) => {
+          const a = allowances.find((x) => x.memberId === child.id);
+          return (
+            <li key={child.id} className="py-3 first:pt-1 last:pb-1 flex items-center gap-3">
+              <Avatar user={child} />
+              <span className="flex-1 min-w-0">
+                <span className="block font-medium text-ink truncate">{child.name}</span>
+                <span className="block text-sm text-ink-2">
+                  {a
+                    ? `${formatCurrency(a.amount)} ${a.period === 'week' ? 'в неделю' : 'в месяц'} · осталось ${formatCurrency(a.left)}`
+                    : 'Не назначены'}
+                </span>
+              </span>
+              <Button size="sm" variant="secondary" icon={<PiggyBank size={15} />} onClick={() => openModal({ type: 'allowanceForm', memberId: child.id })}>
+                {a ? 'Изменить' : 'Назначить'}
+              </Button>
+            </li>
+          );
+        })}
+      </ul>
+    </Card>
+  );
+}
+
+const EVENTS_SHORT = 6;
+
+/** What happened in the family: requests, decisions, limits, goals, members (server notifications, §9) */
+function EventsCard() {
+  const unread = useDataStore((s) => s.unreadNotifications);
+  const [items, setItems] = useState<AppNotification[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const markRead = useAsyncAction(markNotificationsRead);
+
+  // Reloaded when the unread counter changes: a new event arrived through the live stream
+  useEffect(() => {
+    let alive = true;
+    listNotifications().then(
+      (list) => {
+        if (!alive) return;
+        setItems(list);
+        setError(null);
+      },
+      (e) => {
+        if (alive) setError(errorMessage(e));
+      }
+    );
+    return () => {
+      alive = false;
+    };
+  }, [unread, attempt]);
+
+  const hasUnread = items?.some((n) => !n.readAt) ?? false;
+  const shown = expanded ? items ?? [] : (items ?? []).slice(0, EVENTS_SHORT);
+
+  return (
+    <Card className="p-5">
+      <SectionHeader
+        title="События"
+        subtitle="Запросы, решения, лимиты и цели — то, что касается вас"
+        action={
+          hasUnread && (
+            <Button
+              size="sm"
+              variant="ghost"
+              loading={markRead.pending}
+              onClick={async () => {
+                const res = await markRead.run();
+                if (res.ok) setItems((list) => list?.map((n) => ({ ...n, readAt: n.readAt ?? Date.now() })) ?? null);
+              }}
+            >
+              Прочитать все
+            </Button>
+          )
+        }
+      />
+      {error && !items ? (
+        <ErrorState message={error} onRetry={() => setAttempt((n) => n + 1)} />
+      ) : !items ? (
+        <div className="space-y-3" aria-busy="true" aria-label="Загрузка событий">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+      ) : items.length === 0 ? (
+        <p className="text-ink-2 py-2">Пока ничего не произошло. Здесь появятся запросы на покупку, решения по ним и предупреждения о лимитах.</p>
+      ) : (
+        <>
+          <ul className="divide-y divide-line">
+            {shown.map((n) => (
+              <li key={n.id} className="py-2.5 first:pt-1 last:pb-1 flex gap-3">
+                <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${n.readAt ? 'bg-transparent' : 'bg-accent'}`} aria-hidden />
+                <span className="min-w-0 flex-1">
+                  <span className={`block text-[15px] break-words ${n.readAt ? 'text-ink-2' : 'text-ink font-medium'}`}>
+                    {n.title}
+                    {!n.readAt && <span className="sr-only"> (новое)</span>}
+                  </span>
+                  {n.body && <span className="block text-sm text-ink-2 break-words">{n.body}</span>}
+                  <span className="block text-[13px] text-ink-3">
+                    {new Date(n.createdAt).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+          {items.length > EVENTS_SHORT && (
+            <Button size="sm" variant="ghost" className="mt-2 -ml-3.5" icon={<Bell size={15} />} onClick={() => setExpanded((v) => !v)}>
+              {expanded ? 'Свернуть' : `Все события (${items.length})`}
+            </Button>
+          )}
+        </>
+      )}
+      {markRead.error && <p role="alert" className="text-sm text-danger mt-2">{markRead.error}</p>}
+    </Card>
   );
 }
 
