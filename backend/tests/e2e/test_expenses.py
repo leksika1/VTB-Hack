@@ -61,21 +61,28 @@ def test_update_own_expense(api):
     assert u["createdAt"] == e["createdAt"] and u["authorId"] == anna.id
 
 
-def test_update_expense_errors(api, new_client):
+def test_update_expense_errors(api):
     anna = create_family(api)
-    boris = join(new_client(), anna)
     e = add_expense(anna)
     body = {"title": "x", "amount": 1, "category": "food", "date": TODAY}
-    assert_error(boris.put(f"/api/expenses/{e['id']}", body), 403, "forbidden", message="Изменять можно только свои расходы")
     assert_error(anna.put("/api/expenses/missing", body), 404, "not_found")
     assert_error(anna.put(f"/api/expenses/{e['id']}", {**body, "amount": 0}), 422, field="amount")
 
 
-def test_delete_expense(api, new_client):
+def test_adult_edits_partners_expense(api, new_client):
     anna = create_family(api)
     boris = join(new_client(), anna)
+    e = add_expense(anna, 100)
+    # Взрослый исправляет чужую запись и указывает, кто на самом деле платил; автор остаётся прежним
+    body = {"title": "Ужин", "amount": 250, "category": "food", "date": TODAY, "paidBy": boris.id}
+    u = boris.put(f"/api/expenses/{e['id']}", body).json()
+    assert (u["amount"], u["authorId"], u["paidBy"]) == (250, anna.id, boris.id)
+    assert boris.delete(f"/api/expenses/{e['id']}").status_code == 204
+
+
+def test_delete_expense(api):
+    anna = create_family(api)
     e = add_expense(anna, 300)
-    assert_error(boris.delete(f"/api/expenses/{e['id']}"), 403, "forbidden", message="Удалять можно только свои расходы")
     assert anna.delete(f"/api/expenses/{e['id']}").status_code == 204
     # Повторное удаление — не ошибка
     assert anna.delete(f"/api/expenses/{e['id']}").status_code == 204

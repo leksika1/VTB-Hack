@@ -30,7 +30,7 @@
 |---|---|---|
 | Токен устройства 256 бит (`secrets.token_urlsafe(32)`); в базе — только SHA-256 | `security.py`, `models.MemberSession` | `test_tokens_are_not_exposed` |
 | Каждый запрос ограничен семьёй из токена; чужой объект = «не найден» (404), без подсказок о существовании | `services/*` | `test_families_are_isolated` |
-| Менять и удалять расход может только автор | `services/finance.py` | `test_update_expense_errors`, `test_delete_expense` |
+| Менять и удалять расход может любой взрослый семьи; ребёнок — только свой и не созданный по запросу | `services/finance.py` | `test_adult_edits_partners_expense`, `test_child_cannot_change_adults_expense` |
 | Сессия закрывается после 90 дней без запросов и при выходе из семьи | `deps.resolve_member`, `maintenance.py` | `test_inactive_session_expires`, `test_leave_family_*` |
 | Код приглашения можно сменить — старые ссылки перестают работать | `POST /api/family/invite-code` | `test_rotate_invite_code` |
 | Код приглашения: 6 символов без похожих букв (32⁶ ≈ 10⁹) + лимит 120 попыток/мин с IP и подтверждение входа взрослым | `security.py`, `ratelimit.py` | `test_rate_limit_on_invite_codes` |
