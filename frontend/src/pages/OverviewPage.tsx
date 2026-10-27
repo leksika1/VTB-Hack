@@ -53,6 +53,9 @@ function FamilyOverview() {
 
           {/* Month-dependent blocks fade in while the main block slides */}
           <div key={monthKey} className={`space-y-5 ${monthIn}`}>
+            {/* Phone order: summary → warnings → upcoming payments → categories → operations */}
+            <div className="lg:hidden">{payments}</div>
+
             {summary.hasBudget && (
               <Card className="p-5">
                 <SectionHeader
@@ -71,8 +74,6 @@ function FamilyOverview() {
                 <CategoryList categories={summary.categories} />
               </Card>
             )}
-
-            <div className="lg:hidden">{payments}</div>
 
             <Card className="p-5">
               <SectionHeader

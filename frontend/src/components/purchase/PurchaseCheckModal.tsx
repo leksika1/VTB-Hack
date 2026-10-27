@@ -1,27 +1,28 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import { CalendarPlus, ChevronDown, ReceiptText, Scale, TriangleAlert } from 'lucide-react';
 import type { ExpenseCategory } from '../../types';
-import { checkPurchase, type PurchaseCheck } from '../../domain/budget';
+import { categoryShortages, checkPurchase, type CategorySummary, type PurchaseCheck } from '../../domain/budget';
 import { useMonthSummary } from '../../hooks/useMonthSummary';
-import { useUIStore } from '../../store/uiStore';
+import { useUIStore, type PurchaseDraft } from '../../store/uiStore';
 import { CATEGORIES } from '../../utils/categories';
-import { formatBalance, formatCurrency, parseAmount, validateAmount } from '../../utils/currency';
-import { formatDateShort, formatMonthLower, toMonthKey } from '../../utils/date';
+import { amountToInput, formatBalance, formatCurrency, parseAmount, validateAmount } from '../../utils/currency';
+import { formatDateShort, formatMonthLower, plural, toMonthKey } from '../../utils/date';
 import { Modal } from '../ui/Modal';
 import { VERDICT } from './verdict';
-import { AmountField, Field } from '../ui/Field';
+import { AmountField } from '../ui/Field';
 import { Button } from '../ui/Button';
 import { CategoryPicker } from '../ui/CategoryPicker';
 import { AmountRow } from '../ui/Misc';
 
-export function PurchaseCheckModal() {
+export function PurchaseCheckModal({ prefill }: { prefill?: PurchaseDraft }) {
   const closeModal = useUIStore((s) => s.closeModal);
   const openModal = useUIStore((s) => s.openModal);
   const monthKey = useUIStore((s) => s.monthKey);
   const summary = useMonthSummary();
 
-  const [title, setTitle] = useState('');
-  const [amount, setAmount] = useState('');
-  const [category, setCategory] = useState<ExpenseCategory | null>(null);
+  const [amount, setAmount] = useState(amountToInput(prefill?.amount));
+  const [category, setCategory] = useState<ExpenseCategory | null>(prefill?.category ?? null);
+  const resultRef = useRef<HTMLDivElement>(null);
 
   const value = parseAmount(amount);
   const amountError = amount.trim() ? validateAmount(amount) : null;
@@ -29,6 +30,9 @@ export function PurchaseCheckModal() {
     () => (value && value > 0 && !amountError ? checkPurchase(summary, value, category) : null),
     [summary, value, category, amountError]
   );
+  const draft: PurchaseDraft = { amount: value ?? undefined, category: category ?? undefined };
+  // The checked category speaks for itself in the verdict; the others are reported separately
+  const otherShortages = categoryShortages(summary).filter((c) => c.key !== category);
 
   if (!summary.hasBudget) {
     return (
@@ -43,6 +47,8 @@ export function PurchaseCheckModal() {
     );
   }
 
+  const reviseLimit = (c: CategorySummary) => openModal({ type: 'budgetForm', focus: c.key, purchase: draft });
+
   return (
     <Modal
       size="lg"
@@ -55,20 +61,9 @@ export function PurchaseCheckModal() {
       }
       onClose={closeModal}
       footer={
-        <div className="flex gap-3">
-          <Button variant="secondary" className="flex-1" onClick={closeModal}>
-            Закрыть
-          </Button>
-          <Button
-            className="flex-1"
-            disabled={!result}
-            onClick={() =>
-              openModal({ type: 'expenseForm', prefill: { title: title.trim() || undefined, amount: value ?? undefined, category: category ?? undefined } })
-            }
-          >
-            Записать как расход
-          </Button>
-        </div>
+        <Button variant="secondary" fullWidth onClick={closeModal}>
+          Готово
+        </Button>
       }
     >
       <div className="space-y-4">
@@ -81,12 +76,11 @@ export function PurchaseCheckModal() {
           error={amountError}
           data-autofocus
         />
-        <Field label="Что покупаем (необязательно)" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Холодильник" maxLength={120} />
-        <CategoryPicker value={category} onChange={setCategory} label="Из какой категории (необязательно)" />
 
-        <div aria-live="polite">
+        {/* The overall answer comes right after the amount; the category is an optional refinement below */}
+        <div aria-live="polite" ref={resultRef} className="scroll-mt-4">
           {result ? (
-            <PurchaseResult result={result} />
+            <PurchaseResult result={result} onRebalance={reviseLimit} />
           ) : (
             <p className="text-[15px] text-ink-2 rounded-xl bg-surface-muted p-4">
               Сейчас свободно по плану <b className="text-ink tabular">{formatBalance(summary.freeByPlan)}</b>. Введите сумму, чтобы увидеть, что
@@ -94,16 +88,96 @@ export function PurchaseCheckModal() {
             </p>
           )}
         </div>
+
+        {result && otherShortages.length > 0 && (
+          <ShortagesNote shortages={otherShortages} onRevise={reviseLimit} />
+        )}
+
+        <CategoryPicker
+          compact
+          value={category}
+          onChange={(c) => {
+            setCategory(c);
+            // The picker sits below the answer; bring the updated answer back into view
+            const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            resultRef.current?.scrollIntoView({ block: 'start', behavior: reduce ? 'auto' : 'smooth' });
+          }}
+          noneLabel="Не уточнять"
+          label="Уточнить категорию — проверим и её лимит"
+        />
+
+        {/* Checking a purchase and recording one are different actions: ask first, then open a prefilled form */}
+        {result && (
+          <div className="rounded-xl border border-line p-4">
+            <p className="font-medium text-ink">Покупка уже совершена?</p>
+            <p className="text-sm text-ink-2 mt-0.5">
+              Если да — запишем расход, укажете название и дату. Если только собираетесь — сумму можно зарезервировать заранее.
+            </p>
+            <div className="mt-3 flex flex-col sm:flex-row gap-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                className="sm:flex-1"
+                icon={<ReceiptText size={16} />}
+                onClick={() => openModal({ type: 'expenseForm', prefill: draft })}
+              >
+                Да, записать расход
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="sm:flex-1"
+                icon={<CalendarPlus size={16} />}
+                onClick={() => openModal({ type: 'paymentForm', planned: true, prefill: draft })}
+              >
+                Нет, запланировать
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </Modal>
   );
 }
 
+/** Categories that already lack money in the plan, regardless of the checked purchase */
+function ShortagesNote({ shortages, onRevise }: { shortages: CategorySummary[]; onRevise: (c: CategorySummary) => void }) {
+  const worst = shortages[0];
+  return (
+    <div className="flex items-start gap-3 rounded-xl bg-warning-soft p-3.5 text-[15px]">
+      <TriangleAlert size={18} className="shrink-0 mt-0.5 text-warning" aria-hidden />
+      <div className="min-w-0">
+        <p className="text-ink">
+          {shortages.length > 1 ? (
+            <>
+              Отдельно: в плане уже {shortages.length} {plural(shortages.length, 'категория', 'категории', 'категорий')} с дефицитом, больше всего
+              не хватает в «{CATEGORIES[worst.key].label}» — <b className="tabular">{formatCurrency(-worst.left)}</b>.
+            </>
+          ) : (
+            <>
+              Отдельно: в категории «{CATEGORIES[worst.key].label}» уже не хватает <b className="tabular">{formatCurrency(-worst.left)}</b> на
+              расходы и платежи.
+            </>
+          )}
+        </p>
+        <button type="button" onClick={() => onRevise(worst)} className="mt-1 text-sm font-semibold text-accent-ink hover:underline">
+          Пересмотреть лимит «{CATEGORIES[worst.key].label}»
+        </button>
+      </div>
+    </div>
+  );
+}
 
-function PurchaseResult({ result }: { result: PurchaseCheck }) {
+function PurchaseResult({ result, onRebalance }: { result: PurchaseCheck; onRebalance: (c: CategorySummary) => void }) {
   const v = VERDICT[result.verdict];
   const Icon = v.icon;
   const cat = result.category;
+  const fits = result.verdict === 'ok' || result.verdict === 'tight';
+
+  // Without a category limit only the overall plan is checked — the answer must not sound more certain than that
+  const overallOnly = fits && result.categoryLeftAfter === null;
+  const title = !overallOnly ? v.title : result.verdict === 'tight' ? 'В общий лимит помещается, но запас маленький' : 'В общий лимит помещается';
+  const scope = !overallOnly ? null : cat ? 'У категории нет лимита — проверен только общий план.' : 'Лимит категории не проверен.';
 
   let explanation: string;
   switch (result.verdict) {
@@ -111,7 +185,7 @@ function PurchaseResult({ result }: { result: PurchaseCheck }) {
       explanation = `Не хватит ${formatCurrency(-result.freeAfter)}. Можно отложить покупку, пересмотреть лимиты или перенести её на следующий месяц.`;
       break;
     case 'category-over':
-      explanation = `В категории «${cat ? CATEGORIES[cat.key].label : ''}» будет перерасход ${formatCurrency(-(result.categoryLeftAfter ?? 0))}. Можно взять из другой категории, изменив лимиты.`;
+      explanation = `В категории «${cat ? CATEGORIES[cat.key].label : ''}» будет перерасход ${formatCurrency(-(result.categoryLeftAfter ?? 0))}. Можно взять эту сумму из другой категории.`;
       break;
     case 'tight':
       explanation = `После покупки останется ${formatCurrency(result.freeAfter)} на все незапланированные траты до конца месяца.`;
@@ -124,9 +198,27 @@ function PurchaseResult({ result }: { result: PurchaseCheck }) {
     <div className="rounded-2xl border border-line overflow-hidden animate-fade-in">
       <div className={`flex items-start gap-3 p-4 ${v.tone}`}>
         <Icon size={22} className="shrink-0 mt-0.5" aria-hidden />
-        <div>
-          <p className="font-semibold">{v.title}</p>
+        <div className="min-w-0">
+          <p className="font-semibold">
+            {title}
+            {scope && (
+              <>
+                . <span className="font-normal">{scope}</span>
+              </>
+            )}
+          </p>
           <p className="text-[15px] text-ink mt-0.5">{explanation}</p>
+          {result.verdict === 'category-over' && cat && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="mt-2.5"
+              icon={<Scale size={16} />}
+              onClick={() => onRebalance(cat)}
+            >
+              Перераспределить лимиты
+            </Button>
+          )}
         </div>
       </div>
       <div className="p-4 text-[15px]">
@@ -147,16 +239,17 @@ function PurchaseResult({ result }: { result: PurchaseCheck }) {
             tone={result.categoryLeftAfter < 0 ? 'danger' : undefined}
           />
         )}
-        {cat && result.categoryLeftAfter === null && (
-          <p className="text-sm text-ink-3 py-1.5">Для категории «{CATEGORIES[cat.key].label}» лимит не задан — проверяем только общий план.</p>
-        )}
 
-        <div className="mt-3 pt-3 border-t border-line">
-          <p className="font-medium text-ink mb-1.5">
-            {result.reservedPayments.length > 0 ? 'Учтены предстоящие платежи' : 'Предстоящих платежей в этом месяце нет'}
-          </p>
-          {result.reservedPayments.length > 0 && (
-            <ul className="space-y-1 text-sm">
+        {result.reservedPayments.length > 0 ? (
+          <details className="group mt-3 pt-3 border-t border-line">
+            <summary className="flex items-center justify-between gap-3 cursor-pointer list-none font-medium text-ink [&::-webkit-details-marker]:hidden">
+              <span>
+                Учтены {result.reservedPayments.length}{' '}
+                {plural(result.reservedPayments.length, 'предстоящий платёж', 'предстоящих платежа', 'предстоящих платежей')}
+              </span>
+              <ChevronDown size={18} className="shrink-0 text-ink-3 transition-transform group-open:rotate-180" aria-hidden />
+            </summary>
+            <ul className="space-y-1 text-sm mt-2">
               {result.reservedPayments.map((p) => (
                 <li key={p.id} className="flex justify-between gap-3 text-ink-2">
                   <span className="flex gap-3 min-w-0">
@@ -167,8 +260,10 @@ function PurchaseResult({ result }: { result: PurchaseCheck }) {
                 </li>
               ))}
             </ul>
-          )}
-        </div>
+          </details>
+        ) : (
+          <p className="mt-3 pt-3 border-t border-line text-sm text-ink-2">Предстоящих платежей в этом месяце нет</p>
+        )}
       </div>
     </div>
   );

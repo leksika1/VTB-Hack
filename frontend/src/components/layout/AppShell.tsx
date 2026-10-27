@@ -62,7 +62,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
 
           <DesktopNav nav={nav} tab={tab} onSelect={setTab} unread={unread} unreadLabel={unreadLabel} />
-          {family?.isDemo && <span className="hidden left-3 relative sm:inline"><Badge tone="warning">Демо</Badge></span>}
+          {/* Demo data looks real, so the mark stays on every screen size */}
+          {family?.isDemo && <span className="shrink-0 relative sm:left-3"><Badge tone="warning">Демо</Badge></span>}
 
           {user && (
             <button

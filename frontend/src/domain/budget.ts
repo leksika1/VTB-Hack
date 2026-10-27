@@ -130,6 +130,12 @@ export function problemCategories(summary: MonthSummary): CategorySummary[] {
     .sort((a, b) => (rank[a.status] ?? 2) - (rank[b.status] ?? 2) || a.left - b.left);
 }
 
+/** Categories whose limit does not cover expenses and upcoming payments, the largest gap first */
+export function categoryShortages(summary: MonthSummary): CategorySummary[] {
+  if (!summary.hasBudget) return [];
+  return summary.categories.filter((c) => c.status === 'over').sort((a, b) => a.left - b.left);
+}
+
 /* ── «Проверить покупку» ── */
 
 export type PurchaseVerdict = 'ok' | 'tight' | 'category-over' | 'not-enough';

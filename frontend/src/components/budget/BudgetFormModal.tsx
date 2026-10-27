@@ -1,12 +1,12 @@
-import { useState, type FormEvent } from 'react';
-import { ChevronLeft, ChevronRight, CopyPlus } from 'lucide-react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { ArrowRightLeft, Check, ChevronLeft, ChevronRight, CopyPlus } from 'lucide-react';
 import type { ExpenseCategory } from '../../types';
 import { saveBudget } from '../../api/client';
 import { useAsyncAction, useRequestId } from '../../hooks/useAsyncAction';
 import { useMonthSummary } from '../../hooks/useMonthSummary';
 import { budgetKey, useDataStore } from '../../store/dataStore';
 import { useFamilyStore } from '../../store/familyStore';
-import { useUIStore } from '../../store/uiStore';
+import { useUIStore, type PurchaseDraft } from '../../store/uiStore';
 import { ALL_CATEGORIES, CATEGORIES, emptyCategoryRecord } from '../../utils/categories';
 import { amountToInput, formatCurrency, parseAmount, validateAmount } from '../../utils/currency';
 import { formatMonthIn, formatMonthKey, formatMonthLower, shiftMonth } from '../../utils/date';
@@ -17,12 +17,23 @@ import { CategoryIcon } from '../ui/Misc';
 
 type PlanInputs = Record<ExpenseCategory, string>;
 
+/** Categories offered as a source for a missing limit, the freest first */
+const MAX_SOURCES = 3;
+
 function toInputs(plans: Record<ExpenseCategory, number> | undefined): PlanInputs {
   const src = plans ?? emptyCategoryRecord();
   return Object.fromEntries(ALL_CATEGORIES.map((k) => [k, amountToInput(src[k])])) as PlanInputs;
 }
 
-export function BudgetFormModal() {
+interface BudgetFormModalProps {
+  /** Category whose limit the user came to revise: it is scrolled into view and ways to cover the gap are offered */
+  focus?: ExpenseCategory;
+  /** Purchase check that sent the user here: it is counted in the gap and reopened after saving or closing */
+  purchase?: PurchaseDraft;
+}
+
+export function BudgetFormModal({ focus, purchase }: BudgetFormModalProps) {
+  const openModal = useUIStore((s) => s.openModal);
   const closeModal = useUIStore((s) => s.closeModal);
   const addToast = useUIStore((s) => s.addToast);
   const viewedMonth = useUIStore((s) => s.monthKey);
@@ -43,6 +54,9 @@ export function BudgetFormModal() {
   const [total, setTotal] = useState(amountToInput(existing?.totalAmount));
   const [plans, setPlans] = useState<PlanInputs>(toInputs(existing?.categoryPlans));
   const [submitted, setSubmitted] = useState(false);
+  // A move only edits the form; nothing changes until the budget is saved
+  const [moved, setMoved] = useState(false);
+  const focusedRef = useRef<HTMLLIElement>(null);
 
   const changeMonth = (delta: number) => {
     const next = shiftMonth(month, delta);
@@ -51,6 +65,7 @@ export function BudgetFormModal() {
     setTotal(amountToInput(b?.totalAmount));
     setPlans(toInputs(b?.categoryPlans));
     setSubmitted(false);
+    setMoved(false);
     save.reset();
   };
 
@@ -77,6 +92,34 @@ export function BudgetFormModal() {
   const totalError = submitted ? totalProblem : null;
   const committed = current.spent + current.reserved;
 
+  // Gap of the focused category from the limits typed in the form, so it shrinks as the user edits them
+  const used = (k: ExpenseCategory) => {
+    const c = current.categories.find((x) => x.key === k)!;
+    return c.spent + c.reserved + (purchase?.category === k ? purchase.amount ?? 0 : 0);
+  };
+  const freeIn = (k: ExpenseCategory) => round((parseAmount(plans[k]) ?? 0) - used(k));
+  const focused = focus && month === viewedMonth ? focus : null;
+  const need = focused ? Math.max(0, -freeIn(focused)) : 0;
+  const sources = focused && need > 0
+    ? ALL_CATEGORIES.filter((k) => k !== focused && (parseAmount(plans[k]) ?? 0) > 0 && freeIn(k) >= need).sort((a, b) => freeIn(b) - freeIn(a)).slice(0, MAX_SOURCES)
+    : [];
+  const unallocatedCovers = !autoTotal && unallocated >= need;
+  const addTo = (k: ExpenseCategory, delta: number) =>
+    setPlans((p) => ({ ...p, [k]: amountToInput(round((parseAmount(p[k]) ?? 0) + delta)) }));
+  const cover = (from: ExpenseCategory | 'unallocated' | 'total') => {
+    if (!focused) return;
+    addTo(focused, need);
+    if (from === 'total' && !autoTotal) setTotal(amountToInput(round(totalNum + need)));
+    else if (from !== 'unallocated' && from !== 'total') addTo(from, -need);
+    setMoved(true);
+  };
+  const leave = () => (purchase ? openModal({ type: 'purchaseCheck', prefill: purchase }) : closeModal());
+
+  // Bring the category to fix into view; no focus, so a phone does not cover the suggestions with the keyboard
+  useEffect(() => {
+    focusedRef.current?.scrollIntoView({ block: 'start' });
+  }, []);
+
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setSubmitted(true);
@@ -86,8 +129,10 @@ export function BudgetFormModal() {
 
     const res = await save.run({ monthKey: month, totalAmount: totalNum, categoryPlans }, `${requestId}:${month}`);
     if (!res.ok) return;
-    closeModal();
-    if (month !== viewedMonth) {
+    leave();
+    if (purchase && month === viewedMonth) {
+      addToast('Лимиты сохранены — проверка покупки пересчитана');
+    } else if (month !== viewedMonth) {
       addToast(`Бюджет на ${formatMonthLower(month)} сохранён`, 'success', { label: 'Показать', onClick: () => setMonthKey(month) });
     } else {
       addToast('Бюджет сохранён');
@@ -99,7 +144,7 @@ export function BudgetFormModal() {
       size="lg"
       title={`Бюджет на ${formatMonthLower(month)}`}
       description="План — ориентир семьи, а не запрет: расходы можно вносить и сверх него. Лимиты достаточно задать только важным категориям."
-      onClose={closeModal}
+      onClose={leave}
       footer={
         <div className="space-y-3">
           <div
@@ -121,8 +166,13 @@ export function BudgetFormModal() {
             )}
           </div>
           <Button type="submit" form="budget-form" fullWidth size="lg" loading={save.pending}>
-            Сохранить бюджет
+            {moved ? 'Сохранить перенос лимитов' : 'Сохранить бюджет'}
           </Button>
+          {purchase && (
+            <Button variant="ghost" fullWidth size="sm" onClick={leave}>
+              Вернуться к покупке без изменений
+            </Button>
+          )}
         </div>
       }
     >
@@ -179,18 +229,31 @@ export function BudgetFormModal() {
                 .filter(Boolean)
                 .join('; ');
               return (
-                <li key={k} className="py-3 flex items-start gap-3">
-                  <span className="pt-6"><CategoryIcon category={k} size="sm" /></span>
-                  <div className="flex-1 min-w-0">
-                    <AmountField
-                      label={CATEGORIES[k].label}
-                      value={plans[k]}
-                      onChange={(e) => setPlans((p) => ({ ...p, [k]: e.target.value }))}
-                      placeholder="Не задан"
-                      error={planErrors[k]}
-                      hint={context || undefined}
-                    />
+                <li key={k} ref={k === focused ? focusedRef : undefined} className="py-3 scroll-mt-2">
+                  <div className="flex items-start gap-3">
+                    <span className="pt-6"><CategoryIcon category={k} size="sm" /></span>
+                    <div className="flex-1 min-w-0">
+                      <AmountField
+                        label={CATEGORIES[k].label}
+                        value={plans[k]}
+                        onChange={(e) => setPlans((p) => ({ ...p, [k]: e.target.value }))}
+                        placeholder="Не задан"
+                        error={planErrors[k]}
+                        hint={context || undefined}
+                      />
+                    </div>
                   </div>
+                  {k === focused && (
+                    <CoverPanel
+                      category={k}
+                      need={need}
+                      moved={moved}
+                      purchase={purchase}
+                      sources={sources.map((s) => ({ key: s, free: freeIn(s) }))}
+                      unallocated={unallocatedCovers ? unallocated : null}
+                      onCover={cover}
+                    />
+                  )}
                 </li>
               );
             })}
@@ -201,4 +264,70 @@ export function BudgetFormModal() {
       </form>
     </Modal>
   );
+}
+
+interface CoverPanelProps {
+  category: ExpenseCategory;
+  need: number;
+  moved: boolean;
+  purchase?: PurchaseDraft;
+  sources: { key: ExpenseCategory; free: number }[];
+  /** Unallocated part of the plan when it covers the gap */
+  unallocated: number | null;
+  onCover: (from: ExpenseCategory | 'unallocated' | 'total') => void;
+}
+
+/** Ways to cover the gap of the category the user came to fix; each fills the form, saving confirms it */
+function CoverPanel({ category, need, moved, purchase, sources, unallocated, onCover }: CoverPanelProps) {
+  const label = CATEGORIES[category].label;
+  if (need <= 0) {
+    return (
+      <p className="mt-2 sm:ml-11 flex items-start gap-2 rounded-xl bg-success-soft px-3.5 py-2.5 text-sm text-success" role="status">
+        <Check size={16} className="shrink-0 mt-px" aria-hidden />
+        <span>
+          {moved ? 'Лимит покрывает' : 'Хватает на'} {purchase?.category === category ? 'расходы, платежи и покупку' : 'расходы и платежи'}.
+          {moved && ' Перенос применится после сохранения.'}
+        </span>
+      </p>
+    );
+  }
+  const option = 'w-full flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm bg-surface hover:bg-accent-soft border border-line';
+  return (
+    <div className="mt-2 sm:ml-11 rounded-xl bg-warning-soft p-3.5">
+      <p className="text-sm text-ink">
+        В «{label}» не хватает <b className="tabular">{formatCurrency(need)}</b>
+        {purchase?.category === category && purchase.amount ? ` с учётом покупки на ${formatCurrency(purchase.amount)}` : ''}. Увеличьте лимит
+        или возьмите сумму:
+      </p>
+      <ul className="mt-2 space-y-1.5">
+        {unallocated !== null && (
+          <li>
+            <button type="button" className={option} onClick={() => onCover('unallocated')}>
+              <span className="inline-flex items-center gap-2"><ArrowRightLeft size={15} className="text-accent-ink" aria-hidden />Из нераспределённого</span>
+              <span className="text-ink-3 tabular whitespace-nowrap">есть {formatCurrency(unallocated)}</span>
+            </button>
+          </li>
+        )}
+        {sources.map((s) => (
+          <li key={s.key}>
+            <button type="button" className={option} onClick={() => onCover(s.key)}>
+              <span className="inline-flex items-center gap-2"><ArrowRightLeft size={15} className="text-accent-ink" aria-hidden />Из «{CATEGORIES[s.key].label}»</span>
+              <span className="text-ink-3 tabular whitespace-nowrap">свободно {formatCurrency(s.free)}</span>
+            </button>
+          </li>
+        ))}
+        <li>
+          <button type="button" className={option} onClick={() => onCover('total')}>
+            <span className="inline-flex items-center gap-2"><ArrowRightLeft size={15} className="text-accent-ink" aria-hidden />Увеличить и общий бюджет</span>
+            <span className="text-ink-3 tabular whitespace-nowrap">+{formatCurrency(need)}</span>
+          </button>
+        </li>
+      </ul>
+      <p className="text-[13px] text-ink-3 mt-2">Выбор только заполнит форму — лимиты изменятся после сохранения.</p>
+    </div>
+  );
+}
+
+function round(n: number): number {
+  return Math.round(n * 100) / 100;
 }

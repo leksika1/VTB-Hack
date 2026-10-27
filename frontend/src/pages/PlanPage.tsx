@@ -91,7 +91,11 @@ function PaymentsCard() {
   const previous = useMonthSummary(shiftMonth(monthKey, -1));
   const copy = useAsyncAction(copyPaymentsFromPreviousMonth);
   const hasAny = summary.upcomingPayments.length + summary.paidPayments.length > 0;
-  const prevCount = previous.upcomingPayments.length + previous.paidPayments.length;
+  // Mirrors the server: series payments appear by themselves, and a title already in this month is not copied again
+  const titles = new Set([...summary.upcomingPayments, ...summary.paidPayments].map((p) => p.title));
+  const prevCount = new Set(
+    [...previous.upcomingPayments, ...previous.paidPayments].filter((p) => !p.seriesId && !titles.has(p.title)).map((p) => p.title)
+  ).size;
 
   const onCopy = async () => {
     const res = await copy.run(monthKey);
@@ -130,7 +134,7 @@ function PaymentsCard() {
           action={
             prevCount > 0 ? (
               <Button variant="secondary" icon={<CopyPlus size={16} />} loading={copy.pending} onClick={onCopy}>
-                Перенести из прошлого месяца ({prevCount})
+                Перенести платежи из прошлого месяца ({prevCount})
               </Button>
             ) : undefined
           }
@@ -146,6 +150,12 @@ function PaymentsCard() {
           <h3 className="text-sm font-semibold text-ink-2 mb-1">Оплачены — уже в расходах</h3>
           <PaymentList payments={summary.paidPayments} />
         </div>
+      )}
+      {/* Copying payments is separate from copying the budget limits («Заполнить как …» in the budget form) */}
+      {hasAny && prevCount > 0 && (
+        <Button size="sm" variant="ghost" className="mt-3" icon={<CopyPlus size={15} />} loading={copy.pending} onClick={onCopy}>
+          Перенести платежи из прошлого месяца ({prevCount})
+        </Button>
       )}
     </Card>
   );

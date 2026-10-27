@@ -4,12 +4,20 @@ import type { ExpenseCategory, Role, Tab, Toast } from '../types';
 import { toMonthKey } from '../utils/date';
 import { EXIT_MS } from '../utils/motion';
 
+/** A purchase being checked; it travels between the calculator and the forms opened from it */
+export interface PurchaseDraft {
+  amount?: number;
+  category?: ExpenseCategory;
+}
+
 export type ModalState =
   | { type: 'expenseForm'; expenseId?: string; prefill?: { title?: string; amount?: number; category?: ExpenseCategory } }
   | { type: 'expenseDetails'; expenseId: string }
-  | { type: 'budgetForm' }
-  | { type: 'paymentForm'; paymentId?: string }
-  | { type: 'purchaseCheck' }
+  /** focus — the category whose limit should be revised; purchase — the check to return to after saving */
+  | { type: 'budgetForm'; focus?: ExpenseCategory; purchase?: PurchaseDraft }
+  /** planned — a future purchase reserved like a payment, opened from the calculator or the expense form */
+  | { type: 'paymentForm'; paymentId?: string; prefill?: PurchaseDraft & { title?: string; dueDate?: string }; planned?: boolean }
+  | { type: 'purchaseCheck'; prefill?: PurchaseDraft }
   | { type: 'invite' }
   | { type: 'allowanceForm'; memberId: string }
   | { type: 'purchaseRequestForm' }

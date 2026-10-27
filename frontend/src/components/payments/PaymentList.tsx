@@ -76,6 +76,7 @@ export function PaymentRow({ payment, editable = true }: { payment: Payment; edi
           ) : (
             <Button
               size="sm"
+              variant="secondary"
               icon={<Check size={15} />}
               loading={toggle.pending}
               onClick={onToggle}

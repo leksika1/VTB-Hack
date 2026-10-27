@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { CalendarPlus } from 'lucide-react';
 import type { ExpenseCategory } from '../../types';
 import { saveExpense } from '../../api/client';
 import { useAsyncAction, useRequestId } from '../../hooks/useAsyncAction';
@@ -6,7 +7,7 @@ import { useDataStore } from '../../store/dataStore';
 import { resolveAuthorName, useCurrentUser, useFamilyStore, useIsParent } from '../../store/familyStore';
 import { useUIStore } from '../../store/uiStore';
 import { amountToInput, parseAmount, validateAmount } from '../../utils/currency';
-import { formatMonthIn, todayISO, toMonthKey } from '../../utils/date';
+import { daysFromToday, formatMonthIn, todayISO, toMonthKey } from '../../utils/date';
 import { Modal } from '../ui/Modal';
 import { AmountField, Field, FieldError, FormError } from '../ui/Field';
 import { Button } from '../ui/Button';
@@ -18,13 +19,17 @@ interface ExpenseFormModalProps {
   prefill?: { title?: string; amount?: number; category?: ExpenseCategory };
 }
 
-/** Default date: today when viewing the current month, otherwise the 1st of the viewed month */
+/**
+ * Default date: today when viewing the current month. In another month any day would be a guess that looks like
+ * a chosen fact (for a future month — like a purchase already made), so the user picks the date.
+ */
 function defaultDate(viewedMonth: string): string {
-  return viewedMonth === toMonthKey() ? todayISO() : `${viewedMonth}-01`;
+  return viewedMonth === toMonthKey() ? todayISO() : '';
 }
 
 export function ExpenseFormModal({ expenseId, prefill }: ExpenseFormModalProps) {
   const closeModal = useUIStore((s) => s.closeModal);
+  const openModal = useUIStore((s) => s.openModal);
   const addToast = useUIStore((s) => s.addToast);
   const viewedMonth = useUIStore((s) => s.monthKey);
   const setMonthKey = useUIStore((s) => s.setMonthKey);
@@ -49,6 +54,10 @@ export function ExpenseFormModal({ expenseId, prefill }: ExpenseFormModalProps) 
   const payerIsAdult = adults.some((m) => m.id === initialPayer);
   const choosePayer = isParent && adults.length > 1 && (!existing || payerIsAdult);
   const othersRecord = existing && existing.authorId !== user?.id;
+  // A purchase that has not happened yet belongs in the plan, not in expenses; payments are an adult's tool
+  const futureMonth = viewedMonth > toMonthKey();
+  const futureDate = !!date && daysFromToday(date) > 0;
+  const offerPlan = !expenseId && isParent && (futureMonth || futureDate);
 
   const titleError = submitted && !title.trim() ? 'Укажите, что купили' : save.errorField === 'title' ? save.error : null;
   const amountError = submitted ? validateAmount(amount) : null;
@@ -162,8 +171,37 @@ export function ExpenseFormModal({ expenseId, prefill }: ExpenseFormModalProps) 
           onChange={(e) => setDate(e.target.value)}
           max="2100-12-31"
           error={dateError ?? (save.errorField === 'date' ? save.error : null)}
-          hint={date && date.slice(0, 7) !== viewedMonth ? `Расход будет учтён ${formatMonthIn(date.slice(0, 7))}, а не в просматриваемом месяце` : undefined}
+          hint={
+            !date
+              ? 'Укажите день, когда покупка была совершена'
+              : futureDate
+                ? 'Дата ещё не наступила — расход будет учтён как уже совершённый'
+                : date.slice(0, 7) !== viewedMonth
+                  ? `Расход будет учтён ${formatMonthIn(date.slice(0, 7))}, а не в просматриваемом месяце`
+                  : undefined
+          }
         />
+        {offerPlan && (
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 rounded-xl bg-accent-soft p-3.5">
+            <p className="flex-1 text-sm text-ink">
+              Покупка ещё не совершена? Запланируйте её — сумма будет зарезервирована, а расходом станет после оплаты.
+            </p>
+            <Button
+              size="sm"
+              variant="outline"
+              icon={<CalendarPlus size={16} />}
+              onClick={() =>
+                openModal({
+                  type: 'paymentForm',
+                  planned: true,
+                  prefill: { title: title.trim() || undefined, amount: parseAmount(amount) ?? undefined, category: category ?? undefined, dueDate: date || undefined },
+                })
+              }
+            >
+              Запланировать
+            </Button>
+          </div>
+        )}
         {generalError && <FormError>{generalError}</FormError>}
         {submitted && fieldErrorShown && !generalError && <span className="sr-only" role="status">Исправьте ошибки в форме</span>}
       </form>
