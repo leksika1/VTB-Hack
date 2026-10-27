@@ -40,13 +40,18 @@ async def create(db: AsyncSession, member: Member, body: PurchaseRequestIn) -> P
     db.add(request)
     await db.flush()
     await db.refresh(request, ["expense"])
+    await notify_created(db, member, request)
+    return request
+
+
+async def notify_created(db: AsyncSession, author: Member, request: PurchaseRequest) -> None:
+    """Взрослым, кроме автора, — о новом запросе (docs/FEATURES.md §9). Демо-семья зовёт это же при создании."""
     await notifications.notify(
-        db, member.family_id, await notifications.parents(db, member.family_id, exclude=member.id),
-        "request_created", f"{member.name} просит: {request.title}",
+        db, author.family_id, await notifications.parents(db, author.family_id, exclude=author.id),
+        "request_created", f"{author.name} просит: {request.title}",
         f"{request.amount_kop / 100:,.2f} ₽".replace(",", " ").replace(".", ","), {"requestId": request.id},
         dedupe_key=f"request_created:{request.id}",
     )
-    return request
 
 
 async def to_out_list(db: AsyncSession, member: Member, items: list[PurchaseRequest]) -> list[PurchaseRequestOut]:

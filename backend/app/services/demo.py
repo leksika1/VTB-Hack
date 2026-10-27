@@ -15,7 +15,7 @@ from ..models import Allowance, Budget, Expense, Family, Member, Payment, Purcha
 from ..schemas import SessionOut
 from ..security import MEMBER_COLORS
 from ..validation import shift_month
-from . import families
+from . import families, requests
 
 HOUR_MS = 3_600_000
 
@@ -128,13 +128,17 @@ async def build_sample_family(
             expense("Коммунальные услуги", 6400, "housing", d(prev, 25), maria, 700, pay_prev_util),
         ]
     )
+    headphones = PurchaseRequest(family_id=family.id, author_id=sonya.id, title="Беспроводные наушники", amount_kop=_kop(3500),
+                                 category="other", comment="Старые сломались", created_at=now - 3 * HOUR_MS)
     db.add_all([
         Allowance(member_id=sonya.id, family_id=family.id, amount_kop=_kop(1500), period="week", updated_by=maria.id),
         Expense(family_id=family.id, title="Мороженое", amount_kop=_kop(180), category="food", date=today,
                 author_id=sonya.id, paid_by=sonya.id, created_at=now - HOUR_MS),
-        PurchaseRequest(family_id=family.id, author_id=sonya.id, title="Беспроводные наушники", amount_kop=_kop(3500),
-                        category="other", comment="Старые сломались", created_at=now - 3 * HOUR_MS),
+        headphones,
     ])
+    await db.flush()
+    # Как при обычном создании: у взрослых запрос сразу виден в «Событиях»
+    await requests.notify_created(db, sonya, headphones)
     await db.commit()
     return alex
 

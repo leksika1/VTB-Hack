@@ -54,3 +54,10 @@ def test_real_family_leave_still_works(api, new_client):
     anna = create_family(api)
     assert anna.post("/api/family/leave").status_code == 204
     assert_error(anna.get("/api/state"), 401)
+
+
+def test_demo_adults_see_the_pending_request_in_events(new_client):
+    demo = start_demo(new_client())  # открывается от имени взрослого
+    kinds = [n["kind"] for n in demo.get("/api/notifications").json()]
+    assert kinds == ["request_created"]
+    assert demo.get("/api/state").json()["unreadNotifications"] == 1
