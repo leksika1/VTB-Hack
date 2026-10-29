@@ -10,7 +10,7 @@ import { Badge } from '../ui/Misc';
 import { Button } from '../ui/Button';
 
 export function PaymentStatusBadge({ payment }: { payment: Payment }) {
-  if (payment.status === 'paid') return <Badge tone="success" icon={<Check size={12} aria-hidden />}>Оплачен</Badge>;
+  if (payment.status === 'paid') return <Badge tone="success" icon={<Check size={12} aria-hidden />}>Оплачено</Badge>;
   if (isOverdue(payment)) return <Badge tone="danger">Просрочен</Badge>;
   return <Badge tone="accent">Предстоит</Badge>;
 }
