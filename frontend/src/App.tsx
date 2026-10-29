@@ -14,20 +14,11 @@ import { OnboardingPage } from './pages/OnboardingPage';
 import { AuthCallbackPage, type OidcOutcome } from './pages/AuthCallbackPage';
 import { WaitingApprovalPage } from './pages/WaitingApprovalPage';
 import { buildInviteUrl, readInviteFromUrl } from './components/family/invite';
+import { watchSystemTheme } from './utils/theme';
 
 function useThemeAttribute() {
   const theme = useUIStore((s) => s.theme);
-  useEffect(() => {
-    const media = window.matchMedia('(prefers-color-scheme: dark)');
-    const apply = () => {
-      const dark = theme === 'dark' || (theme === 'system' && media.matches);
-      document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0c1424' : '#f2f4f7');
-    };
-    apply();
-    media.addEventListener('change', apply);
-    return () => media.removeEventListener('change', apply);
-  }, [theme]);
+  useEffect(() => watchSystemTheme(theme), [theme]);
 }
 
 /** Safety net in case the event stream is cut by a proxy without the client noticing */

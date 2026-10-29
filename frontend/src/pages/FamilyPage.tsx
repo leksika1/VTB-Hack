@@ -22,6 +22,7 @@ import { useFamilyStore, useIsParent } from '../store/familyStore';
 import { useUIStore, type Theme } from '../store/uiStore';
 import { formatCurrency } from '../utils/currency';
 import { plural } from '../utils/date';
+import { canCrossFadeTheme, switchTheme } from '../utils/theme';
 import { InvitePanel } from '../components/family/InvitePanel';
 import { Card, PageHeader, SectionHeader } from '../components/ui/Card';
 import { Avatar, Badge } from '../components/ui/Misc';
@@ -335,7 +336,7 @@ function VtbIdCard() {
     getOidcConfig().then((c) => {
       if (!alive) return;
       setConfig(c);
-      if (c.enabled) getMe().then((m) => alive && setMe(m), () => {});
+      if (c.enabled) getMe().then((m) => alive && setMe(m), () => { });
     });
     return () => {
       alive = false;
@@ -416,27 +417,42 @@ const THEMES: { value: Theme; label: string; icon: React.ReactNode }[] = [
   { value: 'system', label: 'Как в системе', icon: <Monitor size={16} /> },
 ];
 
+/**
+ * Theme picker with one pill that slides to the chosen option. While the page cross-fades into the new theme,
+ * the pill and the labels are captured as separate view-transition layers (index.css), so the pill
+ * moves instead of fading and stays under the labels. Without view transitions it slides with CSS.
+ */
 function AppearanceCard() {
   const theme = useUIStore((s) => s.theme);
-  const setTheme = useUIStore((s) => s.setTheme);
+  const index = THEMES.findIndex((t) => t.value === theme);
+  const [cssSlide] = useState(() => !canCrossFadeTheme());
   return (
     <Card className="p-5">
-      <SectionHeader title="Оформление" />
-      <div role="radiogroup" aria-label="Тема" className="grid grid-cols-3 gap-1 p-1 rounded-[var(--radius-control)] bg-surface-sunken">
-        {THEMES.map((t) => (
-          <button
-            key={t.value}
-            type="button"
-            role="radio"
-            aria-checked={theme === t.value}
-            onClick={() => setTheme(t.value)}
-            className={`h-10 rounded-[10px] text-sm font-medium inline-flex items-center justify-center gap-1.5 transition-colors
-              ${theme === t.value ? 'bg-surface text-ink shadow-[var(--shadow-card)]' : 'text-ink-2 hover:text-ink'}`}
-          >
-            {t.icon}
-            <span className="truncate">{t.label}</span>
-          </button>
-        ))}
+      <SectionHeader title="Тема" />
+      <div role="radiogroup" aria-label="Тема" className="relative p-1 rounded-[var(--radius-control)] bg-surface-sunken">
+        <span
+          aria-hidden
+          className={`theme-pill absolute top-1 bottom-1 left-1 w-[calc((100%-1rem)/3)] rounded-[10px] bg-surface shadow-[var(--shadow-card)]
+            ${cssSlide ? 'transition-transform duration-(--dur-theme) ease-(--ease-out)' : ''}`}
+          // One step is the pill's own width plus the 0.25rem gap between options
+          style={{ transform: `translateX(calc(${index} * (100% + 0.25rem)))` }}
+        />
+        <div className="theme-options relative grid grid-cols-3 gap-1">
+          {THEMES.map((t) => (
+            <button
+              key={t.value}
+              type="button"
+              role="radio"
+              aria-checked={theme === t.value}
+              onClick={() => switchTheme(t.value)}
+              className={`h-10 rounded-[10px] text-sm font-medium inline-flex items-center justify-center gap-1.5 transition-colors
+                ${theme === t.value ? 'text-ink' : 'text-ink-2 hover:text-ink'}`}
+            >
+              {t.icon}
+              <span className="truncate">{t.label}</span>
+            </button>
+          ))}
+        </div>
       </div>
     </Card>
   );

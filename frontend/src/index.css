@@ -290,7 +290,23 @@ input[type='number']::-webkit-inner-spin-button {
   --dur-month: 550ms;
   /* Switching sections: the header pill slides and the new page fades in over this time */
   --dur-tab: 600ms;
+  /* Switching the theme: the page cross-fades and the picker's pill slides (utils/theme.ts) */
+  --dur-theme: 450ms;
 }
+
+/*
+ * Theme switch runs as a view transition: the whole page cross-fades between the old and new colours.
+ * The picker's pill and labels are separate layers, so the pill slides under the labels instead of fading.
+ */
+.theme-pill { view-transition-name: theme-pill; }
+.theme-options { view-transition-name: theme-options; }
+::view-transition-group(*),
+::view-transition-old(*),
+::view-transition-new(*) {
+  animation-duration: var(--dur-theme);
+  animation-timing-function: var(--ease-in-out);
+}
+::view-transition-group(theme-pill) { animation-timing-function: var(--ease-out); }
 
 .animate-fade-in { animation: fade-in 0.28s var(--ease-out) both; }
 .animate-tab-in { animation: tab-in var(--dur-tab) var(--ease-out) both; }
