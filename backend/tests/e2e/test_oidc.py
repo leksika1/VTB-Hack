@@ -14,7 +14,7 @@ def bank_login(client, intent="login", login="ivan", headers=None):
     params = {k: v[0] for k, v in parse_qs(url.query).items()}
     assert params["code_challenge_method"] == "S256" and params["redirect_uri"] == REDIRECT
     page = client.get(url.path, params=params)
-    assert page.status_code == 200 and "Войти как" in page.text
+    assert page.status_code == 200 and 'name="login"' in page.text
     redirect = client.get(url.path, params={**params, "login": login}, follow_redirects=False)
     assert redirect.status_code == 302
     back = urlparse(redirect.headers["location"])
@@ -104,4 +104,23 @@ def test_mock_authorize_rejects_foreign_redirect_and_escapes_input(api):
     assert_error(api.get(url.path, params={**params, "redirect_uri": "https://evil.example/cb"}), 422)
     page = api.get(url.path, params={**params, "state": '"><script>alert(1)</script>'})
     assert "<script>alert(1)" not in page.text and "&lt;script&gt;" in page.text
-    assert "default-src 'none'" in page.headers["content-security-policy"]
+    csp = page.headers["content-security-policy"]
+    # После отправки формы браузер уходит на фронтенд — его origin тоже должен быть разрешён
+    assert "default-src 'none'" in csp and "form-action 'self' http://localhost:5173" in csp
+    # «Отменить» возвращает на фронтенд как отказ пользователя, с тем же state
+    assert "error=access_denied&amp;state=" in page.text
+    # Тема страницы — выбранная в приложении (cookie fb-theme), по умолчанию светлая
+    assert 'data-theme="light"' in page.text
+    dark = api.get(url.path, params=params, cookies={"fb-theme": "dark"})
+    assert 'data-theme="dark"' in dark.text
+
+
+def test_mock_authorize_empty_login_shows_russian_error(api):
+    r = api.post("/api/auth/oidc/start", json={"intent": "login", "redirectUri": REDIRECT}).json()
+    url = urlparse(r["authorizationUrl"])
+    params = {k: v[0] for k, v in parse_qs(url.query).items()}
+    # Форма без проверки браузера: пустой и пробельный логин — снова страница с ошибкой, а не вход
+    for blank in ("", "   "):
+        page = api.get(url.path, params={**params, "login": blank}, follow_redirects=False)
+        assert page.status_code == 200 and "Введите логин" in page.text and 'aria-invalid="true"' in page.text
+    assert "Введите логин" not in api.get(url.path, params=params).text

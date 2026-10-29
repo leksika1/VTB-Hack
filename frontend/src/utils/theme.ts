@@ -8,6 +8,8 @@ export function applyTheme(theme: Theme) {
   const dark = theme === 'dark' || (theme === 'system' && darkMedia().matches);
   document.documentElement.dataset.theme = dark ? 'dark' : 'light';
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0c1424' : '#f2f4f7');
+  // The test bank page (/api/mock-idp) is rendered by the backend without scripts; it reads the theme from here
+  document.cookie = `fb-theme=${dark ? 'dark' : 'light'}; path=/; max-age=31536000; SameSite=Lax`;
 }
 
 /** Cross-fading needs the View Transitions API; without it (or with reduced motion) the theme swaps at once */
