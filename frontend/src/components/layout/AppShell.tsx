@@ -175,9 +175,12 @@ function DesktopNav({ nav, tab, onSelect, unread, unreadLabel }: DesktopNavProps
               }}
               aria-current={active ? 'page' : undefined}
               aria-label={`${label}${unreadLabel(t)}`}
+              // Text colour follows the pill; the hover background is dropped at once on selection,
+              // otherwise it fades over --dur-tab as a light halo around the arriving pill
               className={`relative h-10 px-4 rounded-full text-[15px] font-medium inline-flex items-center gap-1.5
-                transition-colors duration-(--dur-tab) ease-(--ease-out)
-                ${active ? 'text-ink-inverse' : 'text-ink-2 hover:text-ink hover:bg-accent-soft'}`}
+                ${active
+                  ? 'text-ink-inverse [transition:color_var(--dur-tab)_var(--ease-out)]'
+                  : 'text-ink-2 hover:text-ink hover:bg-accent-soft [transition:color_var(--dur-tab)_var(--ease-out),background-color_200ms_var(--ease-out)]'}`}
             >
               {label}
               {t === 'family' && <UnreadCount count={unread} onAccent={active} />}
