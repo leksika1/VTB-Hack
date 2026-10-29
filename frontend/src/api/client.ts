@@ -352,6 +352,7 @@ const LINK_TOKEN_KEY = 'fb-oidc-link';
 /** linkToken lives 10 minutes on the server */
 const LINK_TOKEN_TTL_MS = 10 * 60_000;
 const RETURN_INVITE_KEY = 'fb-oidc-invite';
+const INTENT_KEY = 'fb-oidc-intent';
 
 let oidcConfig: Promise<OidcConfig> | null = null;
 
@@ -377,6 +378,7 @@ export async function startOidc(intent: 'login' | 'link', inviteCode?: string | 
   try {
     if (inviteCode) sessionStorage.setItem(RETURN_INVITE_KEY, inviteCode);
     else sessionStorage.removeItem(RETURN_INVITE_KEY);
+    sessionStorage.setItem(INTENT_KEY, intent);
   } catch {
     /* storage is unavailable — the invite will have to be opened again */
   }
@@ -391,6 +393,17 @@ export function takeReturnInvite(): string | null {
     return code;
   } catch {
     return null;
+  }
+}
+
+/** Why the bank was opened: a cancelled link returns to the «Семья» tab it was started from (read once) */
+export function takeOidcIntent(): 'login' | 'link' {
+  try {
+    const intent = sessionStorage.getItem(INTENT_KEY);
+    sessionStorage.removeItem(INTENT_KEY);
+    return intent === 'link' ? 'link' : 'login';
+  } catch {
+    return 'login';
   }
 }
 

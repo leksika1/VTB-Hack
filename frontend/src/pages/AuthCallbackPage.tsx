@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CircleAlert, LoaderCircle } from 'lucide-react';
 import { completeOidc, errorMessage } from '../api/client';
 import { BrandMark } from '../components/layout/AppShell';
 import { Button } from '../components/ui/Button';
 
-export type OidcOutcome = 'session' | 'unlinked' | 'linked' | 'failed';
+/** cancelled — the person declined at the bank; nothing to explain, the app returns to where it was */
+export type OidcOutcome = 'session' | 'unlinked' | 'linked' | 'failed' | 'cancelled';
 
 /** state is one-time on the server: the same callback must not be sent twice (StrictMode runs effects twice) */
 let inFlight: { state: string; promise: ReturnType<typeof completeOidc> } | null = null;
@@ -22,9 +23,19 @@ export function AuthCallbackPage({ onDone }: { onDone: (outcome: OidcOutcome) =>
   const [params] = useState(() => new URLSearchParams(window.location.search));
   const code = params.get('code');
   const state = params.get('state');
+  const cancelled = params.get('error') === 'access_denied';
   const [error, setError] = useState<string | null>(() =>
-    code && state ? null : params.get('error') ? 'Вход через банк отменён.' : 'Ссылка входа неполная. Начните вход заново.'
+    code && state ? null : params.get('error') ? 'Банк не подтвердил вход. Попробуйте ещё раз.' : 'Ссылка входа неполная. Начните вход заново.'
   );
+
+  // A cancel is the person's own choice, not a failure: no error screen in between.
+  // Once only: StrictMode runs effects twice, and the second call would lose the invite to return to
+  const cancelHandled = useRef(false);
+  useEffect(() => {
+    if (!cancelled || cancelHandled.current) return;
+    cancelHandled.current = true;
+    onDone('cancelled');
+  }, [cancelled, onDone]);
 
   useEffect(() => {
     if (!code || !state) return;
@@ -37,6 +48,8 @@ export function AuthCallbackPage({ onDone }: { onDone: (outcome: OidcOutcome) =>
       alive = false;
     };
   }, [code, state, onDone]);
+
+  if (cancelled) return null;
 
   return (
     <main className="min-h-dvh flex items-center justify-center px-4">

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { errorMessage, loadInitialData, OIDC_CALLBACK_PATH, refreshData, subscribeToChanges, takeReturnInvite } from './api/client';
+import { errorMessage, loadInitialData, OIDC_CALLBACK_PATH, refreshData, subscribeToChanges, takeOidcIntent, takeReturnInvite } from './api/client';
 import { useFamilyStore, useIsParent } from './store/familyStore';
 import { useUIStore } from './store/uiStore';
 import { AppShell } from './components/layout/AppShell';
@@ -32,7 +32,7 @@ function useFamilySync(sessionKey: string | null) {
     // Several changes in a row → one reload
     const sync = () => {
       window.clearTimeout(pending);
-      pending = window.setTimeout(() => refreshData().catch(() => {}), 300);
+      pending = window.setTimeout(() => refreshData().catch(() => { }), 300);
     };
     const unsubscribe = subscribeToChanges(sync);
     const timer = window.setInterval(() => document.visibilityState === 'visible' && sync(), FALLBACK_SYNC_MS);
@@ -93,10 +93,18 @@ export default function App() {
   const onOidcDone = useCallback(
     (outcome: OidcOutcome) => {
       // Back to the invite that was open before going to the bank, otherwise to the start page
-      const returnInvite = outcome === 'unlinked' ? takeReturnInvite() : null;
+      const savedInvite = takeReturnInvite();
+      const intent = takeOidcIntent();
+      const returnInvite = outcome === 'unlinked' || outcome === 'cancelled' ? savedInvite : null;
       window.history.replaceState(null, '', returnInvite ? buildInviteUrl(returnInvite) : '/');
       setInvite(returnInvite);
       setOidcCallback(false);
+      if (outcome === 'cancelled') {
+        // fetchData started on mount sets the data status itself; the person lands where they pressed the button
+        if (intent === 'link') setTab('family');
+        addToast(intent === 'link' ? 'Привязка ВТБ ID отменена' : 'Вход через ВТБ ID отменён', 'info');
+        return;
+      }
       setDataStatus('ready');
       const name = useFamilyStore.getState().family?.members.find((m) => m.id === useFamilyStore.getState().currentUserId)?.name;
       if (outcome === 'session') addToast(name ? `Вы вошли как ${name}` : 'Вы вошли через банк');
