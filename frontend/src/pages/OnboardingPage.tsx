@@ -140,23 +140,35 @@ export function OnboardingPage({ invite, onInviteDismiss }: OnboardingPageProps)
                   : 'Введите код, который вам прислали, или откройте ссылку-приглашение.'}
               </p>
 
-              <div role="tablist" aria-label="Способ входа" className="grid grid-cols-2 gap-1 p-1 mt-6 rounded-[var(--radius-control)] bg-surface-sunken">
-                {(['create', 'join'] as Mode[]).map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    role="tab"
-                    aria-selected={mode === m}
-                    onClick={() => setMode(m)}
-                    className={`h-10 rounded-[10px] text-[15px] font-medium transition-colors
-                      ${mode === m ? 'bg-surface text-ink shadow-[var(--shadow-card)]' : 'text-ink-2 hover:text-ink'}`}
-                  >
-                    {m === 'create' ? 'Новая семья' : 'У меня есть код'}
-                  </button>
-                ))}
+              {/* One pill slides to the selected option (duration: --dur-switch in index.css) */}
+              <div role="tablist" aria-label="Способ входа" className="relative p-1 mt-6 rounded-[var(--radius-control)] bg-surface-sunken">
+                <span
+                  aria-hidden
+                  className="absolute top-1 bottom-1 left-1 w-[calc((100%-0.75rem)/2)] rounded-[10px] bg-surface shadow-[var(--shadow-card)]
+                    transition-transform duration-(--dur-switch) ease-(--ease-out)"
+                  // One step is the pill's own width plus the 0.25rem gap between options
+                  style={{ transform: mode === 'join' ? 'translateX(calc(100% + 0.25rem))' : undefined }}
+                />
+                <div className="relative grid grid-cols-2 gap-1">
+                  {(['create', 'join'] as Mode[]).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      role="tab"
+                      aria-selected={mode === m}
+                      onClick={() => setMode(m)}
+                      className={`h-10 rounded-[10px] text-[15px] font-medium transition-colors duration-(--dur-switch)
+                        ${mode === m ? 'text-ink' : 'text-ink-2 hover:text-ink'}`}
+                    >
+                      {m === 'create' ? 'Новая семья' : 'У меня есть код'}
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              <div className="mt-6">{mode === 'create' ? <CreateForm /> : <JoinForm invite={null} />}</div>
+              <div key={mode} className="mt-6 animate-fade-in">
+                {mode === 'create' ? <CreateForm /> : <JoinForm invite={null} />}
+              </div>
             </>
           )}
 

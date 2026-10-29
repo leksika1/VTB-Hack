@@ -292,6 +292,8 @@ input[type='number']::-webkit-inner-spin-button {
   --dur-tab: 600ms;
   /* Switching the theme: the page cross-fades and the picker's pill slides (utils/theme.ts) */
   --dur-theme: 450ms;
+  /* Segmented controls: the pill under the selected option slides */
+  --dur-switch: 400ms;
 }
 
 /*
