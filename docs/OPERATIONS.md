@@ -37,17 +37,33 @@
 **Backend → Environment**
 
 ```
-POSTGRES_PASSWORD=<openssl rand -hex 32>
-REDIS_PASSWORD=<openssl rand -hex 32>
-BACKEND_ALIAS=family-backend-prod        # в dev: family-backend-dev
-CORS_ORIGINS=https://<домен фронтенда>
+# Обязательные
+POSTGRES_PASSWORD=<openssl rand -hex 32>   # только латиница и цифры
+REDIS_PASSWORD=<openssl rand -hex 32>      # только латиница и цифры
+BACKEND_ALIAS=family-backend-prod          # в dev: family-backend-dev
+
+# Демо-сервер: тестовый вход через ВТБ ID и постоянная тестовая семья (TEST_DATA.md)
+OIDC_ENABLED=true
+OIDC_MOCK=true
+OIDC_ISSUER=https://<домен фронтенда>/api/mock-idp
+OIDC_CLIENT_ID=family-budget
+OIDC_REDIRECT_URIS=https://<домен фронтенда>/auth/callback
+SEED_SHOWCASE=true
+SHOWCASE_INVITE_CODE=<6 латинских букв/цифр>   # необязательно: постоянный код витрины
 ```
+
+В контуре банка вместо `OIDC_MOCK=true` — `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, которые выдаёт банк;
+`SEED_SHOWCASE` не задают. `CORS_ORIGINS` нужен, только если фронтенд ходит в API с другого домена.
 
 **Frontend → Environment**
 
 ```
-BACKEND_ALIAS=family-backend-prod        # то же, что у Backend этого окружения
+BACKEND_ALIAS=family-backend-prod          # то же, что у Backend этого окружения
 ```
+
+Остальные переменные из таблиц ниже необязательны. Задавать в Dokploy можно те, что перечислены в `environment`
+compose-файла сервиса (лимиты, почта, ВТБ ID, витрина, `ENABLE_DOCS`, `LOG_LEVEL`, `DEMO_TTL_HOURS`; у фронтенда —
+лимиты nginx): только они доходят до контейнера. Для остальных добавьте строку в `environment` обоих compose-файлов.
 
 `BACKEND_ALIAS` должен быть разным у prod и dev: оба окружения на одном сервере делят `dokploy-network`, и с одинаковым
 именем фронтенд prod мог бы попасть в бэкенд dev. Без переменных сервисы не запустятся — это намеренно.
@@ -80,8 +96,8 @@ Environment как выше, Deploy Backend, затем Frontend. Старые �
 | `MAINTENANCE_INTERVAL_SECONDS` | `3600` | Период фоновой очистки; `0` — выключить |
 | `RATE_LIMIT_ENABLED` | `true` | Включить лимиты запросов |
 | `RATE_LIMIT_WINDOW_SECONDS` | `60` | Окно лимитов |
-| `RATE_LIMIT_INVITE` | `20` | Запросов к приглашениям с IP за окно |
-| `RATE_LIMIT_SIGNUP` | `10` | Созданий семьи/демо с IP за окно |
+| `RATE_LIMIT_INVITE` | `120` | Запросов к приглашениям с IP за окно |
+| `RATE_LIMIT_SIGNUP` | `60` | Созданий семьи/демо с IP за окно |
 | `RATE_LIMIT_WRITE` | `120` | Изменений данных на участника за окно |
 | `EVENTS_HEARTBEAT_SECONDS` | `15` | Интервал `: ping` в потоке событий |
 | `RATE_LIMIT_READ` | `600` | Чтений на участника за окно |
@@ -112,9 +128,9 @@ Environment как выше, Deploy Backend, затем Frontend. Старые �
 | `BACKEND_UPSTREAM` | при запуске контейнера | `http://backend:8000` | Куда nginx проксирует `/api` |
 | `VITE_API_URL` | при сборке (build arg) | пусто | Адрес API, если он на другом домене. Пусто — тот же домен |
 | `VITE_API_PROXY` | `npm run dev` | `http://localhost:8000` | Куда dev-сервер vite проксирует `/api` |
-| `API_RATE`, `API_BURST` | при запуске | `20r/s`, `40` | Лимит запросов к `/api` с одного IP в nginx |
-| `STATIC_RATE` | при запуске | `50r/s` | Лимит запросов к статике с одного IP |
-| `CONN_PER_IP`, `EVENTS_PER_IP` | при запуске | `50`, `10` | Одновременных соединений и потоков событий с одного IP |
+| `API_RATE`, `API_BURST` | при запуске | `50r/s`, `200` | Лимит запросов к `/api` с одного IP в nginx |
+| `STATIC_RATE` | при запуске | `100r/s` | Лимит запросов к статике с одного IP |
+| `CONN_PER_IP`, `EVENTS_PER_IP` | при запуске | `300`, `150` | Одновременных соединений и потоков событий с одного IP |
 | `CSP_CONNECT_EXTRA` | при запуске | пусто | Доп. адрес API для CSP, если фронтенд собран с `VITE_API_URL` на другой домен |
 
 ### docker-compose

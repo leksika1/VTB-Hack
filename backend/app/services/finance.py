@@ -103,11 +103,13 @@ async def _payer(db: AsyncSession, member: Member, paid_by: str | None) -> str:
 
 
 def _check_can_modify(member: Member, expense: Expense, action: str) -> None:
+    # Взрослый ведёт общий бюджет: исправляет любой расход семьи, в том числе внесённый партнёром или ребёнком
+    if member.is_parent:
+        return
     # Расход из одобренного запроса меняют взрослые: иначе ребёнок мог бы увеличить одобренную сумму
     if expense.request_id:
-        if not member.is_parent:
-            raise Forbidden("Этот расход создан по одобренному запросу — изменить его может взрослый")
-    elif expense.author_id != member.id:
+        raise Forbidden("Этот расход создан по одобренному запросу — изменить его может взрослый")
+    if expense.author_id != member.id:
         raise Forbidden(f"{action} можно только свои расходы")
 
 

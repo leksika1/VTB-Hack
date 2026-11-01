@@ -1,16 +1,28 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { ExpenseCategory, Tab, Toast } from '../types';
+import type { ExpenseCategory, Role, Tab, Toast } from '../types';
 import { toMonthKey } from '../utils/date';
 import { EXIT_MS } from '../utils/motion';
+
+/** A purchase being checked; it travels between the calculator and the forms opened from it */
+export interface PurchaseDraft {
+  amount?: number;
+  category?: ExpenseCategory;
+}
 
 export type ModalState =
   | { type: 'expenseForm'; expenseId?: string; prefill?: { title?: string; amount?: number; category?: ExpenseCategory } }
   | { type: 'expenseDetails'; expenseId: string }
-  | { type: 'budgetForm' }
-  | { type: 'paymentForm'; paymentId?: string }
-  | { type: 'purchaseCheck' }
+  /** focus — the category whose limit should be revised; purchase — the check to return to after saving */
+  | { type: 'budgetForm'; focus?: ExpenseCategory; purchase?: PurchaseDraft }
+  /** planned — a future purchase reserved like a payment, opened from the calculator or the expense form */
+  | { type: 'paymentForm'; paymentId?: string; prefill?: PurchaseDraft & { title?: string; dueDate?: string }; planned?: boolean }
+  | { type: 'purchaseCheck'; prefill?: PurchaseDraft }
   | { type: 'invite' }
+  | { type: 'allowanceForm'; memberId: string }
+  | { type: 'purchaseRequestForm' }
+  | { type: 'goalForm'; goalId?: string }
+  | { type: 'goalContribution'; goalId: string }
   | null;
 
 export type Theme = 'light' | 'dark' | 'system';
@@ -28,6 +40,8 @@ interface UIState {
   /** Demo switch: make every request to the mock server fail */
   simulateErrors: boolean;
   dataStatus: DataStatus;
+  /** Invite links created in this tab: the server shows a code only once. Key: `${familyId}:${role}` */
+  inviteLinks: Record<string, { url: string; expiresAt: number }>;
   setTab: (tab: Tab) => void;
   setMonthKey: (monthKey: string) => void;
   openModal: (modal: NonNullable<ModalState>) => void;
@@ -37,6 +51,7 @@ interface UIState {
   setTheme: (theme: Theme) => void;
   setSimulateErrors: (value: boolean) => void;
   setDataStatus: (status: DataStatus) => void;
+  rememberInviteLink: (familyId: string, role: Role, link: { url: string; expiresAt: number }) => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -50,6 +65,7 @@ export const useUIStore = create<UIState>()(
       theme: 'light',
       simulateErrors: false,
       dataStatus: 'loading',
+      inviteLinks: {},
 
       setTab: (tab) => set({ tab }),
       setMonthKey: (monthKey) =>
@@ -71,6 +87,8 @@ export const useUIStore = create<UIState>()(
       setTheme: (theme) => set({ theme }),
       setSimulateErrors: (simulateErrors) => set({ simulateErrors }),
       setDataStatus: (dataStatus) => set({ dataStatus }),
+      rememberInviteLink: (familyId, role, link) =>
+        set((state) => ({ inviteLinks: { ...state.inviteLinks, [`${familyId}:${role}`]: link } })),
     }),
     {
       name: 'fb-ui-v2',

@@ -1,6 +1,8 @@
 """Вход через ВТБ ID (OIDC) и встроенный тестовый провайдер (docs/FEATURES.md §11)."""
 import html
-from urllib.parse import urlencode
+from pathlib import Path
+from string import Template
+from urllib.parse import urlencode, urlsplit
 
 from fastapi import APIRouter, Query, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -12,6 +14,8 @@ from ..errors import NotFound, ValidationFailed
 from ..oidc import MockProvider, get_provider
 from ..ratelimit import SignupLimit
 from ..schemas import OidcCallbackIn, OidcCallbackOut, OidcConfigOut, OidcStartIn, OidcStartOut
+from ..security import MEMBER_COLORS
+from ..seed import SHOWCASE_LOGINS
 from ..services import auth
 
 router = APIRouter(tags=["auth"])
@@ -53,14 +57,56 @@ def _mock() -> MockProvider:
     return provider
 
 
-_PAGE = """<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width">
-<title>Тестовый вход через банк</title>
-<body style="font-family:sans-serif;max-width:360px;margin:48px auto;padding:0 16px">
-<h1 style="font-size:20px">Тестовый вход через ВТБ ID</h1>
-<p>Демо-провайдер: настоящий банк здесь не участвует.</p>
-<form method="get">{hidden}
-<label>Войти как <input name="login" required maxlength="40" autofocus></label>
-<p><button type="submit">Войти</button></p></form></body></html>"""
+_PAGE = Template((Path(__file__).parent.parent / "templates" / "mock_idp.html").read_text(encoding="utf-8"))
+_MARK = (
+    '<svg width="27" height="27" viewBox="0 0 22 22" fill="none" aria-hidden="true">'
+    '<circle cx="8" cy="7" r="3" fill="#fff"/><circle cx="15" cy="8.2" r="2.4" fill="#7ea6ff"/>'
+    '<path d="M2.8 18c0-3.2 2.3-5.4 5.2-5.4s5.2 2.2 5.2 5.4" stroke="#fff" stroke-width="2.1" stroke-linecap="round"/>'
+    '<path d="M12.3 14c.8-.8 1.7-1.2 2.7-1.2 2.4 0 4.2 1.9 4.2 4.9" stroke="#7ea6ff" stroke-width="1.9" stroke-linecap="round"/>'
+    "</svg>"
+)
+_CHILD_LOGINS = {"sonya"}  # остальные участники витрины — взрослые
+_CHEVRON = (
+    '<svg class="chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+    'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>'
+)
+
+
+_ERROR_ICON = (
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+    'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+    '<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>'
+)
+
+
+def _render_page(request: Request, redirect_uri: str, state: str, login_error: str | None = None) -> str:
+    hidden = "".join(
+        f'<input type="hidden" name="{html.escape(k)}" value="{html.escape(v)}">'
+        for k, v in request.query_params.items() if k != "login"
+    )
+    # Каждый участник витрины — своя форма: кнопка с login не спорит с полем «Логин» основной формы.
+    # Цвета — как у этих участников в витрине (services/demo.py)
+    accounts = "".join(
+        f'<form method="get">{hidden}<button class="account" type="submit" name="login" value="{html.escape(login)}">'
+        f'<span class="avatar" style="background:{MEMBER_COLORS[i % len(MEMBER_COLORS)]}" aria-hidden="true">'
+        f'{html.escape(name[0])}</span>'
+        f'<span class="who"><strong>{html.escape(name)}</strong>'
+        f'<span>{"ребёнок" if login in _CHILD_LOGINS else "взрослый"}</span></span>'
+        f'{_CHEVRON}</button></form>'
+        for i, (name, login) in enumerate(SHOWCASE_LOGINS.items())
+    )
+    # Отмена — как у настоящего провайдера: error=access_denied; фронтенд сразу вернёт туда, откуда ушли
+    cancel_url = f"{redirect_uri}?{urlencode({'error': 'access_denied', 'state': state})}"
+    # Тема — выбранная в приложении (cookie ставит frontend/src/utils/theme.ts); без неё светлая, как в приложении
+    theme = "dark" if request.cookies.get("fb-theme") == "dark" else "light"
+    return _PAGE.substitute(
+        theme=theme, provider=html.escape(get_settings().oidc_provider_name), mark=_MARK,
+        accounts=accounts, hidden=hidden, cancel_url=html.escape(cancel_url),
+        login_value=html.escape(request.query_params.get("login", "")),
+        login_invalid=' aria-invalid="true" autofocus' if login_error else "",
+        login_error=f'<p class="error" role="alert">{_ERROR_ICON}<span>{html.escape(login_error)}</span></p>'
+        if login_error else "",
+    )
 
 
 @router.get("/mock-idp/authorize", include_in_schema=False)
@@ -77,14 +123,17 @@ async def mock_authorize(
     if client_id != s.oidc_client_id or redirect_uri not in s.oidc_redirect_uri_list \
             or code_challenge_method != "S256" or response_type != "code":
         raise ValidationFailed("Неверный запрос авторизации")
+    login = (login or "").strip()
     if not login:
-        hidden = "".join(
-            f'<input type="hidden" name="{html.escape(k)}" value="{html.escape(v)}">'
-            for k, v in request.query_params.items() if k != "login"
-        )
-        return HTMLResponse(_PAGE.format(hidden=hidden), headers={
-            "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'"})
-    code = await provider.issue_code(login.strip(), client_id, redirect_uri, nonce, code_challenge)
+        # Пустая отправка формы — та же страница с подсказкой (проверку браузера выключает novalidate)
+        error = "Введите логин — любое слово, например ivan" if "login" in request.query_params else None
+        # form-action проверяется и на редиректе после отправки: без адреса фронтенда браузер
+        # блокирует вход, когда фронтенд и API на разных origin (redirect_uri уже сверен со списком)
+        target = urlsplit(redirect_uri)
+        return HTMLResponse(_render_page(request, redirect_uri, state, error), headers={
+            "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; "
+                                       f"form-action 'self' {target.scheme}://{target.netloc}"})
+    code = await provider.issue_code(login, client_id, redirect_uri, nonce, code_challenge)
     return RedirectResponse(f"{redirect_uri}?{urlencode({'code': code, 'state': state})}", status_code=302)
 
 

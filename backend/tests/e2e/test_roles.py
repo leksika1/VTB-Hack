@@ -81,6 +81,15 @@ def test_child_sees_only_own_data(api, new_client):
     assert child.get("/api/expenses").json() == []
 
 
+def test_child_cannot_change_adults_expense(api, new_client):
+    anna = create_family(api)
+    e = add_expense(anna, 500)
+    child = add_child(anna, new_client())
+    body = {"title": "x", "amount": 1, "category": "food", "date": TODAY}
+    assert_error(child.put(f"/api/expenses/{e['id']}", body), 403, "forbidden", message="Изменять можно только свои расходы")
+    assert_error(child.delete(f"/api/expenses/{e['id']}"), 403, "forbidden", message="Удалять можно только свои расходы")
+
+
 def test_change_role(api, new_client):
     anna = create_family(api)
     boris = join(new_client(), anna)

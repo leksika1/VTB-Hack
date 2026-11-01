@@ -1,13 +1,15 @@
 import { useMemo, useState } from 'react';
-import { Plus, ReceiptText, Search, SearchX, SlidersHorizontal, X } from 'lucide-react';
+import { Download, Plus, ReceiptText, Search, SearchX, SlidersHorizontal, X } from 'lucide-react';
 import type { ExpenseCategory } from '../types';
 import { useMonthSummary } from '../hooks/useMonthSummary';
+import { useMonthChanged } from '../hooks/useMonthChanged';
 import { useUIStore } from '../store/uiStore';
 import { useFamilyStore } from '../store/familyStore';
 import { ALL_CATEGORIES, CATEGORIES } from '../utils/categories';
 import { formatCurrency } from '../utils/currency';
 import { formatMonthLower, plural } from '../utils/date';
 import { fuzzyMatch } from '../utils/search';
+import { downloadFile, expensesToCsv } from '../utils/csv';
 import { Card, PageHeader } from '../components/ui/Card';
 import { MonthSwitcher } from '../components/ui/Misc';
 import { Button } from '../components/ui/Button';
@@ -18,9 +20,11 @@ import { SpendingCharts } from '../components/expenses/SpendingCharts';
 export function OperationsPage() {
   const monthKey = useUIStore((s) => s.monthKey);
   const openModal = useUIStore((s) => s.openModal);
+  const addToast = useUIStore((s) => s.addToast);
   const family = useFamilyStore((s) => s.family);
   const currentUserId = useFamilyStore((s) => s.currentUserId);
   const { expenses } = useMonthSummary();
+  const monthIn = useMonthChanged() ? 'animate-month-in' : '';
 
   const [query, setQuery] = useState('');
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
@@ -57,6 +61,12 @@ export function OperationsPage() {
     setAuthor(null);
   };
 
+  // Exactly what the list shows: the month with search and filters applied
+  const exportCsv = () => {
+    downloadFile(`операции-${monthKey}.csv`, expensesToCsv(filtered, family), 'text/csv;charset=utf-8');
+    addToast(`Скачан файл: ${filtered.length} ${plural(filtered.length, 'операция', 'операции', 'операций')}`, 'info');
+  };
+
   const toggleCategory = (key: ExpenseCategory) =>
     setCategories((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
 
@@ -65,6 +75,18 @@ export function OperationsPage() {
       <PageHeader title="Операции">
         <div className="flex items-center gap-3">
           <MonthSwitcher />
+          {filtered.length > 0 && (
+            <Button
+              variant="neutral"
+              icon={<Download size={18} />}
+              onClick={exportCsv}
+              aria-label={hasRestrictions ? 'Скачать найденные операции в CSV' : 'Скачать операции месяца в CSV'}
+              title="Скачать CSV для Excel"
+              className="max-sm:w-11 max-sm:px-0"
+            >
+              <span className="hidden sm:inline">CSV</span>
+            </Button>
+          )}
           <Button
             variant="brand"
             icon={<Plus size={20} />}
@@ -149,10 +171,10 @@ export function OperationsPage() {
       </Card>
 
       {searched.length > 0 && (
-        <SpendingCharts key={`charts-${monthKey}`} expenses={searched} selected={categories} onToggle={toggleCategory} />
+        <SpendingCharts key={`charts-${monthKey}`} expenses={searched} selected={categories} onToggle={toggleCategory} className={monthIn} />
       )}
 
-      <Card key={`list-${monthKey}`} className="p-4 sm:p-5 mt-5 animate-month-in">
+      <Card key={`list-${monthKey}`} className={`p-4 sm:p-5 mt-5 ${monthIn}`}>
         {expenses.length === 0 ? (
           <EmptyState
             icon={<ReceiptText size={22} />}

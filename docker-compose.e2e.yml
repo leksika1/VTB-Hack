@@ -22,7 +22,9 @@ services:
       # Вход через банк — встроенный тестовый провайдер (docs/FEATURES.md §11)
       OIDC_ENABLED: "true"
       OIDC_MOCK: "true"
-      OIDC_ISSUER: http://127.0.0.1:18080/api/mock-idp
+      # Страница банка открывается через vite (localhost:5173), как и callback: тот же origin, что у фронтенда.
+      # Через :18080 nginx ставит CSP form-action 'self', и браузер блокирует возврат на :5173 после «Войти»
+      OIDC_ISSUER: http://localhost:5173/api/mock-idp
       OIDC_CLIENT_ID: family-budget
       OIDC_REDIRECT_URIS: http://localhost:5173/auth/callback
   db:

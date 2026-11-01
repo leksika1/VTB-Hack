@@ -1,4 +1,4 @@
-import { Check, Undo2 } from 'lucide-react';
+import { Check, Repeat, Undo2 } from 'lucide-react';
 import type { Payment } from '../../types';
 import { formatCurrency } from '../../utils/currency';
 import { formatDueIn, formatMonthIn } from '../../utils/date';
@@ -10,7 +10,7 @@ import { Badge } from '../ui/Misc';
 import { Button } from '../ui/Button';
 
 export function PaymentStatusBadge({ payment }: { payment: Payment }) {
-  if (payment.status === 'paid') return <Badge tone="success" icon={<Check size={12} aria-hidden />}>Оплачен</Badge>;
+  if (payment.status === 'paid') return <Badge tone="success" icon={<Check size={12} aria-hidden />}>Оплачено</Badge>;
   if (isOverdue(payment)) return <Badge tone="danger">Просрочен</Badge>;
   return <Badge tone="accent">Предстоит</Badge>;
 }
@@ -52,6 +52,9 @@ export function PaymentRow({ payment, editable = true }: { payment: Payment; edi
             ) : (
               <Badge tone={isOverdue(payment) ? 'danger' : 'accent'}>{formatDueIn(payment.dueDate)}</Badge>
             )}
+            {payment.recurring && (
+              <Badge icon={<Repeat size={12} aria-hidden />}>Каждый месяц</Badge>
+            )}
           </span>
         </button>
         <div className="flex flex-col items-end gap-1.5 shrink-0">
@@ -73,6 +76,7 @@ export function PaymentRow({ payment, editable = true }: { payment: Payment; edi
           ) : (
             <Button
               size="sm"
+              variant="secondary"
               icon={<Check size={15} />}
               loading={toggle.pending}
               onClick={onToggle}

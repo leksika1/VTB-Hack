@@ -47,6 +47,15 @@ class PendingApproval(Forbidden):
         super().__init__(message)
 
 
+class DemoOnly(Forbidden):
+    """Действие затронуло бы что-то за пределами демо-копии (docs/FEATURES.md, «Демо-семья»)."""
+
+    code = "demo_restricted"
+
+    def __init__(self, message: str = "В демо-семье это недоступно — она только для примера"):
+        super().__init__(message)
+
+
 class NotFound(ApiError):
     status = 404
     code = "not_found"

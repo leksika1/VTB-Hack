@@ -3,7 +3,7 @@ import hashlib
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..errors import Conflict, Forbidden, NotFound, ValidationFailed
+from ..errors import Conflict, DemoOnly, Forbidden, NotFound, ValidationFailed
 from ..models import ChildInvite, Family, InviteLink, Member, MemberSession, now_ms
 from ..schemas import (
     ChildInviteOut,
@@ -114,6 +114,17 @@ async def resolve_invite(
     """(семья, роль входящего, одноразовое приглашение или None).
     Код семьи — взрослый, постоянный детский код — ребёнок, ссылка-приглашение — роль, выбранная взрослым;
     старые одноразовые детские приглашения ещё действуют."""
+    family, role, ticket = await _resolve_invite(db, code, lock)
+    # Демо-копия личная: войти в неё по коду или ссылке нельзя — посторонний не попадёт в чужое демо,
+    # а настоящий участник не окажется в семье, которую удалят через DEMO_TTL_HOURS
+    if family.is_demo:
+        raise NotFound("Приглашение не найдено. Попросите прислать ссылку ещё раз.", "code")
+    return family, role, ticket
+
+
+async def _resolve_invite(
+    db: AsyncSession, code: str, lock: bool
+) -> tuple[Family, str, ChildInvite | InviteLink | None]:
     normalized = normalize_invite_code(code)
     if len(normalized) == INVITE_LINK_CODE_LENGTH:
         q = select(InviteLink).where(InviteLink.code_hash == hash_token(normalized))
@@ -221,6 +232,8 @@ async def create_invite_link(db: AsyncSession, member: Member, role: str) -> Inv
     Код виден только в этом ответе."""
     if role not in ROLES:
         raise ValidationFailed("Роль: parent или child", "role")
+    if member.family.is_demo:
+        raise DemoOnly("В демо-семью нельзя пригласить: она видна только вам")
     # Блокировка семьи — чтобы параллельные запросы не обошли лимит
     await db.execute(select(Family.id).where(Family.id == member.family_id).with_for_update())
     live = await db.scalar(select(func.count()).select_from(_live_links(member.family_id).subquery()))
@@ -329,6 +342,12 @@ async def remove_member(db: AsyncSession, actor: Member, member_id: str) -> None
 async def leave_family(db: AsyncSession, member: Member) -> None:
     """Участник выходит: его записи остаются семье, сессии закрываются. Последний вышедший удаляет семью."""
     family = await load_family(db, member.family_id)
+    if family.is_demo:
+        # Выход из демо — просто конец показа: закрываем сессии всех участников копии (в демо можно
+        # переключаться между ними), саму копию удалит фоновая очистка. Настоящие семьи не затрагиваются
+        await db.execute(delete(MemberSession).where(MemberSession.member_id.in_([m.id for m in family.members])))
+        await db.commit()
+        return
     if member.pending:  # передумал ждать подтверждения
         await _deactivate(db, member)
         await db.commit()

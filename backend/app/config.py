@@ -32,8 +32,9 @@ class Settings(BaseSettings):
     # Лимиты запросов: «сколько» за rate_limit_window_seconds
     rate_limit_enabled: bool = True
     rate_limit_window_seconds: int = 60
-    rate_limit_invite: int = 20  # просмотр и вход по коду — с одного IP
-    rate_limit_signup: int = 10  # создание семьи и демо — с одного IP
+    # С одного IP: за одним Wi-Fi или NAT (зал хакатона, офис) бывают десятки людей
+    rate_limit_invite: int = 120  # просмотр и вход по коду
+    rate_limit_signup: int = 60  # создание семьи и демо
     rate_limit_write: int = 120  # изменения данных — на участника
     rate_limit_read: int = 600  # чтение — на участника
 

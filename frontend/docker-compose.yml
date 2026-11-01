@@ -4,6 +4,7 @@
 #
 # Environment в Dokploy:
 #   BACKEND_ALIAS — то же значение, что у сервиса Backend: family-backend-prod / family-backend-dev
+# Необязательные — лимиты nginx с одного IP (по умолчанию как в Dockerfile, docs/OPERATIONS.md)
 
 services:
   frontend:
@@ -17,6 +18,11 @@ services:
       - "80"
     environment:
       BACKEND_UPSTREAM: http://${BACKEND_ALIAS:?Задайте BACKEND_ALIAS (как у сервиса Backend)}:8000
+      API_RATE: ${API_RATE:-50r/s}
+      API_BURST: ${API_BURST:-200}
+      STATIC_RATE: ${STATIC_RATE:-100r/s}
+      CONN_PER_IP: ${CONN_PER_IP:-300}
+      EVENTS_PER_IP: ${EVENTS_PER_IP:-150}
     mem_limit: 128m
     networks: [shared]
 

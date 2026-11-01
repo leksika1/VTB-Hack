@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { IconButton } from './Button';
 import { usePresenceClosing } from './presenceContext';
@@ -21,6 +22,7 @@ let openCount = 0;
  * Accessible dialog: rendered only while open (wrap it in <Presence> to animate the exit),
  * traps focus, closes on Esc, returns focus to the element that opened it.
  * Bottom sheet on phones, centered dialog on wider screens.
+ * Portalled to <body>: an animated ancestor (the tab fade-in) would otherwise clip the fixed backdrop to itself.
  */
 export function Modal({ onClose, title, description, children, footer, size = 'md' }: ModalProps) {
   const titleId = useId();
@@ -71,7 +73,7 @@ export function Modal({ onClose, title, description, children, footer, size = 'm
     };
   }, []);
 
-  return (
+  return createPortal(
     <div className={`fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-6 ${closing ? 'pointer-events-none' : ''}`}>
       <div
         className={`absolute inset-0 bg-[var(--overlay)] ${closing ? 'animate-backdrop-out' : 'animate-backdrop-in'}`}
@@ -111,6 +113,7 @@ export function Modal({ onClose, title, description, children, footer, size = 'm
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

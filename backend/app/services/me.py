@@ -11,7 +11,7 @@ import secrets
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..errors import TooManyRequests, ValidationFailed
+from ..errors import DemoOnly, TooManyRequests, ValidationFailed
 from ..models import Member, now_ms
 from ..ratelimit import hit
 from ..schemas import MeOut
@@ -44,6 +44,8 @@ def _code_hash(member_id: str, code: str) -> str:
 
 
 async def request_email(db: AsyncSession, member: Member, email: str) -> None:
+    if member.family.is_demo:
+        raise DemoOnly("В демо-семье почта не подключается")
     address = clean_email(email)
     if not await hit(f"email-change:{member.id}", EMAIL_CHANGES_PER_HOUR, 3600):
         raise TooManyRequests("Слишком много попыток сменить адрес. Попробуйте через час.")

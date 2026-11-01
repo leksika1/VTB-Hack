@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ClipboardList } from 'lucide-react';
 import { useMonthSummary } from '../../hooks/useMonthSummary';
 import { useUIStore } from '../../store/uiStore';
@@ -28,8 +28,15 @@ function MonthSlide({ monthKey }: { monthKey: string }) {
 }
 
 /**
+ * While the frame eases between two heights, each slide is clipped to it by its own rounded shape:
+ * the taller card looks like a card that grows or shrinks, not one cut by a straight line
+ */
+const SLIDE_CLIP = 'max-h-full overflow-hidden rounded-card';
+
+/**
  * Carousel of the main block: on month change the previous month slides out
  * and the new one slides in from the side the user navigated to.
+ * Months differ in height, so the frame eases from the old height to the new one over the same time.
  */
 export function MonthCarousel() {
   const monthKey = useUIStore((s) => s.monthKey);
@@ -49,22 +56,47 @@ export function MonthCarousel() {
     return () => clearTimeout(timer);
   }, [leaving]);
 
+  const frameRef = useRef<HTMLDivElement>(null);
+  const outRef = useRef<HTMLDivElement>(null);
+  const inRef = useRef<HTMLDivElement>(null);
+
+  // Runs before paint: the frame must not show the new height for even one frame
+  useLayoutEffect(() => {
+    const frame = frameRef.current;
+    if (!frame) return;
+    if (!leaving) {
+      frame.style.height = '';
+      frame.style.transition = '';
+      return;
+    }
+    // A month picked mid-slide continues from the frame's current height, not from the slide's full one.
+    // scrollHeight: the slides are clipped to the frame, their full height is the content's
+    const from = frame.style.height ? frame.getBoundingClientRect().height : (outRef.current?.scrollHeight ?? 0);
+    const to = inRef.current?.scrollHeight ?? from;
+    frame.style.transition = 'none';
+    frame.style.height = `${from}px`;
+    frame.getBoundingClientRect(); // commit the start height before transitioning
+    frame.style.transition = 'height var(--dur-carousel) var(--ease-in-out)';
+    frame.style.height = `${to}px`;
+  }, [leaving]);
+
   const next = (leaving?.direction ?? direction) > 0;
 
   return (
     // The outgoing slide sits exactly over the incoming one, so nothing shifts when the animation starts
-    <div className="relative overflow-hidden">
+    <div ref={frameRef} className="relative overflow-hidden">
       {leaving && (
         <div
+          ref={outRef}
           key={`out-${leaving.monthKey}`}
-          className={`absolute inset-x-0 top-0 ${next ? 'animate-slide-out-next' : 'animate-slide-out-prev'}`}
+          className={`absolute inset-x-0 top-0 ${SLIDE_CLIP} ${next ? 'animate-slide-out-next' : 'animate-slide-out-prev'}`}
           aria-hidden
           inert
         >
           <MonthSlide monthKey={leaving.monthKey} />
         </div>
       )}
-      <div key={shown} className={leaving ? (next ? 'animate-slide-in-next' : 'animate-slide-in-prev') : ''}>
+      <div ref={inRef} key={shown} className={leaving ? `${SLIDE_CLIP} ${next ? 'animate-slide-in-next' : 'animate-slide-in-prev'}` : ''}>
         <MonthSlide monthKey={shown} />
       </div>
     </div>

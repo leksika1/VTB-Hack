@@ -82,6 +82,20 @@ def approve(parent: Member, member: Member) -> Member:
     return member
 
 
+def until_limited(send, limit: int) -> list[httpx.Response]:
+    """Отправлять запросы, пока не придёт 429. Раньше лимита 429 быть не должно; после — сразу или почти сразу:
+    если пачка пришлась на стык минут, скользящее окно учитывает прошлую минуту с весом чуть меньше 1
+    и пропускает несколько лишних запросов. Возвращает ответы до лимита; последний ответ — 429."""
+    responses = [send(i) for i in range(limit)]
+    assert all(r.status_code != 429 for r in responses), [r.status_code for r in responses]
+    for i in range(limit, limit + limit // 4 + 5):
+        r = send(i)
+        responses.append(r)
+        if r.status_code == 429:
+            return responses
+    raise AssertionError(f"нет 429 после {len(responses)} запросов при лимите {limit}")
+
+
 def start_demo(client: httpx.Client) -> Member:
     r = client.post("/api/demo")
     assert r.status_code == 201, r.text

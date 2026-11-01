@@ -5,6 +5,7 @@ import { ALL_CATEGORIES, CATEGORIES } from '../../utils/categories';
 import { formatCurrency } from '../../utils/currency';
 import { plural } from '../../utils/date';
 import { Card } from '../ui/Card';
+import { AuthorTotals } from './AuthorTotals';
 
 type View = 'bar' | 'pie';
 
@@ -56,10 +57,11 @@ interface SpendingChartsProps {
   selected: ExpenseCategory[];
   /** Click on a column, segment or legend row toggles that category in the list filter */
   onToggle: (key: ExpenseCategory) => void;
+  className?: string;
 }
 
 /** Spending by category, column chart or donut. Clicking a category filters the operations list. */
-export function SpendingCharts({ expenses, selected, onToggle }: SpendingChartsProps) {
+export function SpendingCharts({ expenses, selected, onToggle, className = '' }: SpendingChartsProps) {
   const [view, setView] = useState<View>(readView);
   const [active, setActive] = useState<ExpenseCategory | null>(null);
 
@@ -82,7 +84,7 @@ export function SpendingCharts({ expenses, selected, onToggle }: SpendingChartsP
   };
 
   return (
-    <Card tone="default" className="p-4 sm:p-5 mt-5 animate-month-in">
+    <Card tone="default" className={`p-4 sm:p-5 mt-5 ${className}`}>
       <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
         <div>
           <h2 className="text-lg font-semibold text-ink leading-tight">Расходы по категориям</h2>
@@ -106,6 +108,7 @@ export function SpendingCharts({ expenses, selected, onToggle }: SpendingChartsP
           ? 'Список ниже показывает выбранные категории. Нажмите ещё раз, чтобы снять выбор.'
           : 'Нажмите на категорию, чтобы показать только её операции.'}
       </p>
+      <AuthorTotals expenses={expenses} />
     </Card>
   );
 }

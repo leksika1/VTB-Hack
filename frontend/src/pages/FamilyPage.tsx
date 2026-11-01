@@ -1,22 +1,43 @@
-import { useState } from 'react';
-import { Check, Copy, Eye, LogOut, Monitor, Moon, Pencil, Share2, ShieldCheck, Sparkles, Sun, UserPlus, Users } from 'lucide-react';
-import { leaveFamily, startDemo, switchDemoUser } from '../api/client';
+import { useEffect, useState } from 'react';
+import { BadgeCheck, Bell, Check, Eye, Landmark, LogOut, Monitor, Moon, Pencil, PiggyBank, ShieldCheck, Sparkles, Sun, UserPlus, Users, X } from 'lucide-react';
+import type { AppNotification, Me, User } from '../types';
+import {
+  approveMember,
+  errorMessage,
+  getMe,
+  getOidcConfig,
+  leaveFamily,
+  listNotifications,
+  markNotificationsRead,
+  removeMember,
+  startDemo,
+  startOidc,
+  switchDemoUser,
+  unlinkOidc,
+  type OidcConfig,
+} from '../api/client';
 import { useAsyncAction } from '../hooks/useAsyncAction';
-import { useFamilyStore } from '../store/familyStore';
+import { useDataStore } from '../store/dataStore';
+import { useFamilyStore, useIsParent } from '../store/familyStore';
 import { useUIStore, type Theme } from '../store/uiStore';
+import { formatCurrency } from '../utils/currency';
 import { plural } from '../utils/date';
-import { buildInviteUrl } from '../components/family/invite';
+import { canCrossFadeTheme, switchTheme } from '../utils/theme';
+import { InvitePanel } from '../components/family/InvitePanel';
 import { Card, PageHeader, SectionHeader } from '../components/ui/Card';
 import { Avatar, Badge } from '../components/ui/Misc';
 import { Button } from '../components/ui/Button';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { ErrorState, Skeleton } from '../components/ui/Feedback';
 import { Presence } from '../components/ui/Presence';
 
 export function FamilyPage() {
   const family = useFamilyStore((s) => s.family);
   const currentUserId = useFamilyStore((s) => s.currentUserId);
   const openModal = useUIStore((s) => s.openModal);
+  const isParent = useIsParent();
   if (!family) return null;
+  const children = family.members.filter((m) => m.role === 'child');
 
   return (
     <>
@@ -41,6 +62,7 @@ export function FamilyPage() {
                 <li key={m.id} className="flex items-center gap-3 py-3">
                   <Avatar user={m} />
                   <span className="flex-1 min-w-0 font-medium text-ink truncate">{m.name}</span>
+                  {m.role === 'child' && <Badge>Ребёнок</Badge>}
                   {m.id === currentUserId && <Badge tone="accent">Вы</Badge>}
                 </li>
               ))}
@@ -50,7 +72,15 @@ export function FamilyPage() {
             )}
           </Card>
 
-          <InviteCard />
+          {isParent && children.length > 0 && <AllowancesCard members={children} />}
+          {isParent && !family.isDemo && <JoinRequestsCard />}
+          {isParent && (
+            <Card className="p-5">
+              <SectionHeader title="Приглашение" subtitle="Отправьте ссылку — по ней увидят название семьи и смогут присоединиться" />
+              <InvitePanel />
+            </Card>
+          )}
+          <EventsCard />
         </div>
 
         <div className="space-y-5 min-w-0">
@@ -61,17 +91,24 @@ export function FamilyPage() {
                 Участники видят только общие расходы и платежи, которые внесли сюда. Личные счета и покупки вне приложения не видны.
               </Rule>
               <Rule icon={<Pencil size={18} />}>
-                Изменять и удалять можно только свои расходы. Бюджет месяца и обязательные платежи — общие: их может менять любой участник.
+                Бюджет месяца, обязательные платежи и расходы — общие: любой взрослый может их исправить, например указать, кто платил.
+                Ребёнок меняет только свои траты.
+              </Rule>
+              <Rule icon={<UserPlus size={18} />}>
+                По ссылке-приглашению входят сразу. Вошедший по коду семьи видит данные только после подтверждения взрослым.
               </Rule>
               <Rule icon={<ShieldCheck size={18} />}>
                 Права проверяются на сервере: скрытая кнопка не даёт доступа к чужим данным.
               </Rule>
             </ul>
-            <Button className="mt-5" variant="secondary" icon={<UserPlus size={16} />} onClick={() => openModal({ type: 'invite' })}>
-              Пригласить участника
-            </Button>
+            {isParent && !family.isDemo && (
+              <Button className="mt-5" variant="secondary" icon={<UserPlus size={16} />} onClick={() => openModal({ type: 'invite' })}>
+                Пригласить участника
+              </Button>
+            )}
           </Card>
 
+          {!family.isDemo && <VtbIdCard />}
           <AppearanceCard />
           <DemoCard />
           <LeaveCard />
@@ -92,49 +129,284 @@ function Rule({ icon, children }: { icon: React.ReactNode; children: React.React
   );
 }
 
-function InviteCard() {
-  const family = useFamilyStore((s) => s.family);
+/** Adults set each child's pocket money; spent and left come from the server */
+function AllowancesCard({ members }: { members: User[] }) {
+  const allowances = useDataStore((s) => s.allowances);
+  const openModal = useUIStore((s) => s.openModal);
+
+  return (
+    <Card className="p-5">
+      <SectionHeader title="Карманные деньги" subtitle="Лимит трат ребёнка на неделю или месяц. Без него ребёнок может только просить покупки." />
+      <ul className="divide-y divide-line">
+        {members.map((child) => {
+          const a = allowances.find((x) => x.memberId === child.id);
+          return (
+            <li key={child.id} className="py-3 first:pt-1 last:pb-1 flex items-center gap-3">
+              <Avatar user={child} />
+              <span className="flex-1 min-w-0">
+                <span className="block font-medium text-ink truncate">{child.name}</span>
+                <span className="block text-sm text-ink-2">
+                  {a
+                    ? `${formatCurrency(a.amount)} ${a.period === 'week' ? 'в неделю' : 'в месяц'} · осталось ${formatCurrency(a.left)}`
+                    : 'Не назначены'}
+                </span>
+              </span>
+              <Button size="sm" variant="secondary" icon={<PiggyBank size={15} />} onClick={() => openModal({ type: 'allowanceForm', memberId: child.id })}>
+                {a ? 'Изменить' : 'Назначить'}
+              </Button>
+            </li>
+          );
+        })}
+      </ul>
+    </Card>
+  );
+}
+
+const EVENTS_SHORT = 6;
+
+/** What happened in the family: requests, decisions, limits, goals, members (server notifications, §9) */
+function EventsCard() {
+  const unread = useDataStore((s) => s.unreadNotifications);
+  const [items, setItems] = useState<AppNotification[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const markRead = useAsyncAction(markNotificationsRead);
+
+  // Reloaded when the unread counter changes: a new event arrived through the live stream
+  useEffect(() => {
+    let alive = true;
+    listNotifications().then(
+      (list) => {
+        if (!alive) return;
+        setItems(list);
+        setError(null);
+      },
+      (e) => {
+        if (alive) setError(errorMessage(e));
+      }
+    );
+    return () => {
+      alive = false;
+    };
+  }, [unread, attempt]);
+
+  const hasUnread = items?.some((n) => !n.readAt) ?? false;
+  const shown = expanded ? items ?? [] : (items ?? []).slice(0, EVENTS_SHORT);
+
+  return (
+    <Card className="p-5">
+      <SectionHeader
+        title="События"
+        subtitle="Запросы, решения, лимиты и цели — то, что касается вас"
+        action={
+          hasUnread && (
+            <Button
+              size="sm"
+              variant="ghost"
+              loading={markRead.pending}
+              onClick={async () => {
+                const res = await markRead.run();
+                if (res.ok) setItems((list) => list?.map((n) => ({ ...n, readAt: n.readAt ?? Date.now() })) ?? null);
+              }}
+            >
+              Прочитать все
+            </Button>
+          )
+        }
+      />
+      {error && !items ? (
+        <ErrorState message={error} onRetry={() => setAttempt((n) => n + 1)} />
+      ) : !items ? (
+        <div className="space-y-3" aria-busy="true" aria-label="Загрузка событий">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+      ) : items.length === 0 ? (
+        <p className="text-ink-2 py-2">Пока ничего не произошло. Здесь появятся запросы на покупку, решения по ним и предупреждения о лимитах.</p>
+      ) : (
+        <>
+          <ul className="divide-y divide-line">
+            {shown.map((n) => (
+              <li key={n.id} className="py-2.5 first:pt-1 last:pb-1 flex gap-3">
+                <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${n.readAt ? 'bg-transparent' : 'bg-accent'}`} aria-hidden />
+                <span className="min-w-0 flex-1">
+                  <span className={`block text-[15px] break-words ${n.readAt ? 'text-ink-2' : 'text-ink font-medium'}`}>
+                    {n.title}
+                    {!n.readAt && <span className="sr-only"> (новое)</span>}
+                  </span>
+                  {n.body && <span className="block text-sm text-ink-2 break-words">{n.body}</span>}
+                  <span className="block text-[13px] text-ink-3">
+                    {new Date(n.createdAt).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+          {items.length > EVENTS_SHORT && (
+            <Button size="sm" variant="ghost" className="mt-2 -ml-3.5" icon={<Bell size={15} />} onClick={() => setExpanded((v) => !v)}>
+              {expanded ? 'Свернуть' : `Все события (${items.length})`}
+            </Button>
+          )}
+        </>
+      )}
+      {markRead.error && <p role="alert" className="text-sm text-danger mt-2">{markRead.error}</p>}
+    </Card>
+  );
+}
+
+/** People who joined by code: they see nothing of the family until an adult lets them in */
+function JoinRequestsCard() {
+  const pending = useFamilyStore((s) => s.family?.pendingMembers ?? []);
+  if (pending.length === 0) return null;
+
+  return (
+    <Card className="p-5 border border-warning/40">
+      <SectionHeader
+        title="Заявки на вход"
+        subtitle="Вошли по коду семьи и ждут подтверждения. Пока вы не подтвердите вход, они не видят данных семьи."
+      />
+      <ul className="divide-y divide-line">
+        {pending.map((m) => (
+          <JoinRequestRow key={m.id} member={m} />
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
+function JoinRequestRow({ member }: { member: User }) {
   const addToast = useUIStore((s) => s.addToast);
-  const [copied, setCopied] = useState(false);
-  if (!family) return null;
-  const url = buildInviteUrl(family);
+  const approve = useAsyncAction(approveMember);
+  const decline = useAsyncAction(removeMember);
+  const busy = approve.pending || decline.pending;
+  const error = approve.error ?? decline.error;
 
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      addToast('Ссылка-приглашение скопирована');
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      addToast('Не удалось скопировать. Выделите ссылку и скопируйте вручную.', 'error');
-    }
-  };
+  return (
+    <li className="py-3">
+      <div className="flex items-center gap-3">
+        <Avatar user={member} />
+        <span className="flex-1 min-w-0">
+          <span className="block font-medium text-ink truncate">{member.name}</span>
+          <span className="block text-sm text-ink-2">{member.role === 'child' ? 'Ребёнок' : 'Взрослый'}</span>
+        </span>
+        <Button
+          size="sm"
+          icon={<Check size={15} />}
+          loading={approve.pending}
+          disabled={busy}
+          onClick={async () => {
+            const res = await approve.run(member.id);
+            if (res.ok) addToast(`${member.name} теперь в семье`);
+          }}
+        >
+          Принять
+        </Button>
+        <Button
+          size="sm"
+          variant="dangerGhost"
+          icon={<X size={15} />}
+          loading={decline.pending}
+          disabled={busy}
+          aria-label={`Отклонить заявку ${member.name}`}
+          onClick={async () => {
+            const res = await decline.run(member.id);
+            if (res.ok) addToast(`Заявка ${member.name} отклонена`, 'info');
+          }}
+        >
+          <span className="hidden sm:inline">Отклонить</span>
+        </Button>
+      </div>
+      {error && <p role="alert" className="text-sm text-danger mt-2">{error}</p>}
+    </li>
+  );
+}
 
-  const share = async () => {
+/** VTB ID: sign in through the bank instead of a device token. Shown only when the backend has it enabled */
+function VtbIdCard() {
+  const addToast = useUIStore((s) => s.addToast);
+  const [config, setConfig] = useState<OidcConfig | null>(null);
+  const [me, setMe] = useState<Me | null>(null);
+  const [linking, setLinking] = useState(false);
+  const [confirmUnlink, setConfirmUnlink] = useState(false);
+  const unlink = useAsyncAction(unlinkOidc);
+
+  useEffect(() => {
+    let alive = true;
+    getOidcConfig().then((c) => {
+      if (!alive) return;
+      setConfig(c);
+      if (c.enabled) getMe().then((m) => alive && setMe(m), () => { });
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  if (!config) return null;
+  if (!config.enabled || !me) {
+    return (
+      <Card className="p-5">
+        <SectionHeader title={config.providerName} />
+        <p className="text-ink-2">
+          Вход через банк выключен на сервере. Чтобы включить, задайте в настройках бэкенда OIDC_ENABLED=true (для демо — ещё
+          OIDC_MOCK=true).
+        </p>
+      </Card>
+    );
+  }
+
+  const link = async () => {
+    setLinking(true);
     try {
-      await navigator.share({ title: `Приглашение в «${family.name}»`, url });
-    } catch {
-      /* user cancelled */
+      await startOidc('link');
+    } catch (e) {
+      addToast(errorMessage(e), 'error');
+      setLinking(false);
     }
   };
 
   return (
     <Card className="p-5">
-      <SectionHeader title="Приглашение" subtitle="Отправьте ссылку партнёру — по ней он увидит название семьи и сможет присоединиться" />
-      <div className="rounded-xl bg-surface-muted border border-line px-3.5 py-3 text-sm text-ink-2 break-all select-all">{url}</div>
-      <div className="flex flex-wrap items-center gap-2.5 mt-3">
-        <Button icon={copied ? <Check size={16} /> : <Copy size={16} />} onClick={copy}>
-          {copied ? 'Скопировано' : 'Скопировать ссылку'}
-        </Button>
-        {typeof navigator.share === 'function' && (
-          <Button variant="secondary" icon={<Share2 size={16} />} onClick={share}>
-            Поделиться
+      <SectionHeader
+        title={config.providerName}
+        action={me.vtbLinked ? <Badge tone="success" icon={<BadgeCheck size={12} aria-hidden />}>Привязан</Badge> : undefined}
+      />
+      {me.vtbLinked ? (
+        <>
+          <p className="text-ink-2">
+            Входите через банк на любом устройстве — откроется ваш аккаунт в семье. Отвязать можно в любой момент.
+          </p>
+          <Button className="mt-4" variant="dangerGhost" onClick={() => setConfirmUnlink(true)}>
+            Отвязать {config.providerName}
           </Button>
-        )}
-      </div>
-      <p className="text-sm text-ink-3 mt-3">
-        Код семьи: <span className="font-mono font-semibold text-ink tracking-wider">{family.inviteCode}</span>
-      </p>
+        </>
+      ) : (
+        <>
+          <p className="text-ink-2">Привяжите {config.providerName}, чтобы входить через банк на любом устройстве без приглашения.</p>
+          <Button className="mt-4" variant="outline" icon={<Landmark size={16} />} loading={linking} onClick={link}>
+            Привязать {config.providerName}
+          </Button>
+        </>
+      )}
+      <Presence show={confirmUnlink}>
+        <ConfirmDialog
+          title={`Отвязать ${config.providerName}?`}
+          confirmLabel="Отвязать"
+          pending={unlink.pending}
+          error={unlink.error}
+          onCancel={() => setConfirmUnlink(false)}
+          onConfirm={async () => {
+            const res = await unlink.run();
+            if (!res.ok) return;
+            setConfirmUnlink(false);
+            setMe({ ...me, vtbLinked: false });
+            addToast(`${config.providerName} отвязан`, 'info');
+          }}
+        >
+          <p>Войти через банк в этот аккаунт будет нельзя, пока вы не привяжете его снова. Текущая сессия останется.</p>
+        </ConfirmDialog>
+      </Presence>
     </Card>
   );
 }
@@ -145,27 +417,42 @@ const THEMES: { value: Theme; label: string; icon: React.ReactNode }[] = [
   { value: 'system', label: 'Как в системе', icon: <Monitor size={16} /> },
 ];
 
+/**
+ * Theme picker with one pill that slides to the chosen option. While the page cross-fades into the new theme,
+ * the pill and the labels are captured as separate view-transition layers (index.css), so the pill
+ * moves instead of fading and stays under the labels. Without view transitions it slides with CSS.
+ */
 function AppearanceCard() {
   const theme = useUIStore((s) => s.theme);
-  const setTheme = useUIStore((s) => s.setTheme);
+  const index = THEMES.findIndex((t) => t.value === theme);
+  const [cssSlide] = useState(() => !canCrossFadeTheme());
   return (
     <Card className="p-5">
-      <SectionHeader title="Оформление" />
-      <div role="radiogroup" aria-label="Тема" className="grid grid-cols-3 gap-1 p-1 rounded-[var(--radius-control)] bg-surface-sunken">
-        {THEMES.map((t) => (
-          <button
-            key={t.value}
-            type="button"
-            role="radio"
-            aria-checked={theme === t.value}
-            onClick={() => setTheme(t.value)}
-            className={`h-10 rounded-[10px] text-sm font-medium inline-flex items-center justify-center gap-1.5 transition-colors
-              ${theme === t.value ? 'bg-surface text-ink shadow-[var(--shadow-card)]' : 'text-ink-2 hover:text-ink'}`}
-          >
-            {t.icon}
-            <span className="truncate">{t.label}</span>
-          </button>
-        ))}
+      <SectionHeader title="Тема" />
+      <div role="radiogroup" aria-label="Тема" className="relative p-1 rounded-[var(--radius-control)] bg-surface-sunken">
+        <span
+          aria-hidden
+          className={`theme-pill absolute top-1 bottom-1 left-1 w-[calc((100%-1rem)/3)] rounded-[10px] bg-surface shadow-[var(--shadow-card)]
+            ${cssSlide ? 'transition-transform duration-(--dur-theme) ease-(--ease-out)' : ''}`}
+          // One step is the pill's own width plus the 0.25rem gap between options
+          style={{ transform: `translateX(calc(${index} * (100% + 0.25rem)))` }}
+        />
+        <div className="theme-options relative grid grid-cols-3 gap-1">
+          {THEMES.map((t) => (
+            <button
+              key={t.value}
+              type="button"
+              role="radio"
+              aria-checked={theme === t.value}
+              onClick={() => switchTheme(t.value)}
+              className={`h-10 rounded-[10px] text-sm font-medium inline-flex items-center justify-center gap-1.5 transition-colors
+                ${theme === t.value ? 'text-ink' : 'text-ink-2 hover:text-ink'}`}
+            >
+              {t.icon}
+              <span className="truncate">{t.label}</span>
+            </button>
+          ))}
+        </div>
       </div>
     </Card>
   );
@@ -257,8 +544,8 @@ function DemoCard() {
           }}
         >
           <p>
-            Вы перейдёте в пример «Семья Смирновых». Ваша семья и её данные сохранятся на сервере, но вернуться в неё
-            в этом браузере можно будет только по приглашению.
+            Откроется пример «Семья Смирновых» — песочница: изменения в ней не затрагивают вашу семью. Вернуться
+            в свою семью — кнопкой «Выйти из демо».
           </p>
         </ConfirmDialog>
       </Presence>
@@ -268,32 +555,47 @@ function DemoCard() {
 
 function LeaveCard() {
   const family = useFamilyStore((s) => s.family);
+  const savedFamily = useFamilyStore((s) => s.savedSession?.family ?? null);
   const addToast = useUIStore((s) => s.addToast);
+  const setTab = useUIStore((s) => s.setTab);
   const leave = useAsyncAction(leaveFamily);
   const [confirm, setConfirm] = useState(false);
+  const demo = family?.isDemo ?? false;
+  // In the demo the button only closes the sandbox; the real account is never touched
+  const back = demo && savedFamily ? savedFamily.name : null;
 
   const onLeave = async () => {
     const res = await leave.run();
-    if (res.ok) addToast('Вы вышли из семьи', 'info');
+    if (!res.ok) return;
+    setTab('overview');
+    addToast(demo ? (back ? `Вы вернулись в «${back}»` : 'Демо закрыто') : 'Вы вышли из семьи', 'info');
   };
 
   return (
     <div className="px-1">
       <Button variant="dangerGhost" icon={<LogOut size={16} />} onClick={() => setConfirm(true)}>
-        Выйти из семьи
+        {demo ? 'Выйти из демо' : 'Выйти из семьи'}
       </Button>
       <Presence show={confirm}>
         <ConfirmDialog
-          title="Выйти из семьи?"
+          title={demo ? 'Выйти из демо?' : 'Выйти из семьи?'}
           confirmLabel="Выйти"
+          tone={demo ? 'primary' : undefined}
           pending={leave.pending}
           error={leave.error}
           onCancel={() => setConfirm(false)}
           onConfirm={onLeave}
         >
-          <p>
-            Вы перестанете видеть общий бюджет «{family?.name}». Чтобы вернуться, понадобится новое приглашение.
-          </p>
+          {demo ? (
+            <p>
+              Демо-семья закроется, изменения в ней не сохранятся.{' '}
+              {back ? <>Вы вернётесь в свою семью «{back}».</> : 'Вы вернётесь на начальный экран.'}
+            </p>
+          ) : (
+            <p>
+              Вы перестанете видеть общий бюджет «{family?.name}». Чтобы вернуться, понадобится новое приглашение.
+            </p>
+          )}
         </ConfirmDialog>
       </Presence>
     </div>

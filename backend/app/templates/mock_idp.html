@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="ru" data-theme="$theme">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Вход через $provider · тестовый банк</title>
+<style>
+  /*
+   * Built after the app's start screen (frontend/src/pages/OnboardingPage.tsx) with the same tokens
+   * as frontend/src/index.css. The theme comes from the app (fb-theme cookie): no scripts are allowed here.
+   */
+  :root {
+    color-scheme: light;
+    --bg: #f2f4f7; --surface: #ffffff; --surface-muted: #f6f8fb; --surface-sunken: #e9edf3;
+    --ink: #0a1c33; --ink-2: #44546b; --ink-3: #5d6b80;
+    --line: #dde3eb; --line-strong: #c3ccd8;
+    --brand: #002882; --brand-2: #0a3cb0; --brand-ink-2: #c7d4f5;
+    --accent: #0b55d9; --accent-hover: #0845b5; --accent-soft: #e8effd; --accent-ink: #0b46b5; --focus: #3a7bfa;
+    --warning: #9a4d00; --warning-soft: #fff3e0; --danger: #c4182b;
+    --shadow-card: 0 1px 2px rgba(10, 28, 51, 0.04), 0 2px 8px rgba(10, 28, 51, 0.04);
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --radius-card: 1.25rem; --radius-control: 0.875rem;
+  }
+  :root[data-theme='dark'] {
+    color-scheme: dark;
+    --bg: #0c1424; --surface: #141f33; --surface-muted: #19253b; --surface-sunken: #0f192b;
+    --ink: #eef2f8; --ink-2: #b6c1d3; --ink-3: #97a4b9;
+    --line: #26344c; --line-strong: #364763;
+    --brand: #0f2f8a; --brand-2: #1a46b8; --brand-ink-2: #c3d1f5;
+    --accent: #4d8cff; --accent-hover: #6a9fff; --accent-soft: #1b2c4d; --accent-ink: #8ab3ff; --focus: #6a9fff;
+    --warning: #f2a649; --warning-soft: #3a2a12; --danger: #ff6b7a;
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
+  }
+  * { box-sizing: border-box; }
+  html {
+    background: var(--bg); color: var(--ink);
+    font-family: 'Inter Variable', 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; -webkit-tap-highlight-color: transparent;
+  }
+  body { margin: 0; min-height: 100dvh; display: grid; font-size: 16px; line-height: 1.5; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  h1, h2, p, ul { margin: 0; padding: 0; }
+  svg { display: block; flex-shrink: 0; }
+
+  /* ── Brand side: hidden on phones, half of the screen from 1024px ── */
+  .promo { display: none; }
+  @media (min-width: 64rem) {
+    body { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .promo {
+      position: relative; display: flex; flex-direction: column; justify-content: center; padding: 48px;
+      color: #fff; background: linear-gradient(150deg, var(--brand) 0%, var(--brand-2) 100%);
+    }
+  }
+  .promo .logo { position: absolute; top: 40px; left: 48px; }
+  .logo { display: flex; align-items: center; gap: 12px; font-size: 18px; line-height: 28px; font-weight: 600; }
+  .mark { width: 44px; height: 44px; border-radius: 10px; background: var(--brand); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .promo-body { position: relative; top: -20px; max-width: 28rem; }
+  .promo h2 { font-size: 36px; line-height: 1.25; font-weight: 700; text-wrap: balance; }
+  .points { list-style: none; margin-top: 32px; display: grid; gap: 20px; font-size: 17px; color: var(--brand-ink-2); }
+  .points li { display: flex; gap: 14px; }
+  .points .icon { width: 40px; height: 40px; border-radius: 999px; background: rgba(255, 255, 255, 0.12); color: #fff; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .points span { padding-top: 8px; }
+
+  /* ── Sign-in column ── */
+  main { display: flex; align-items: center; justify-content: center; padding: 24px 16px; }
+  @media (min-width: 40rem) { main { padding: 24px 32px; } }
+  .panel { width: 100%; max-width: 28rem; }
+  .panel > .logo { margin-bottom: 32px; color: var(--ink); }
+  .panel > .logo .mark { width: 40px; height: 40px; }
+  @media (min-width: 64rem) { .panel > .logo { display: none; } }
+
+  .badge { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 10px; border-radius: var(--radius-control); background: var(--warning-soft); color: var(--warning); font-size: 13px; font-weight: 600; }
+  h1 { margin-top: 16px; font-size: 28px; line-height: 1.25; font-weight: 700; }
+  .lead { margin-top: 8px; color: var(--ink-2); text-wrap: pretty; }
+
+  .section-label { margin: 24px 0 6px; font-size: 14px; font-weight: 500; color: var(--ink-2); }
+  .accounts { border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); box-shadow: var(--shadow-card); overflow: hidden; }
+  .accounts form + form { border-top: 1px solid var(--line); }
+  .account {
+    width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 16px; border: 0; background: transparent;
+    color: var(--ink); font: inherit; text-align: left; cursor: pointer; transition: background-color 150ms var(--ease-out);
+  }
+  .account:hover { background: var(--surface-muted); }
+  .account:focus-visible { outline-offset: -2px; }
+  .avatar { width: 36px; height: 36px; border-radius: var(--radius-control); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; color: #fff; font-size: 14px; font-weight: 600; box-shadow: 0 0 0 2px var(--line); }
+  .who { flex: 1; min-width: 0; line-height: 1.3; }
+  .who strong { display: block; font-size: 15px; font-weight: 600; }
+  .who span { display: block; font-size: 13px; color: var(--ink-3); }
+  .chevron { color: var(--ink-3); }
+
+  .or { display: flex; align-items: center; gap: 12px; margin: 24px 0 16px; font-size: 14px; color: var(--ink-3); }
+  .or::before, .or::after { content: ''; height: 1px; flex: 1; background: var(--line); }
+
+  label { display: block; margin-bottom: 6px; font-size: 14px; font-weight: 500; color: var(--ink-2); }
+  input {
+    width: 100%; height: 48px; padding: 0 16px; border: 1px solid var(--line); border-radius: var(--radius-control);
+    background: var(--surface-muted); color: var(--ink); font: inherit; font-size: 15px;
+    transition: background-color 150ms, border-color 150ms, box-shadow 150ms;
+  }
+  input::placeholder { color: var(--ink-3); }
+  input:focus { outline: none; background: var(--surface); border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent); }
+  input[aria-invalid='true'] { border-color: var(--danger); }
+  .hint { margin-top: 6px; font-size: 13px; color: var(--ink-3); }
+  .error { display: flex; align-items: flex-start; gap: 6px; margin-top: 6px; font-size: 13px; color: var(--danger); }
+  .error svg { margin-top: 1px; }
+
+  .button {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 0; border-radius: var(--radius-control);
+    font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; white-space: nowrap; user-select: none;
+    transition: background-color 150ms, color 150ms;
+  }
+  .primary { width: 100%; height: 48px; margin-top: 16px; padding: 0 24px; background: var(--accent); color: #fff; font-size: 16px; }
+  .primary:hover { background: var(--accent-hover); }
+  .footer { display: flex; justify-content: center; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line); }
+  .ghost { height: 44px; padding: 0 20px; background: transparent; color: var(--accent-ink); font-size: 15px; }
+  .ghost:hover { background: var(--accent-soft); }
+  @media (prefers-reduced-motion: reduce) { * { transition-duration: 0.01ms !important; } }
+</style>
+</head>
+<body>
+<aside class="promo">
+  <div class="logo"><span class="mark">$mark</span>Семейный бюджет</div>
+  <div class="promo-body">
+    <h2>Вход через банк&nbsp;— без отдельного пароля</h2>
+    <ul class="points">
+      <li><span class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg></span><span>Банк подтверждает, что это вы, и возвращает в приложение</span></li>
+      <li><span class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><span>$provider уже привязан&nbsp;— сразу откроется ваша семья</span></li>
+      <li><span class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/></svg></span><span>Ещё не привязан&nbsp;— создадите семью или войдёте по приглашению</span></li>
+    </ul>
+  </div>
+</aside>
+
+<main>
+  <div class="panel">
+    <div class="logo"><span class="mark">$mark</span>Семейный бюджет</div>
+    <span class="badge">Тестовый банк</span>
+    <h1>Вход через $provider</h1>
+    <p class="lead">Это демонстрация: настоящий банк не участвует, пароль не нужен. Выберите участника витрины или введите любой логин.</p>
+
+    <p class="section-label" id="accounts-label">Участники витрины</p>
+    <div class="accounts" role="group" aria-labelledby="accounts-label">
+      $accounts
+    </div>
+
+    <div class="or" aria-hidden="true">или</div>
+
+    <!-- novalidate: the browser's own bubble speaks the browser's language; the server answers in Russian instead -->
+    <form method="get" novalidate>
+      $hidden
+      <label for="login">Логин клиента банка</label>
+      <input id="login" name="login" value="$login_value" required maxlength="40" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="Например, ivan или иван" aria-describedby="login-hint"$login_invalid>
+      $login_error
+      <p class="hint" id="login-hint">Придумайте любой логин: банк заведёт под ним нового клиента. С тем же логином в следующий раз откроется тот же аккаунт.</p>
+      <button class="button primary" type="submit">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" x2="3" y1="12" y2="12"/></svg>
+        Войти
+      </button>
+    </form>
+
+    <div class="footer">
+      <a class="button ghost" href="$cancel_url">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+        Отменить и вернуться в приложение
+      </a>
+    </div>
+  </div>
+</main>
+</body>
+</html>
