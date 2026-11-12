@@ -353,6 +353,8 @@ const LINK_TOKEN_KEY = 'fb-oidc-link';
 const LINK_TOKEN_TTL_MS = 10 * 60_000;
 const RETURN_INVITE_KEY = 'fb-oidc-invite';
 const INTENT_KEY = 'fb-oidc-intent';
+/** Set while an automatic restart after a stale state is under way: a second stale state in a row is shown as an error */
+const RESTART_KEY = 'fb-oidc-restarted';
 
 let oidcConfig: Promise<OidcConfig> | null = null;
 
@@ -401,10 +403,48 @@ export function takeOidcIntent(): 'login' | 'link' {
   try {
     const intent = sessionStorage.getItem(INTENT_KEY);
     sessionStorage.removeItem(INTENT_KEY);
+    sessionStorage.removeItem(RESTART_KEY); // the sign-in is over one way or another: the next stale state may restart again
     return intent === 'link' ? 'link' : 'login';
   } catch {
     return 'login';
   }
+}
+
+/** The callback was rejected because its state was already used or expired (back button, a second tab, >10 min) */
+export function isStaleOidcState(e: unknown): boolean {
+  return e instanceof ApiError && e.field === 'state';
+}
+
+/**
+ * Open the bank again with a fresh state and the same intent and invite as before. Once in a row:
+ * returns false (and resets the guard) when the previous callback was already a restart, so the caller shows the error.
+ * Throws when the bank cannot be opened (e.g. link without a session).
+ */
+export async function restartOidc(): Promise<boolean> {
+  let intent: 'login' | 'link' = 'login';
+  let invite: string | null = null;
+  try {
+    if (sessionStorage.getItem(RESTART_KEY)) {
+      sessionStorage.removeItem(RESTART_KEY);
+      return false;
+    }
+    intent = sessionStorage.getItem(INTENT_KEY) === 'link' ? 'link' : 'login';
+    invite = sessionStorage.getItem(RETURN_INVITE_KEY);
+    sessionStorage.setItem(RESTART_KEY, '1');
+  } catch {
+    return false; // without storage the loop guard does not work — do not restart at all
+  }
+  try {
+    await startOidc(intent, invite);
+  } catch (e) {
+    try {
+      sessionStorage.removeItem(RESTART_KEY);
+    } catch {
+      /* nothing to clear */
+    }
+    throw e;
+  }
+  return true;
 }
 
 /** Finish the bank sign-in on /auth/callback */
