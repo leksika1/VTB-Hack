@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { CircleAlert, LoaderCircle } from 'lucide-react';
-import { completeOidc, errorMessage } from '../api/client';
+import { completeOidc, errorMessage, isStaleOidcState, restartOidc } from '../api/client';
 import { BrandMark } from '../components/layout/AppShell';
 import { Button } from '../components/ui/Button';
 
@@ -15,6 +15,14 @@ function finish(code: string, state: string) {
   return inFlight.promise;
 }
 
+/** A stale state (back button, second tab, >10 min on the bank page) restarts the sign-in — once per state, StrictMode included */
+let restartInFlight: { state: string; promise: Promise<boolean> } | null = null;
+
+function restart(state: string) {
+  if (restartInFlight?.state !== state) restartInFlight = { state, promise: restartOidc() };
+  return restartInFlight.promise;
+}
+
 /**
  * /auth/callback — the bank returns here with ?code&state (or ?error when the person cancelled).
  * The backend checks everything; this page only passes the code on and routes by the answer.
@@ -24,6 +32,7 @@ export function AuthCallbackPage({ onDone }: { onDone: (outcome: OidcOutcome) =>
   const code = params.get('code');
   const state = params.get('state');
   const cancelled = params.get('error') === 'access_denied';
+  const [restarting, setRestarting] = useState(false);
   const [error, setError] = useState<string | null>(() =>
     code && state ? null : params.get('error') ? 'Банк не подтвердил вход. Попробуйте ещё раз.' : 'Ссылка входа неполная. Начните вход заново.'
   );
@@ -42,7 +51,28 @@ export function AuthCallbackPage({ onDone }: { onDone: (outcome: OidcOutcome) =>
     let alive = true;
     finish(code, state).then(
       (outcome) => alive && onDone(outcome),
-      (e) => alive && setError(errorMessage(e))
+      (e) => {
+        if (!alive) return;
+        if (!isStaleOidcState(e)) {
+          setError(errorMessage(e));
+          return;
+        }
+        // The bank page was reused after its state was spent: open the bank again instead of a dead end
+        setRestarting(true);
+        restart(state).then(
+          (started) => {
+            // started — the browser is already leaving for the bank, keep the spinner
+            if (started || !alive) return;
+            setRestarting(false);
+            setError(errorMessage(e));
+          },
+          () => {
+            if (!alive) return;
+            setRestarting(false);
+            setError(errorMessage(e));
+          }
+        );
+      }
     );
     return () => {
       alive = false;
@@ -71,7 +101,7 @@ export function AuthCallbackPage({ onDone }: { onDone: (outcome: OidcOutcome) =>
         ) : (
           <div aria-busy="true">
             <LoaderCircle size={28} className="mx-auto animate-spin text-accent-ink" aria-hidden />
-            <p className="text-ink-2 mt-3">Завершаем вход через банк…</p>
+            <p className="text-ink-2 mt-3">{restarting ? 'Ссылка входа устарела — открываем банк заново…' : 'Завершаем вход через банк…'}</p>
           </div>
         )}
       </div>

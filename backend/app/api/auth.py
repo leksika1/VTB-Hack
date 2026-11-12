@@ -131,6 +131,8 @@ async def mock_authorize(
         # блокирует вход, когда фронтенд и API на разных origin (redirect_uri уже сверен со списком)
         target = urlsplit(redirect_uri)
         return HTMLResponse(_render_page(request, redirect_uri, state, error), headers={
+            # Не кешировать: «Назад» после входа должен перезапросить страницу, а не показать старую с израсходованным state
+            "Cache-Control": "no-store",
             "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; "
                                        f"form-action 'self' {target.scheme}://{target.netloc}"})
     code = await provider.issue_code(login, client_id, redirect_uri, nonce, code_challenge)
