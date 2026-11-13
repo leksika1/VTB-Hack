@@ -16,13 +16,13 @@ def test_leaving_demo_only_ends_the_demo(api, new_client):
     real_h = auth(real["token"])
 
     demo = start_demo(vtb)  # тот же браузер нажал «Посмотреть на примере»
-    maria = next(m for m in demo.get("/api/family").json()["members"] if m["name"] == "Мария")
-    as_maria = demo.post("/api/family/switch-user", {"userId": maria["id"]}).json()
+    masha = next(m for m in demo.get("/api/family").json()["members"] if m["name"] == "Маша")
+    as_masha = demo.post("/api/family/switch-user", {"userId": masha["id"]}).json()
     add_expense(demo, 100, title="В песочнице")
 
     assert demo.post("/api/family/leave").status_code == 204
     assert_error(demo.get("/api/state"), 401)  # все сессии копии закрыты,
-    assert_error(api.get("/api/state", headers=auth(as_maria["token"])), 401)  # включая переключённых
+    assert_error(api.get("/api/state", headers=auth(as_masha["token"])), 401)  # включая переключённых
 
     # Настоящая семья и привязка ВТБ ID не тронуты
     state = api.get("/api/state", headers=real_h).json()

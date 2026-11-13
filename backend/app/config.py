@@ -55,7 +55,7 @@ class Settings(BaseSettings):
     smtp_port: int = 587
     smtp_user: str = ""
     smtp_password: str = ""
-    smtp_from: str = "Семейный бюджет <no-reply@example.ru>"
+    smtp_from: str = "Общий план <no-reply@example.ru>"
     smtp_starttls: bool = True
     email_send_interval_seconds: int = 10
 

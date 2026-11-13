@@ -52,7 +52,7 @@ async def notify(
 
 def queue_email(db: AsyncSession, member: Member, subject: str, body: str, to: str | None = None) -> None:
     db.add(EmailOutbox(member_id=member.id, to_email=to or member.email, subject=_clip(subject, 200),
-                       body=_clip(body + "\n\n— Семейный бюджет", 2000)))
+                       body=_clip(body + "\n\n— Общий план", 2000)))
 
 
 async def _family(db: AsyncSession, family_id: str) -> list[Member]:

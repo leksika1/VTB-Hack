@@ -54,7 +54,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="flex items-center gap-3 min-w-0 flex-1 lg:flex-none lg:w-64">
             <BrandMark />
             <div className="min-w-0 leading-tight">
-              <div className="text-[13px] text-ink-3">Семейный бюджет</div>
+              <div className="text-[13px] text-ink-3">Общий план</div>
               <div className="text-[15px] font-semibold text-ink truncate" title={family?.name}>
                 {family?.name}
               </div>

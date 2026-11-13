@@ -77,7 +77,7 @@ export function OnboardingPage({ invite, onInviteDismiss }: OnboardingPageProps)
       <aside className="hidden lg:flex flex-col relative justify-center p-12 text-white bg-[linear-gradient(150deg,var(--brand)_0%,var(--brand-2)_100%)]">
         <div className="absolute top-0 mt-10">
           <BrandMark size={44} />
-          <span className="text-lg font-semibold">Семейный бюджет</span>
+          <span className="text-lg font-semibold">Общий план</span>
         </div>
 
         <div className="max-w-md -top-5 relative">
@@ -95,7 +95,7 @@ export function OnboardingPage({ invite, onInviteDismiss }: OnboardingPageProps)
         <div className="w-full max-w-md">
           <div className="flex items-center gap-3 mb-8 lg:hidden">
             <BrandMark size={40} />
-            <span className="text-lg font-semibold text-ink">Семейный бюджет</span>
+            <span className="text-lg font-semibold text-ink">Общий план</span>
           </div>
 
           {vtbConfirmed && (
