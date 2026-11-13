@@ -11,7 +11,8 @@ from datetime import date
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import clock
-from ..models import Allowance, Budget, Expense, Family, Member, Payment, PurchaseRequest, now_ms
+from ..models import (Allowance, Budget, Expense, Family, Goal, GoalContribution, Member, Payment, PurchaseRequest,
+                      now_ms)
 from ..schemas import SessionOut
 from ..security import MEMBER_COLORS
 from ..validation import shift_month
@@ -41,6 +42,7 @@ async def build_sample_family(
     today = clock.today()
     month = today.strftime("%Y-%m")
     prev = shift_month(month, -1)
+    prev2 = shift_month(month, -2)
     last_day = calendar.monthrange(today.year, today.month)[1]
 
     def day(offset: int) -> date:
@@ -135,6 +137,18 @@ async def build_sample_family(
         Expense(family_id=family.id, title="Мороженое", amount_kop=_kop(180), category="food", date=today,
                 author_id=sonya.id, paid_by=sonya.id, created_at=now - HOUR_MS),
         headphones,
+    ])
+    # Копилка: стиралка за 60 000 ₽ к концу следующего месяца, по 15 000 ₽ в месяц уже отложено (docs/FEATURES.md §4)
+    next_month = shift_month(month, 1)
+    washer = Goal(family_id=family.id, title="Новая стиральная машина", target_kop=_kop(60000),
+                  deadline=d(next_month, calendar.monthrange(*map(int, next_month.split("-")))[1]),
+                  created_by=petya.id, created_at=now - 1500 * HOUR_MS)
+    db.add(washer)
+    await db.flush()
+    db.add_all([
+        GoalContribution(goal_id=washer.id, family_id=family.id, member_id=who.id, amount_kop=_kop(15000), date=on,
+                         created_at=now - age_hours * HOUR_MS)
+        for who, on, age_hours in ((petya, d(prev2, 5), 1400), (masha, d(prev, 5), 700), (petya, day(-1), 20))
     ])
     await db.flush()
     # Как при обычном создании: у взрослых запрос сразу виден в «Событиях»
