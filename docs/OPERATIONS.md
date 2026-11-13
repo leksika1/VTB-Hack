@@ -109,7 +109,7 @@ Environment как выше, Deploy Backend, затем Frontend. Старые �
 | `NOTIFICATION_TTL_DAYS` | `90` | Сколько хранить уведомления |
 | `EMAIL_BACKEND` | `outbox` | `outbox` — письма только в таблице `email_outbox`; `smtp` — отправлять |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_STARTTLS` | —, `587`, —, —, `true` | Почтовый сервер |
-| `SMTP_FROM` | `Семейный бюджет <no-reply@example.ru>` | Отправитель |
+| `SMTP_FROM` | `Общий план <no-reply@example.ru>` | Отправитель |
 | `EMAIL_SEND_INTERVAL_SECONDS` | `10` | Период разбора очереди писем |
 | `OIDC_ENABLED` | `false` | Вход через ВТБ ID |
 | `OIDC_PROVIDER_NAME` | `ВТБ ID` | Название на кнопке |
