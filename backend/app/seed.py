@@ -5,7 +5,7 @@
 backend одновременно). Войти:
   - по коду семьи (печатается командой; постоянный — SHOWCASE_INVITE_CODE) — новым взрослым участником;
   - по одноразовому детскому коду (печатается командой) — ребёнком;
-  - через тестовый ВТБ ID (OIDC_MOCK=true) логинами alexey, maria, sonya — участниками витрины.
+  - через тестовый ВТБ ID (OIDC_MOCK=true) логинами petya, masha, sonya — участниками витрины.
 Даты в данных — относительно дня создания, поэтому витрину стоит пересоздавать (--reset) перед показом.
 
     python -m app.seed            # создать, если нет
@@ -32,7 +32,7 @@ log = logging.getLogger("app.seed")
 
 SHOWCASE_ID = str(uuid.uuid5(uuid.NAMESPACE_URL, "family-budget/showcase"))
 SHOWCASE_NAME = "Семья Смирновых (тестовая)"
-SHOWCASE_LOGINS = {"Алексей": "alexey", "Мария": "maria", "Соня": "sonya"}
+SHOWCASE_LOGINS = {"Петя": "petya", "Маша": "masha", "Соня": "sonya"}
 
 
 async def ensure_showcase(reset: bool = False, session_factory=None) -> bool:
@@ -79,7 +79,7 @@ async def _main(reset: bool) -> None:
         family_code, child_code = await showcase_codes()
         print(f"Код семьи (вход взрослым): {family_code}")
         print(f"Детский код (вход ребёнком): {child_code}")
-        print("Вошедшие по коду видят данные после подтверждения: Алексей или Мария → вкладка «Семья»")
+        print("Вошедшие по коду видят данные после подтверждения: Петя или Маша → вкладка «Семья»")
     finally:
         await infra.close_redis()
         await db.dispose_engine()

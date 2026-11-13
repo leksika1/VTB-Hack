@@ -49,7 +49,7 @@ def create_app() -> FastAPI:
 
     docs = settings.enable_docs
     app = FastAPI(
-        title="Семейный бюджет — API",
+        title="Общий план — API",
         version="0.3.0",
         description=(
             "Общий бюджет семьи: план на месяц, расходы, обязательные платежи и проверка покупки. "

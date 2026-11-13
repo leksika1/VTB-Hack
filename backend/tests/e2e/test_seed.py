@@ -31,22 +31,22 @@ def test_showcase_is_idempotent_and_reachable_by_test_logins(api, new_client, ne
     run_seed(needs_db, reset=True)
     assert run_seed(needs_db) is False  # повторный запуск ничего не создаёт
 
-    alexey = login_as(api, "alexey")
-    assert (alexey["family"]["id"], alexey["family"]["name"]) == (SHOWCASE_ID, SHOWCASE_NAME)
+    petya = login_as(api, "petya")
+    assert (petya["family"]["id"], petya["family"]["name"]) == (SHOWCASE_ID, SHOWCASE_NAME)
     sonya = login_as(new_client(), "sonya")
     assert sonya["family"]["id"] == SHOWCASE_ID and sonya["family"]["inviteCode"] is None  # ребёнок
-    maria = login_as(new_client(), "maria")
-    roles = {m["name"]: m["role"] for m in maria["family"]["members"]}
-    assert roles == {"Алексей": "parent", "Мария": "parent", "Соня": "child"}
+    masha = login_as(new_client(), "masha")
+    roles = {m["name"]: m["role"] for m in masha["family"]["members"]}
+    assert roles == {"Петя": "parent", "Маша": "parent", "Соня": "child"}
 
-    headers = {"Authorization": f"Bearer {alexey['token']}"}
+    headers = {"Authorization": f"Bearer {petya['token']}"}
     state = api.get("/api/state", headers=headers).json()
     assert (len(state["expenses"]), len(state["payments"]), len(state["budgets"])) == (13, 7, 2)
 
     # Пересоздание — свежая семья с теми же логинами, старые сессии больше не действуют
     assert run_seed(needs_db, reset=True) is True
     assert api.get("/api/state", headers=headers).status_code == 401
-    assert login_as(api, "alexey")["family"]["id"] == SHOWCASE_ID
+    assert login_as(api, "petya")["family"]["id"] == SHOWCASE_ID
 
 
 def test_showcase_codes_let_jury_join(api, new_client, needs_db):
@@ -66,10 +66,10 @@ def test_showcase_codes_let_jury_join(api, new_client, needs_db):
     jury = {"Authorization": f"Bearer {adult['token']}"}
     assert api.get("/api/state", headers=jury).json()["expenses"] == []  # до подтверждения — ничего
 
-    alexey = {"Authorization": f"Bearer {login_as(new_client(), 'alexey')['token']}"}
-    assert api.post(f"/api/family/members/{adult['currentUserId']}/approve", headers=alexey).status_code == 200
+    petya = {"Authorization": f"Bearer {login_as(new_client(), 'petya')['token']}"}
+    assert api.post(f"/api/family/members/{adult['currentUserId']}/approve", headers=petya).status_code == 200
     assert len(api.get("/api/state", headers=jury).json()["expenses"]) == 13
     child = new_client().post(f"/api/invites/{child_code}/join", json={"userName": "Ребёнок жюри"}).json()
     assert child["family"]["id"] == SHOWCASE_ID and child["family"]["inviteCode"] is None
-    family = api.get("/api/family", headers=alexey).json()
+    family = api.get("/api/family", headers=petya).json()
     assert [m["name"] for m in family["pendingMembers"]] == ["Ребёнок жюри"]

@@ -231,7 +231,7 @@ def test_demo_family(api):
     family = demo.get("/api/family").json()
     assert family["isDemo"] is True and family["name"] == "Семья Смирновых"
     assert [(m["name"], m["role"]) for m in family["members"]] == [
-        ("Алексей", "parent"), ("Мария", "parent"), ("Соня", "child")]
+        ("Петя", "parent"), ("Маша", "parent"), ("Соня", "child")]
 
     state = demo.get("/api/state").json()
     assert (len(state["budgets"]), len(state["expenses"]), len(state["payments"])) == (2, 13, 7)
@@ -255,14 +255,14 @@ def test_each_visitor_gets_own_demo(api, new_client):
 
 def test_switch_demo_user(api):
     demo = start_demo(api)
-    maria = next(m for m in demo.get("/api/family").json()["members"] if m["name"] == "Мария")
-    r = demo.post("/api/family/switch-user", {"userId": maria["id"]})
+    masha = next(m for m in demo.get("/api/family").json()["members"] if m["name"] == "Маша")
+    r = demo.post("/api/family/switch-user", {"userId": masha["id"]})
     assert r.status_code == 200
-    as_maria = r.json()
-    assert as_maria["currentUserId"] == maria["id"]
-    created = api.post("/api/expenses", headers=auth(as_maria["token"]),
+    as_masha = r.json()
+    assert as_masha["currentUserId"] == masha["id"]
+    created = api.post("/api/expenses", headers=auth(as_masha["token"]),
                        json={"title": "Кофе", "amount": 200, "category": "food", "date": "2026-01-01"}).json()
-    assert created["authorName"] == "Мария"
+    assert created["authorName"] == "Маша"
 
 
 def test_switch_user_errors(api, new_client):

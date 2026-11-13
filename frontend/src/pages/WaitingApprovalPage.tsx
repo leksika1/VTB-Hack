@@ -28,7 +28,7 @@ export function WaitingApprovalPage() {
       <div className="w-full max-w-md">
         <div className="flex items-center gap-3 mb-8">
           <BrandMark size={40} />
-          <span className="text-lg font-semibold text-ink">Семейный бюджет</span>
+          <span className="text-lg font-semibold text-ink">Общий план</span>
         </div>
         <div className="w-12 h-12 rounded-full bg-warning-soft text-warning flex items-center justify-center mb-4" aria-hidden>
           <Hourglass size={22} />
