@@ -16,6 +16,7 @@ import { Button } from '../components/ui/Button';
 import { EmptyState } from '../components/ui/Feedback';
 import { ExpenseDayGroups } from '../components/expenses/ExpenseList';
 import { SpendingCharts } from '../components/expenses/SpendingCharts';
+import { Chips, TextInput } from '@admiral-ds/react-ui';
 
 export function OperationsPage() {
   const monthKey = useUIStore((s) => s.monthKey);
@@ -101,16 +102,14 @@ export function OperationsPage() {
 
       <Card className="p-4 sm:p-5">
         <div className="flex gap-2.5">
-          <div className="relative flex-1">
-            <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-3 pointer-events-none" aria-hidden />
-            <input
-              type="search"
+          <div className="flex-1">
+            <TextInput
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Поиск по названию"
               aria-label="Поиск по названию операции"
-              className="w-full h-11 pl-10 pr-4 rounded-[var(--radius-control)] bg-surface-muted border border-transparent text-ink
-                placeholder:text-ink-3 focus:outline-none focus:bg-surface focus:border-accent focus:ring-[3px] focus:ring-accent/15"
+              iconsBefore={<Search size={18} className="text-ink-3 ml-2" aria-hidden />}
+              displayClearIcon
             />
           </div>
           <Button
@@ -215,15 +214,14 @@ export function OperationsPage() {
 
 function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button
-      type="button"
+    <Chips
+      dimension="s"
+      appearance={active ? 'filled' : 'outlined'}
+      selected={active}
       onClick={onClick}
-      aria-pressed={active}
-      className={`h-9 px-3.5 rounded-full text-sm font-medium border transition-colors inline-flex items-center gap-1.5
-        ${active ? 'bg-accent text-white border-accent' : 'bg-surface text-ink border-line-strong hover:border-ink-3'}`}
+      className="cursor-pointer select-none"
     >
-      {active && <span aria-hidden>✓</span>}
       {children}
-    </button>
+    </Chips>
   );
 }

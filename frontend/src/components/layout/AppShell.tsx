@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { LayoutDashboard, ReceiptText, ClipboardList, Users, type LucideIcon } from 'lucide-react';
 import type { Tab } from '../../types';
 import { useUIStore } from '../../store/uiStore';
@@ -120,7 +120,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   );
 }
 
-/** onAccent — on the selected (accent-filled) tab the counter turns white, otherwise it would vanish */
+import { TabMenu, type TabProps, Badge as AdmiralBadge } from '@admiral-ds/react-ui';
+
 interface DesktopNavProps {
   nav: typeof NAV;
   tab: Tab;
@@ -129,78 +130,34 @@ interface DesktopNavProps {
   unreadLabel: (tab: Tab) => string;
 }
 
-/** Section tabs with one accent pill that slides to the selected tab (duration: --dur-tab in index.css) */
-function DesktopNav({ nav, tab, onSelect, unread, unreadLabel }: DesktopNavProps) {
-  const refs = useRef<Partial<Record<Tab, HTMLButtonElement | null>>>({});
-  const [pill, setPill] = useState<{ left: number; width: number } | null>(null);
-  // Slides only after the user picks a tab: on the first placement it would fly in from the left edge
-  const [animated, setAnimated] = useState(false);
-
-  useLayoutEffect(() => {
-    const place = () => {
-      const el = refs.current[tab];
-      if (!el) return;
-      const next = { left: el.offsetLeft, width: el.offsetWidth };
-      setPill((prev) => (prev && prev.left === next.left && prev.width === next.width ? prev : next));
-    };
-    place();
-    // Widths change when the unread counter appears or the font loads
-    const observer = new ResizeObserver(place);
-    Object.values(refs.current).forEach((el) => el && observer.observe(el));
-    return () => observer.disconnect();
-  }, [tab, nav.length]);
+/** Section tabs using Admiral DS TabMenu */
+function DesktopNav({ nav, tab, onSelect, unread }: DesktopNavProps) {
+  const tabs: TabProps[] = nav.map(({ tab: t, label, icon: Icon }) => ({
+    id: t,
+    content: label,
+    icon: <Icon size={18} />,
+    badge: t === 'family' && unread > 0 ? unread : undefined,
+  }));
 
   return (
     <nav aria-label="Разделы" className="hidden lg:flex flex-1 justify-center">
-      <div className="relative flex gap-1">
-        {pill && (
-          <span
-            aria-hidden
-            className={`absolute inset-y-0 rounded-full bg-accent ${animated ? 'transition-[left,width] duration-(--dur-tab) ease-(--ease-out)' : ''}`}
-            style={{ left: pill.left, width: pill.width }}
-          />
-        )}
-        {nav.map(({ tab: t, label }) => {
-          const active = tab === t;
-          return (
-            <button
-              key={t}
-              ref={(el) => {
-                refs.current[t] = el;
-              }}
-              type="button"
-              onClick={() => {
-                setAnimated(true);
-                onSelect(t);
-              }}
-              aria-current={active ? 'page' : undefined}
-              aria-label={`${label}${unreadLabel(t)}`}
-              // Text colour follows the pill; the hover background is dropped at once on selection,
-              // otherwise it fades over --dur-tab as a light halo around the arriving pill
-              className={`relative h-10 px-4 rounded-full text-[15px] font-medium inline-flex items-center gap-1.5
-                ${active
-                  ? 'text-ink-inverse [transition:color_var(--dur-tab)_var(--ease-out)]'
-                  : 'text-ink-2 hover:text-ink hover:bg-accent-soft [transition:color_var(--dur-tab)_var(--ease-out),background-color_200ms_var(--ease-out)]'}`}
-            >
-              {label}
-              {t === 'family' && <UnreadCount count={unread} onAccent={active} />}
-            </button>
-          );
-        })}
-      </div>
+      <TabMenu
+        dimension="m"
+        tabs={tabs}
+        activeTab={tab}
+        onChange={(id) => onSelect(id as Tab)}
+        underline={false}
+      />
     </nav>
   );
 }
 
-function UnreadCount({ count, onAccent }: { count: number; onAccent?: boolean }) {
+function UnreadCount({ count }: { count: number }) {
   if (count <= 0) return null;
   return (
-    <span
-      className={`min-w-5 h-5 px-1.5 rounded-full text-[11px] font-semibold leading-5 text-center tabular transition-colors duration-(--dur-tab)
-        ${onAccent ? 'bg-white text-accent-ink' : 'bg-accent text-white'}`}
-      aria-hidden
-    >
+    <AdmiralBadge appearance="info" dimension="s" aria-hidden>
       {count > 99 ? '99+' : count}
-    </span>
+    </AdmiralBadge>
   );
 }
+

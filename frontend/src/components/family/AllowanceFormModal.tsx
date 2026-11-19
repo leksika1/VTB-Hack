@@ -9,6 +9,7 @@ import { amountToInput, formatCurrency, parseAmount, validateAmount } from '../.
 import { Modal } from '../ui/Modal';
 import { AmountField, FormError } from '../ui/Field';
 import { Button } from '../ui/Button';
+import { SegmentedControl, SegmentedControlItem } from '@admiral-ds/react-ui';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 
 type Period = 'week' | 'month';
@@ -95,21 +96,19 @@ export function AllowanceFormModal({ memberId }: { memberId: string }) {
       <form id="allowance-form" onSubmit={onSubmit} noValidate className="space-y-4">
         <div>
           <span id="allowance-period" className="block text-sm font-medium text-ink-2 mb-1.5">Период</span>
-          <div role="radiogroup" aria-labelledby="allowance-period" className="grid grid-cols-2 gap-1 p-1 rounded-[var(--radius-control)] bg-surface-sunken">
+          <SegmentedControl dimension="m" appearance="filled">
             {PERIODS.map((p) => (
-              <button
+              <SegmentedControlItem
                 key={p.value}
-                type="button"
-                role="radio"
-                aria-checked={period === p.value}
-                onClick={() => setPeriod(p.value)}
-                className={`h-10 rounded-[10px] text-[15px] font-medium transition-colors duration-100
-                  ${period === p.value ? 'bg-surface text-ink shadow-[var(--shadow-card)]' : 'text-ink-2 hover:text-ink'}`}
+                name="allowance-period"
+                value={p.value}
+                checked={period === p.value}
+                onChange={() => setPeriod(p.value)}
               >
                 {p.label}
-              </button>
+              </SegmentedControlItem>
             ))}
-          </div>
+          </SegmentedControl>
           <p className="text-[13px] text-ink-3 mt-1.5">
             {period === 'week' ? 'Неделя — с понедельника по воскресенье.' : 'Календарный месяц.'} Остаток не переносится на следующий период.
           </p>

@@ -8,6 +8,7 @@ import { useUIStore } from '../../store/uiStore';
 import { formatDateShort, toISODate } from '../../utils/date';
 import { Button } from '../ui/Button';
 import { FormError } from '../ui/Field';
+import { SegmentedControl, SegmentedControlItem } from '@admiral-ds/react-ui';
 import { buildInviteUrl } from './invite';
 
 const ROLES: { value: Role; label: string }[] = [
@@ -68,24 +69,22 @@ export function InvitePanel() {
 
   return (
     <div>
-      <div role="radiogroup" aria-label="Кого приглашаете" className="grid grid-cols-2 gap-1 p-1 rounded-[var(--radius-control)] bg-surface-sunken">
+      <SegmentedControl dimension="m" appearance="filled">
         {ROLES.map((r) => (
-          <button
+          <SegmentedControlItem
             key={r.value}
-            type="button"
-            role="radio"
-            aria-checked={role === r.value}
-            onClick={() => {
+            name="invite-role"
+            value={r.value}
+            checked={role === r.value}
+            onChange={() => {
               setRole(r.value);
               create.reset();
             }}
-            className={`h-10 rounded-[10px] text-sm font-medium transition-colors
-              ${role === r.value ? 'bg-surface text-ink shadow-[var(--shadow-card)]' : 'text-ink-2 hover:text-ink'}`}
           >
             {r.label}
-          </button>
+          </SegmentedControlItem>
         ))}
-      </div>
+      </SegmentedControl>
 
       {link ? (
         <>

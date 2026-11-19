@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { CircleAlert, LoaderCircle } from 'lucide-react';
 import { completeOidc, errorMessage, isStaleOidcState, restartOidc } from '../api/client';
 import { BrandMark } from '../components/layout/AppShell';
 import { Button } from '../components/ui/Button';
+import { Spinner } from '@admiral-ds/react-ui';
+import { ServiceErrorOutline } from '@admiral-ds/icons';
 
 /** cancelled — the person declined at the bank; nothing to explain, the app returns to where it was */
 export type OidcOutcome = 'session' | 'unlinked' | 'linked' | 'failed' | 'cancelled';
@@ -90,7 +91,7 @@ export function AuthCallbackPage({ onDone }: { onDone: (outcome: OidcOutcome) =>
         {error ? (
           <div role="alert">
             <div className="w-12 h-12 mx-auto rounded-full bg-danger-soft text-danger flex items-center justify-center mb-3" aria-hidden>
-              <CircleAlert size={22} />
+              <ServiceErrorOutline width={24} height={24} />
             </div>
             <h1 className="text-xl font-semibold text-ink">Не удалось войти через банк</h1>
             <p className="text-ink-2 mt-2">{error}</p>
@@ -100,7 +101,9 @@ export function AuthCallbackPage({ onDone }: { onDone: (outcome: OidcOutcome) =>
           </div>
         ) : (
           <div aria-busy="true">
-            <LoaderCircle size={28} className="mx-auto animate-spin text-accent-ink" aria-hidden />
+            <div className="flex justify-center">
+              <Spinner dimension="m" />
+            </div>
             <p className="text-ink-2 mt-3">{restarting ? 'Ссылка входа устарела — открываем банк заново…' : 'Завершаем вход через банк…'}</p>
           </div>
         )}

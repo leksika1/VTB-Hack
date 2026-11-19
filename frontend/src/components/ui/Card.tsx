@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
+import { T } from '@admiral-ds/react-ui';
 
-interface CardProps {
+export interface CardProps {
   children: ReactNode;
   className?: string;
   as?: 'section' | 'div';
@@ -18,7 +19,7 @@ export function Card({ children, className = '', as: Tag = 'section', tone = 'de
   );
 }
 
-interface SectionHeaderProps {
+export interface SectionHeaderProps {
   title: string;
   subtitle?: ReactNode;
   action?: ReactNode;
@@ -29,9 +30,9 @@ export function SectionHeader({ title, subtitle, action, id }: SectionHeaderProp
   return (
     <div className="flex items-start justify-between gap-3 mb-3">
       <div className="min-w-0">
-        <h2 id={id} className="text-lg font-semibold text-ink leading-tight">
+        <T font="Header/H4" as="h2" id={id} className="!font-semibold text-ink leading-tight block">
           {title}
-        </h2>
+        </T>
         {subtitle && <p className="text-sm text-ink-2 mt-0.5">{subtitle}</p>}
       </div>
       {action && <div className="shrink-0 -my-1">{action}</div>}
@@ -43,7 +44,9 @@ export function SectionHeader({ title, subtitle, action, id }: SectionHeaderProp
 export function PageHeader({ title, children }: { title: string; children?: ReactNode }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 mb-5">
-      <h1 className="text-2xl sm:text-[28px] font-bold text-ink tracking-tight">{title}</h1>
+      <T font="Header/H2" as="h1" className="!font-bold text-ink tracking-tight block">
+        {title}
+      </T>
       {children}
     </div>
   );

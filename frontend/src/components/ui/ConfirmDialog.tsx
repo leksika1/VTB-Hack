@@ -3,7 +3,7 @@ import { Modal } from './Modal';
 import { Button } from './Button';
 import { FormError } from './Field';
 
-interface ConfirmDialogProps {
+export interface ConfirmDialogProps {
   title: string;
   children: ReactNode;
   confirmLabel: string;
@@ -14,17 +14,26 @@ interface ConfirmDialogProps {
   tone?: 'danger' | 'primary';
 }
 
-export function ConfirmDialog({ title, children, confirmLabel, onConfirm, onCancel, pending, error, tone = 'danger' }: ConfirmDialogProps) {
+export function ConfirmDialog({
+  title,
+  children,
+  confirmLabel,
+  onConfirm,
+  onCancel,
+  pending,
+  error,
+  tone = 'danger',
+}: ConfirmDialogProps) {
   return (
     <Modal
       title={title}
       onClose={onCancel}
       footer={
-        <div className="flex gap-3">
-          <Button variant="secondary" fullWidth onClick={onCancel} disabled={pending}>
+        <div className="flex gap-3 w-full justify-end">
+          <Button variant="secondary" onClick={onCancel} disabled={pending}>
             Отмена
           </Button>
-          <Button variant={tone} fullWidth onClick={onConfirm} loading={pending}>
+          <Button variant={tone} onClick={onConfirm} loading={pending}>
             {confirmLabel}
           </Button>
         </div>

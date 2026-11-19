@@ -10,6 +10,7 @@ import { formatMonthIn, todayISO, toMonthKey } from '../../utils/date';
 import { Modal } from '../ui/Modal';
 import { AmountField, Field, FieldError, FormError } from '../ui/Field';
 import { Button } from '../ui/Button';
+import { CheckboxField } from '@admiral-ds/react-ui';
 import { CategoryPicker } from '../ui/CategoryPicker';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 
@@ -155,22 +156,19 @@ export function PaymentFormModal({ paymentId, prefill, planned }: PaymentFormMod
           {categoryError && <FieldError>{categoryError}</FieldError>}
         </div>
         {!planned && (
-          <label className="flex items-start gap-3 p-3.5 rounded-xl bg-surface-muted border border-line cursor-pointer">
-            <input
-              type="checkbox"
+          <div className="p-3.5 rounded-xl bg-surface-muted border border-line">
+            <CheckboxField
               checked={recurring}
               onChange={(e) => setRecurring(e.target.checked)}
-              className="mt-0.5 w-5 h-5 accent-[var(--accent)] shrink-0"
-            />
-            <span>
-              <span className="block font-medium text-ink">Повторять каждый месяц</span>
-              <span className="block text-sm text-ink-2">
-                {existing?.recurring && !recurring
+              extraText={
+                existing?.recurring && !recurring
                   ? 'Новые платежи перестанут появляться. Уже созданные останутся — их можно удалить отдельно.'
-                  : 'Аренда, ипотека, садик, связь. Платёж сам появится в следующем месяце с тем же днём и суммой.'}
-              </span>
-            </span>
-          </label>
+                  : 'Аренда, ипотека, садик, связь. Платёж сам появится в следующем месяце с тем же днём и суммой.'
+              }
+            >
+              <span className="font-medium text-ink">Повторять каждый месяц</span>
+            </CheckboxField>
+          </div>
         )}
         {save.error && !save.errorField && <FormError>{save.error}</FormError>}
       </form>
