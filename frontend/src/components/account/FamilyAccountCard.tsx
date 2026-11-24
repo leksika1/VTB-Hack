@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Accordion, AccordionItem, T } from '@admiral-ds/react-ui';
+import { T } from '@admiral-ds/react-ui';
 import { computeFamilyAccount } from '../../domain/familyAccount';
 import { useDataStore } from '../../store/dataStore';
 import { useFamilyStore } from '../../store/familyStore';
@@ -9,6 +9,7 @@ import { formatDateShort, formatMonthIn, toMonthKey } from '../../utils/date';
 import { AmountRow, Avatar } from '../ui/Misc';
 import { Button, IconButton } from '../ui/Button';
 import { Card } from '../ui/Card';
+import { Disclosure } from '../ui/Disclosure';
 import { Calendar, Eye, Plus, Receipt } from '../ui/icons';
 
 export function FamilyAccountCard() {
@@ -83,40 +84,38 @@ export function FamilyAccountCard() {
             Из покупок или выписки
           </Button>
         </div>
-        <Accordion className="animated-accordion mt-3 select-none" hideTopDivider hideBottomDivider>
-          <AccordionItem title="Взносы и доли" contentMaxHeight="none" className="rounded-control">
-            <ul className="space-y-2 pt-3">
-              {family?.members.map((member) => {
-                const info = account.members.get(member.id);
-                return (
-                  <li key={member.id} className="flex items-center gap-3 rounded-control bg-surface-muted px-3 py-2">
-                    <Avatar user={member} />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap justify-between gap-2">
-                        <p className="font-medium wrap-anywhere">{member.name}</p>
-                        {member.role !== 'child' && <p className="font-medium tabular">{amountsVisible ? formatSigned(info?.balance ?? 0) : 'Скрыто'}</p>}
-                      </div>
-                      {member.role === 'child' ? <p className="text-sm text-ink-2">Не участвует в делении</p> : amountsVisible && (
-                        <p className="text-sm text-ink-2">Внесено {formatCurrency(info?.contributed ?? 0)}, доля {formatCurrency(info?.share ?? 0)}
-                          {!!info?.paidPersonally && `, оплачено лично ${formatCurrency(info.paidPersonally)}`}
-                        </p>
-                      )}
+        <Disclosure title="Взносы и доли" className="mt-3 select-none">
+          <ul className="space-y-2 pt-3">
+            {family?.members.map((member) => {
+              const info = account.members.get(member.id);
+              return (
+                <li key={member.id} className="flex items-center gap-3 rounded-control bg-surface-muted px-3 py-2">
+                  <Avatar user={member} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap justify-between gap-2">
+                      <p className="font-medium wrap-anywhere">{member.name}</p>
+                      {member.role !== 'child' && <p className="font-medium tabular">{amountsVisible ? formatSigned(info?.balance ?? 0) : 'Скрыто'}</p>}
                     </div>
-                  </li>
-                );
-              })}
-            </ul>
-            {amountsVisible && recent.length > 0 && (
-              <div className="mt-4">
-                <T as="h3" font="Subtitle/Subtitle 2">Пополнения за месяц</T>
-                {recent.map((item) => (
-                  <AmountRow key={item.id} label={family?.members.find((member) => member.id === item.memberId)?.name ?? 'Участник'}
-                    value={formatSigned(item.amount)} hint={formatDateShort(item.date)} />
-                ))}
-              </div>
-            )}
-          </AccordionItem>
-        </Accordion>
+                    {member.role === 'child' ? <p className="text-sm text-ink-2">Не участвует в делении</p> : amountsVisible && (
+                      <p className="text-sm text-ink-2">Внесено {formatCurrency(info?.contributed ?? 0)}, доля {formatCurrency(info?.share ?? 0)}
+                        {!!info?.paidPersonally && `, оплачено лично ${formatCurrency(info.paidPersonally)}`}
+                      </p>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          {amountsVisible && recent.length > 0 && (
+            <div className="mt-4">
+              <T as="h3" font="Subtitle/Subtitle 2">Пополнения за месяц</T>
+              {recent.map((item) => (
+                <AmountRow key={item.id} label={family?.members.find((member) => member.id === item.memberId)?.name ?? 'Участник'}
+                  value={formatSigned(item.amount)} hint={formatDateShort(item.date)} />
+              ))}
+            </div>
+          )}
+        </Disclosure>
       </div>
     </Card>
   );

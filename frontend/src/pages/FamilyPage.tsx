@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Verified, Bell, Check, Eye, Bank, LogOut, Edit, Deposit, ShieldCheck, Star, PersonAdd, Users, CloseIcon } from '../components/ui/icons';
-import { Accordion, AccordionItem, RadioButton, T, Toggle } from '@admiral-ds/react-ui';
+import { RadioButton, T, Toggle } from '@admiral-ds/react-ui';
 import type { AppNotification, Me, User } from '../types';
 import {
   approveMember,
@@ -32,6 +32,7 @@ import { ChoiceChip } from '../components/ui/ChoiceChip';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { ErrorState, Skeleton } from '../components/ui/Feedback';
 import { Presence } from '../components/ui/Presence';
+import { Disclosure } from '../components/ui/Disclosure';
 
 export function FamilyPage() {
   const family = useFamilyStore((s) => s.family);
@@ -88,40 +89,38 @@ export function FamilyPage() {
         <div className="space-y-5 min-w-0">
           <EventsCard />
           <Card className="px-5 py-2">
-            <Accordion className="animated-accordion" dimension="m" hideTopDivider hideBottomDivider>
-              <AccordionItem title="Доступ к семейному бюджету" contentMaxHeight="none">
-            <div className="pt-4">
-              <ul className="space-y-3.5 text-[15px]">
-                <Rule icon={<Eye size={18} />}>
-                  Участники видят только общие расходы и платежи, которые внесли сюда. Личные счета и покупки вне приложения не видны.
-                </Rule>
-                <Rule icon={<Edit size={18} />}>
-                  Бюджет месяца, обязательные платежи и расходы — общие: любой взрослый может их исправить, например указать, кто платил.
-                  Ребёнок меняет только свои траты.
-                </Rule>
-                <Rule icon={<PersonAdd size={18} />}>
-                  По ссылке-приглашению входят сразу. Вошедший по коду семьи видит данные только после подтверждения взрослым.
-                </Rule>
-                <Rule icon={<ShieldCheck size={18} />}>
-                  Права проверяются на сервере: скрытая кнопка не даёт доступа к чужим данным.
-                </Rule>
-              </ul>
-              {isParent && !family.isDemo && (
-                <Button className="mt-5" variant="secondary" icon={<PersonAdd size={16} />} onClick={() => openModal({ type: 'invite' })}>
-                  Пригласить участника
-                </Button>
-              )}
-            </div>
-              </AccordionItem>
-              <AccordionItem title="Настройки профиля" contentMaxHeight="none">
-            <div className="mt-4 space-y-4">
-              {!family.isDemo && <VtbIdCard />}
-              <AppearanceCard />
-              <DemoCard />
-              <LeaveCard />
-            </div>
-              </AccordionItem>
-            </Accordion>
+            <Disclosure title="Доступ к семейному бюджету">
+              <div className="pt-4">
+                <ul className="space-y-3.5 text-[15px]">
+                  <Rule icon={<Eye size={18} />}>
+                    Участники видят только общие расходы и платежи, которые внесли сюда. Личные счета и покупки вне приложения не видны.
+                  </Rule>
+                  <Rule icon={<Edit size={18} />}>
+                    Бюджет месяца, обязательные платежи и расходы — общие: любой взрослый может их исправить, например указать, кто платил.
+                    Ребёнок меняет только свои траты.
+                  </Rule>
+                  <Rule icon={<PersonAdd size={18} />}>
+                    По ссылке-приглашению входят сразу. Вошедший по коду семьи видит данные только после подтверждения взрослым.
+                  </Rule>
+                  <Rule icon={<ShieldCheck size={18} />}>
+                    Права проверяются на сервере: скрытая кнопка не даёт доступа к чужим данным.
+                  </Rule>
+                </ul>
+                {isParent && !family.isDemo && (
+                  <Button className="mt-5" variant="secondary" icon={<PersonAdd size={16} />} onClick={() => openModal({ type: 'invite' })}>
+                    Пригласить участника
+                  </Button>
+                )}
+              </div>
+            </Disclosure>
+            <Disclosure title="Настройки профиля" className="mt-1">
+              <div className="mt-4 space-y-4">
+                {!family.isDemo && <VtbIdCard />}
+                <AppearanceCard />
+                <DemoCard />
+                <LeaveCard />
+              </div>
+            </Disclosure>
           </Card>
         </div>
       </div>

@@ -72,16 +72,18 @@ function MonthCalendar({ month }: { month: string }) {
             </p>
           )}
         </div>
-        {paymentsOnDay.length > 0 && <PaymentList payments={paymentsOnDay} />}
-        {expensesOnDay.length > 0 && (
-          <>
-            <T as="h3" font="Subtitle/Subtitle 2">Расходы на {formatCurrency(expensesOnDay.reduce((sum, item) => sum + item.amount, 0))}</T>
-            <ExpenseList expenses={expensesOnDay} />
-          </>
-        )}
-        {!paymentsOnDay.length && !expensesOnDay.length && (
-          <T as="p" font="Body/Body 2 Short" color="Neutral/Neutral 70">На этот день нет платежей и расходов</T>
-        )}
+        <div key={selected} className="animate-fade-in space-y-4">
+          {paymentsOnDay.length > 0 && <PaymentList payments={paymentsOnDay} />}
+          {expensesOnDay.length > 0 && (
+            <>
+              <T as="h3" font="Subtitle/Subtitle 2">Расходы на {formatCurrency(expensesOnDay.reduce((sum, item) => sum + item.amount, 0))}</T>
+              <ExpenseList expenses={expensesOnDay} />
+            </>
+          )}
+          {!paymentsOnDay.length && !expensesOnDay.length && (
+            <T as="p" font="Body/Body 2 Short" color="Neutral/Neutral 70">На этот день нет платежей и расходов</T>
+          )}
+        </div>
       </Card>
     </div>
   );

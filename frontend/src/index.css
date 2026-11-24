@@ -3,13 +3,16 @@
 /* Domain names used by budget views map to the active Admiral theme in main.tsx. */
 :root {
   color-scheme: light;
-  --bg: #eef2fa;
-  --nav: #101c38;
-  --nav-ink-muted: #d1dbf3;
-  --nav-hover: #233356;
-  --nav-active: #285ac7;
+  --bg: var(--admiral-color-Neutral_Neutral05);
   --surface: var(--admiral-color-Neutral_Neutral00);
-  --surface-muted: #f1f4fa;
+  --surface-muted: var(--admiral-color-Neutral_Neutral05);
+  --nav-ink: #565e6b;
+  --nav-hover: #f1f5fc;
+  --nav-active: #e6f0ff;
+  --nav-active-ink: #064ebd;
+  --hero-gradient: radial-gradient(ellipse at 100% 0%, #a455db80, transparent 55%),
+    radial-gradient(ellipse at 0% 108%, #258ee995, transparent 66%),
+    linear-gradient(145deg, #164fcc, #1558db 55%, #225ec5);
   --surface-sunken: var(--admiral-color-Neutral_Neutral10);
   --ink: var(--admiral-color-Neutral_Neutral90);
   --ink-2: var(--admiral-color-Neutral_Neutral70);
@@ -31,30 +34,38 @@
   --danger: var(--admiral-color-Error_Error70);
   --danger-soft: var(--admiral-color-Error_Error10);
   --track: var(--admiral-color-Neutral_Neutral20);
-  --cat-food: var(--admiral-color-Primary_Primary60Main);
-  --cat-food-ink: var(--admiral-color-Primary_Primary70);
-  --cat-food-soft: var(--admiral-color-Primary_Primary10);
-  --cat-housing: var(--admiral-color-Warning_Warning50Main);
-  --cat-housing-ink: var(--admiral-color-Warning_Warning70);
-  --cat-housing-soft: var(--admiral-color-Warning_Warning10);
-  --cat-transport: var(--admiral-color-Teal_Teal60Main);
-  --cat-transport-ink: var(--admiral-color-Teal_Teal70);
-  --cat-transport-soft: var(--admiral-color-Teal_Teal10);
-  --cat-kids: var(--admiral-color-Purple_Purple60Main);
-  --cat-kids-ink: var(--admiral-color-Purple_Purple70);
-  --cat-kids-soft: var(--admiral-color-Purple_Purple10);
-  --cat-other: var(--admiral-color-Magenta_Magenta60Main);
-  --cat-other-ink: var(--admiral-color-Magenta_Magenta70);
-  --cat-other-soft: var(--admiral-color-Magenta_Magenta10);
+  --cat-food: #2549b2;
+  --cat-housing: #4e73cd;
+  --cat-transport: #197eae;
+  --cat-kids: #6b54c5;
+  --cat-other: #6a7687;
+  --cat-food-ink: var(--cat-food);
+  --cat-housing-ink: var(--cat-housing);
+  --cat-transport-ink: var(--cat-transport);
+  --cat-kids-ink: var(--cat-kids);
+  --cat-other-ink: var(--cat-other);
+  --cat-food-soft: color-mix(in srgb, var(--cat-food) 12%, var(--surface));
+  --cat-housing-soft: color-mix(in srgb, var(--cat-housing) 12%, var(--surface));
+  --cat-transport-soft: color-mix(in srgb, var(--cat-transport) 12%, var(--surface));
+  --cat-kids-soft: color-mix(in srgb, var(--cat-kids) 12%, var(--surface));
+  --cat-other-soft: color-mix(in srgb, var(--cat-other) 12%, var(--surface));
   --shadow-pop: 0 4px 18px var(--admiral-color-Opacity_Neutral16);
 }
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --bg: #111626;
-  --nav: #202c49;
-  --nav-hover: #2c3c61;
-  --surface: #1b2337;
-  --surface-muted: #26304a;
+  --surface-muted: var(--admiral-color-Neutral_Neutral10);
+  --nav-ink: #b2bac7;
+  --nav-hover: #242b39;
+  --nav-active: #203456;
+  --nav-active-ink: #b1ccff;
+  --hero-gradient: radial-gradient(ellipse at 100% 0%, #8b47be72, transparent 56%),
+    radial-gradient(ellipse at 0% 100%, #1871bf80, transparent 68%),
+    linear-gradient(145deg, #1a408f, #2349a5 58%, #263e7c);
+  --cat-food: #7fa5ff;
+  --cat-housing: #6987dc;
+  --cat-transport: #56b9da;
+  --cat-kids: #af98f8;
+  --cat-other: #a0aec4;
   --accent-soft: var(--admiral-color-Primary_Primary20);
   --warning-soft: var(--admiral-color-Warning_Warning20);
   --danger-soft: var(--admiral-color-Error_Error20);
@@ -179,8 +190,8 @@ input[type='number']::-webkit-inner-spin-button {
   --ease-in-out: cubic-bezier(0.42, 0, 0.58, 1);
   --dur-exit: 200ms;
   --dur-carousel: 700ms;
-  --dur-month: 550ms;
-  --dur-tab: 600ms;
+  --dur-month: 400ms;
+  --dur-tab: 300ms;
   --dur-theme: 450ms;
 }
 
@@ -216,12 +227,10 @@ input[type='number']::-webkit-inner-spin-button {
 
 /*
  * The one brand-coloured block per page. Re-points the colour tokens for its subtree,
- * so text, lines, progress tracks, badges and charts inside turn light-on-navy by themselves.
+ * so text, lines, badges and charts keep sufficient contrast on the gradient.
  */
 .brand-surface {
-  background: radial-gradient(ellipse at 95% 0%, #3777ec 0%, transparent 58%),
-    radial-gradient(ellipse at 0% 100%, #1b4fc6 0%, transparent 63%),
-    linear-gradient(135deg, #143698, #132275 63%, #101c49);
+  background: var(--hero-gradient);
   color: var(--brand-ink);
   --ink: var(--brand-ink);
   --ink-2: #e2ebff;
@@ -247,24 +256,6 @@ input[type='number']::-webkit-inner-spin-button {
 .collapsible > * {
   overflow: hidden;
   min-height: 0;
-}
-
-/* Admiral's default max-height cannot interpolate to none. */
-.animated-accordion .accordion-item > [aria-controls] + div {
-  display: grid;
-  grid-template-rows: 0fr;
-  max-height: none;
-  transition: grid-template-rows 250ms var(--ease-out), visibility 250ms;
-}
-
-.animated-accordion .accordion-item > [aria-expanded='true'] + div {
-  grid-template-rows: 1fr;
-}
-
-.animated-accordion .accordion-item > [aria-controls] + div > [role='region'] {
-  min-height: 0;
-  padding-block: 0;
-  overflow: hidden;
 }
 
 .request-collapse {
@@ -300,16 +291,15 @@ input[type='number']::-webkit-inner-spin-button {
 .welcome {
   min-height: 100dvh;
   padding: 0 clamp(16px, 5vw, 72px) 40px;
-  background: radial-gradient(ellipse at 10% 0%, #285dc0, transparent 56%),
-    linear-gradient(145deg, #1a3994, #111d52);
+  background: var(--bg);
 }
 .welcome-brand, .welcome-layout { max-width: 1120px; margin-inline: auto; }
-.welcome-brand { display: flex; align-items: center; gap: 12px; padding-block: 28px; color: white; font-size: 21px; font-weight: 600; }
+.welcome-brand { display: flex; align-items: center; gap: 12px; padding-block: 28px; color: var(--ink); font-size: 21px; font-weight: 600; }
 .welcome-layout { margin-top: clamp(24px, 6vh, 76px); display: grid; grid-template-columns: 1.24fr 1fr; gap: 16px; }
 .welcome-story, .welcome-panel { border-radius: var(--radius-card); min-width: 0; padding: clamp(28px, 4vw, 64px); }
 .welcome-story {
   color: var(--brand-ink);
-  padding-inline: clamp(8px, 3dvw, 44px);
+  background: var(--hero-gradient);
 }
 .welcome-goal {
   margin-top: 28px;
@@ -318,7 +308,7 @@ input[type='number']::-webkit-inner-spin-button {
   color: var(--ink);
   border-radius: var(--radius-card);
   padding: 20px 24px 24px;
-  box-shadow: 0 22px 44px -22px #050d36;
+  box-shadow: 0 14px 26px -20px #0b318f80;
 }
 .welcome-goal-heading { display: flex; align-items: center; gap: 12px; }
 .welcome-goal-icon { display: grid; place-items: center; border-radius: var(--radius-control); width: 46px; height: 46px; color: var(--accent-ink); background: var(--accent-soft); }
@@ -328,7 +318,7 @@ input[type='number']::-webkit-inner-spin-button {
   .welcome { padding-inline: 12px; }
   .welcome-brand { padding: 16px 4px; }
   .welcome-layout { margin-top: 0; grid-template-columns: minmax(0, 1fr); gap: 12px; }
-  .welcome-story { padding: 10px 8px 14px; }
+  .welcome-story { padding: 22px; }
   .welcome-panel { padding: 22px; }
   .welcome-goal { margin-top: 18px; padding: 14px 16px; }
   .welcome:has(form) .welcome-story { display: none; }
@@ -357,28 +347,34 @@ input[type='number']::-webkit-inner-spin-button {
   margin-inline: auto;
   padding: 4px;
   border-radius: 999px;
-  background: var(--nav);
+  background: var(--surface);
   --admiral-color-Primary_Primary60Main: transparent;
 }
 
 .section-tabs {
-  --admiral-color-Neutral_Neutral90: white;
-  --admiral-color-Neutral_Neutral50: var(--nav-ink-muted);
+  --admiral-color-Neutral_Neutral90: var(--nav-active-ink);
+  --admiral-color-Neutral_Neutral50: var(--nav-ink);
+}
+
+.section-tabs [data-nav-count] {
+  --admiral-color-Primary_Primary60Main: var(--accent);
 }
 
 @media (max-width: 1023px) {
   .section-navigation {
     position: fixed;
-    inset-inline: 12px;
-    bottom: max(12px, env(safe-area-inset-bottom));
-    max-width: 480px;
-    box-shadow: 0 12px 30px -12px #091532a6;
+    inset-inline: 0;
+    bottom: 0;
+    padding: 4px 12px max(4px, env(safe-area-inset-bottom));
+    border-radius: 0;
+    box-shadow: 0 -5px 20px -12px var(--admiral-color-Opacity_Neutral16);
   }
 }
 
 .account-hero {
   padding: clamp(18px, 3vw, 30px);
-  border-radius: var(--radius-card);
+  padding-bottom: clamp(34px, 4vw, 48px);
+  border-radius: var(--radius-card) var(--radius-card) 0 0;
 }
 
 .account-tag {
@@ -436,7 +432,11 @@ input[type='number']::-webkit-inner-spin-button {
 }
 
 .account-tools {
+  position: relative;
+  margin-top: -18px;
   padding: 12px clamp(12px, 2vw, 20px) 8px;
+  border-radius: var(--radius-card);
+  background: var(--surface);
 }
 
 .account-actions {
@@ -454,6 +454,12 @@ input[type='number']::-webkit-inner-spin-button {
   text-align: center;
   font-size: 13px;
   line-height: 1.2;
+  --admiral-color-Opacity_Neutral8: var(--surface-muted);
+  --admiral-color-Opacity_Neutral12: var(--nav-hover);
+}
+
+.account-actions .admiral-glyph {
+  color: var(--nav-active-ink);
 }
 
 .account-actions button > div:first-child {

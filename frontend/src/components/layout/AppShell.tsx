@@ -96,22 +96,22 @@ const SectionTab = styled(HorizontalTab)`
     height: 44px;
     padding-inline: 12px;
     border-radius: 999px;
-    color: var(--nav-ink-muted);
+    color: var(--nav-ink);
     transition: background-color 180ms ease, color 180ms ease;
   }
 
   &&:hover {
     background: var(--nav-hover);
-    color: white;
+    color: var(--nav-active-ink);
   }
 
   &&[aria-selected='true'] {
     background: var(--nav-active);
-    color: white;
+    color: var(--nav-active-ink);
   }
 
   &&:focus-visible {
-    outline: 2px solid white;
+    outline: 2px solid var(--focus);
     outline-offset: -2px;
   }
 
@@ -119,7 +119,7 @@ const SectionTab = styled(HorizontalTab)`
     && {
       height: 52px;
       padding-inline: 2px;
-      border-radius: 22px;
+      border-radius: 16px;
     }
   }
 `;
@@ -136,7 +136,7 @@ function SectionNavigation({ nav, tab, onSelect, unread, unreadLabel }: SectionN
   return (
     <nav aria-label="Разделы" className="section-navigation">
       <HorizontalTabs
-        className="section-tabs"
+        className="section-tabs mx-auto max-w-lg lg:max-w-none"
         role="tablist"
         aria-label="Разделы приложения"
         dimension="m"
@@ -157,7 +157,7 @@ function SectionNavigation({ nav, tab, onSelect, unread, unreadLabel }: SectionN
                 {item.label}
               </span>
               {id === 'family' && unread > 0 && (
-                <AdmiralBadge className="max-lg:absolute max-lg:right-0 max-lg:top-1" appearance="info" dimension="s" aria-hidden>
+                <AdmiralBadge data-nav-count="" className="max-lg:absolute max-lg:right-0 max-lg:top-1" appearance="info" dimension="s" aria-hidden>
                   {unread > 99 ? '99+' : unread}
                 </AdmiralBadge>
               )}
