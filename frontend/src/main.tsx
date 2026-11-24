@@ -10,7 +10,7 @@ import App from './App';
 import { useUIStore } from './store/uiStore';
 import { applyTheme, useMediaQuery } from './utils/theme';
 
-const shape: Theme['shape'] = { borderRadiusKind: 'Border radius 8' };
+const shape: Theme['shape'] = { borderRadiusKind: 'Border radius 10' };
 const themes = {
   light: { ...LIGHT_THEME, shape },
   dark: { ...DARK_THEME, shape },

@@ -40,7 +40,7 @@ export function PlanPage() {
                     </Button>
                   }
                 />
-                <div className="plan-balance">
+                <div className="plan-balance brand-surface">
                   <p className="text-sm text-ink-2">Общий план</p>
                   <p className="balance-number">{formatCurrency(summary.plan)}</p>
                   <div className="mt-4 grid gap-2 sm:grid-cols-3">

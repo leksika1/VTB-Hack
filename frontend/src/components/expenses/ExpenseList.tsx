@@ -49,7 +49,7 @@ export function ExpenseRow({ expense, showDate }: { expense: Expense; showDate?:
 /** Flat list (for short «последние операции») */
 export function ExpenseList({ expenses, showDate }: { expenses: Expense[]; showDate?: boolean }) {
   return (
-    <ul className="space-y-1">
+    <ul className="divide-y divide-line">
       {expenses.map((e) => (
         <ExpenseRow key={e.id} expense={e} showDate={showDate} />
       ))}
@@ -73,7 +73,7 @@ export function ExpenseDayGroups({ expenses }: { expenses: Expense[] }) {
     <div className="space-y-5">
       {groups.map(([date, items]) => (
         <section key={date} aria-label={formatDayHeading(date)}>
-          <div className="flex items-baseline justify-between gap-3 mb-1 rounded-lg bg-surface-muted px-3 py-2">
+          <div className="flex items-baseline justify-between gap-3 mb-1 rounded-control bg-surface-muted px-3 py-2.5">
             <h3 className="text-sm font-semibold text-ink-2">{formatDayHeading(date)}</h3>
             <span className="text-sm text-ink-3 tabular">−{formatCurrency(items.reduce((s, e) => s + e.amount, 0))}</span>
           </div>

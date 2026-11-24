@@ -16,9 +16,9 @@ export function CategoryRow({ category: c }: { category: CategorySummary }) {
       <div className="flex items-center gap-3">
         <CategoryIcon category={c.key} />
         <div className="flex-1 min-w-0">
-          <div className="flex items-baseline justify-between gap-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
             <span className="font-medium text-ink">{cfg.label}</span>
-            <span className="text-sm text-ink-2 tabular whitespace-nowrap">
+            <span className="text-sm text-ink-2 tabular">
               {formatCurrency(c.spent)}
               {c.plan > 0 && <> из {formatCurrency(c.plan)}</>}
             </span>

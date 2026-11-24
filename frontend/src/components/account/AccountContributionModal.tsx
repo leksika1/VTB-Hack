@@ -5,6 +5,7 @@ import { useUIStore } from '../../store/uiStore';
 import { amountToInput, formatCurrency, parseAmount, validateAmount } from '../../utils/currency';
 import { Button } from '../ui/Button';
 import { AmountField, FormError } from '../ui/Field';
+import { Deposit } from '../ui/icons';
 import { Modal } from '../ui/Modal';
 
 export function AccountContributionModal({ amount }: { amount: number }) {
@@ -32,6 +33,15 @@ export function AccountContributionModal({ amount }: { amount: number }) {
       description="Пополнение в демо записывается в семейный бюджет. Банковское списание не выполняется."
       footer={<Button type="submit" form="account-contribution" loading={request.pending} fullWidth>Записать пополнение</Button>}>
       <form id="account-contribution" className="space-y-4" onSubmit={submit} noValidate>
+        <div className="flex items-center gap-3 rounded-control bg-surface-muted p-3">
+          <span className="grid size-10 shrink-0 place-items-center rounded-full bg-accent-soft text-accent-ink">
+            <Deposit />
+          </span>
+          <div>
+            <p className="text-xs text-ink-2">Куда</p>
+            <p className="font-medium">Общий демо-счёт</p>
+          </div>
+        </div>
         <AmountField label="Сумма" value={input} data-autofocus emphasis
           onChange={(event) => setInput(event.target.value)}
           error={submitted ? validateAmount(input) : null} />

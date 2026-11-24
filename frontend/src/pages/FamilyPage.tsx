@@ -47,13 +47,13 @@ export function FamilyPage() {
 
       <div className="grid gap-5 lg:grid-cols-2 items-start">
         <div className="space-y-5 min-w-0">
-          <Card className="p-5 sm:p-6">
+          <Card tone="brand" className="p-5 sm:p-6">
             <div className="flex items-center gap-4 mb-5">
               <span className="w-12 h-12 rounded-full bg-accent-soft text-accent-ink flex items-center justify-center shrink-0" aria-hidden>
                 <Users size={22} />
               </span>
               <div className="min-w-0">
-                <T as="h2" font="Header/H4" className="break-words">{family.name}</T>
+                <T as="h2" font="Header/H4" color="Special/Static White" className="break-words">{family.name}</T>
                 <p className="text-ink-2">
                   {family.members.length} {plural(family.members.length, 'участник', 'участника', 'участников')}
                 </p>
@@ -61,7 +61,7 @@ export function FamilyPage() {
             </div>
             <ul className="member-grid">
               {family.members.map((m) => (
-                <li key={m.id} className="flex min-w-0 items-center gap-2 rounded-xl bg-surface-muted px-3 py-3">
+                <li key={m.id} className="flex min-w-0 items-center gap-2 family-member-tile">
                   <Avatar user={m} />
                   <span className="flex-1 min-w-0 font-medium text-ink truncate">{m.name}</span>
                   {m.role === 'child' && <Badge>Ребёнок</Badge>}

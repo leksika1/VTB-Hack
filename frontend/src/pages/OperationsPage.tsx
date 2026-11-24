@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
-import { Download, Plus, Receipt, Search, Tune, CloseIcon } from '../components/ui/icons';
+import { ArrowLeft, ArrowRight, Download, Plus, Receipt, Search, Tune, CloseIcon } from '../components/ui/icons';
 import type { ExpenseCategory } from '../types';
 import { useMonthSummary } from '../hooks/useMonthSummary';
 import { useMonthChanged } from '../hooks/useMonthChanged';
 import { useUIStore } from '../store/uiStore';
-import { useFamilyStore } from '../store/familyStore';
+import { useFamilyStore, useIsParent } from '../store/familyStore';
+import { useDataStore } from '../store/dataStore';
 import { ALL_CATEGORIES, CATEGORIES } from '../utils/categories';
 import { formatCurrency } from '../utils/currency';
 import { formatMonthLower, plural } from '../utils/date';
@@ -25,7 +26,10 @@ export function OperationsPage() {
   const addToast = useUIStore((s) => s.addToast);
   const family = useFamilyStore((s) => s.family);
   const currentUserId = useFamilyStore((s) => s.currentUserId);
-  const { expenses } = useMonthSummary();
+  const { expenses, spent } = useMonthSummary();
+  const isParent = useIsParent();
+  const contributions = useDataStore((s) => s.accountContributions);
+  const contributed = contributions.reduce((sum, item) => item.date.startsWith(monthKey) ? sum + item.amount : sum, 0);
   const monthIn = useMonthChanged() ? 'animate-month-in' : '';
 
   const [query, setQuery] = useState('');
@@ -101,11 +105,24 @@ export function OperationsPage() {
         </div>
       </PageHeader>
 
-      <Card className="p-5 sm:p-6">
-        <div className="mb-5">
-          <h2 className="text-sm font-medium text-ink-2">{hasRestrictions ? 'Расходы по фильтру' : 'Расходы за месяц'}</h2>
-          <p className="balance-number">{formatCurrency(total)}</p>
-        </div>
+      <Card tone="brand" className="mb-4 p-5 sm:p-6">
+        <h2 className="text-sm font-medium text-ink-2">{hasRestrictions ? 'Расходы по фильтру' : 'Расходы за месяц'}</h2>
+        <p className="balance-number mt-1">{formatCurrency(total)}</p>
+        {isParent && (
+          <dl className="account-metrics !grid-cols-2">
+            <div>
+              <dt className="flex items-center gap-1.5"><ArrowLeft size={15} /> Пополнения счёта</dt>
+              <dd>{formatCurrency(contributed)}</dd>
+            </div>
+            <div>
+              <dt className="flex items-center gap-1.5"><ArrowRight size={15} /> Все расходы месяца</dt>
+              <dd>{formatCurrency(spent)}</dd>
+            </div>
+          </dl>
+        )}
+      </Card>
+
+      <Card className="p-4 sm:p-5">
         <div className="flex gap-2.5">
           <div className="min-w-0 flex-1 input-soft-border">
             <TextInput

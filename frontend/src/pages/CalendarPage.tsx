@@ -30,7 +30,7 @@ function MonthCalendar({ month }: { month: string }) {
   const paymentsOnDay = payments.filter((item) => item.dueDate === selected);
   const expensesOnDay = summary.expenses.filter((item) => item.date === selected && !item.paymentId);
   const daysWithPayments = new Set(payments.map((item) => item.dueDate));
-  const daysWithExpenses = new Set(summary.expenses.map((item) => item.date));
+  const daysWithExpenses = new Set(summary.expenses.filter((item) => !item.paymentId).map((item) => item.date));
   const [year, monthNumber] = month.split('-').map(Number);
   const days = new Date(year, monthNumber, 0).getDate();
   const offset = (new Date(year, monthNumber - 1, 1).getDay() + 6) % 7;
@@ -47,18 +47,31 @@ function MonthCalendar({ month }: { month: string }) {
             const hasPayment = daysWithPayments.has(date);
             const hasExpense = daysWithExpenses.has(date);
             return (
-              <Button key={date} variant={date === selected ? 'primary' : hasPayment ? 'secondary' : 'ghost'}
-                size="sm" className="!px-0" aria-pressed={date === selected}
+              <Button key={date} variant={date === selected ? 'primary' : 'secondary'}
+                size="sm" className="calendar-day !px-0" aria-pressed={date === selected} aria-current={date === today ? 'date' : undefined}
                 aria-label={`${formatDateShort(date)}${hasPayment ? ', есть платежи' : ''}${hasExpense ? ', есть расходы' : ''}`}
                 onClick={() => setSelected(date)}>
-                {day}
+                <span className="grid place-items-center gap-0.5">
+                  <span>{day}</span>
+                  <span className="flex h-0.5 gap-0.5" aria-hidden>
+                    {hasPayment && <span className="calendar-payment h-full w-2 rounded-full" />}
+                    {hasExpense && <span className="calendar-expense h-full w-2 rounded-full" />}
+                  </span>
+                </span>
               </Button>
             );
           })}
         </div>
       </Card>
       <Card className="min-w-0 space-y-4 p-5">
-        <T as="h2" font="Header/H5">{formatDateShort(selected)}</T>
+        <div className="rounded-control bg-surface-muted p-4" aria-live="polite">
+          <T as="h2" font="Header/H5">{formatDateShort(selected)}</T>
+          {paymentsOnDay.length > 0 && (
+            <p className="pt-1 text-sm text-ink-2">
+              Платежи на {formatCurrency(paymentsOnDay.reduce((sum, item) => sum + item.amount, 0))}
+            </p>
+          )}
+        </div>
         {paymentsOnDay.length > 0 && <PaymentList payments={paymentsOnDay} />}
         {expensesOnDay.length > 0 && (
           <>

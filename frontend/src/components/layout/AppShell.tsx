@@ -20,7 +20,7 @@ const NAV: { tab: Tab; label: string; icon: typeof Users }[] = [
 export function BrandMark({ size = 36 }: { size?: number }) {
   return (
     <span
-      className="inline-flex items-center justify-center rounded-[10px] bg-brand shrink-0"
+      className="inline-flex items-center justify-center rounded-[14px] bg-brand shrink-0"
       style={{ width: size, height: size }}
       aria-hidden
     >
@@ -49,9 +49,9 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-dvh">
-      <header className="sticky top-0 z-30 bg-surface">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 h-16 lg:h-20 flex items-center gap-4">
-          <div className="flex items-center gap-3 min-w-0 flex-1 lg:flex-none lg:w-48">
+      <header className="sticky top-0 z-30 app-header">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 h-16 lg:h-20 flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0 flex-1 lg:flex-[1_1_13rem]">
             <BrandMark />
             <div className="min-w-0 leading-tight">
               <T as="div" font="Caption/Caption 1" color="Neutral/Neutral 70">Общий план</T>
@@ -63,7 +63,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
           <SectionNavigation nav={nav} tab={tab} onSelect={setTab} unread={unread} unreadLabel={unreadLabel} />
           {/* Demo data looks real, so the mark stays on every screen size */}
-          {family?.isDemo && <span className="shrink-0 relative sm:left-3"><Badge tone="warning">Демо</Badge></span>}
+          {family?.isDemo && <span className="shrink-0"><Badge tone="warning">Демо</Badge></span>}
 
           {user && (
             <Button
@@ -82,7 +82,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 sm:px-6 pt-5 sm:pt-9 pb-[calc(6.5rem+env(safe-area-inset-bottom))] lg:pb-12">
+      <main className="mx-auto max-w-7xl px-4 sm:px-6 pt-5 sm:pt-8 pb-[calc(6.5rem+env(safe-area-inset-bottom))] lg:pb-12">
         <div id="section-content" role="tabpanel" aria-labelledby={`section-${tab}`}>{children}</div>
       </main>
 
@@ -91,14 +91,36 @@ export function AppShell({ children }: { children: ReactNode }) {
 }
 
 const SectionTab = styled(HorizontalTab)`
-  &,
-  &:focus-visible {
-    border-radius: var(--radius-control);
+  && {
+    min-width: 0;
+    height: 44px;
+    padding-inline: 12px;
+    border-radius: 999px;
+    color: var(--nav-ink-muted);
+    transition: background-color 180ms ease, color 180ms ease;
+  }
+
+  &&:hover {
+    background: var(--nav-hover);
+    color: white;
+  }
+
+  &&[aria-selected='true'] {
+    background: var(--nav-active);
+    color: white;
+  }
+
+  &&:focus-visible {
+    outline: 2px solid white;
+    outline-offset: -2px;
   }
 
   @media (max-width: 1023px) {
-    height: 56px;
-    padding-inline: 4px;
+    && {
+      height: 52px;
+      padding-inline: 2px;
+      border-radius: 22px;
+    }
   }
 `;
 
@@ -112,9 +134,9 @@ interface SectionNavigationProps {
 
 function SectionNavigation({ nav, tab, onSelect, unread, unreadLabel }: SectionNavigationProps) {
   return (
-    <nav aria-label="Разделы" className="fixed inset-x-0 bottom-0 bg-surface pb-[env(safe-area-inset-bottom)] lg:static lg:mx-auto lg:pb-0">
+    <nav aria-label="Разделы" className="section-navigation">
       <HorizontalTabs
-        className="mx-auto max-w-2xl"
+        className="section-tabs"
         role="tablist"
         aria-label="Разделы приложения"
         dimension="m"
@@ -130,12 +152,12 @@ function SectionNavigation({ nav, tab, onSelect, unread, unreadLabel }: SectionN
             <SectionTab key={id} id={`section-${id}`} tabId={id} dimension="m" adaptive="fill"
               selected={selected} onSelectTab={chooseTab} aria-selected={selected}
               aria-controls="section-content" aria-label={item.label + unreadLabel(item.tab)}>
-              <span className="flex items-center gap-2 max-lg:flex-col max-lg:gap-0.5 max-lg:text-xs">
+              <span className="flex items-center gap-2 max-lg:flex-col max-lg:gap-0.5 max-lg:text-[10px]">
                 <Icon size={20} aria-hidden />
                 {item.label}
               </span>
               {id === 'family' && unread > 0 && (
-                <AdmiralBadge className="max-lg:absolute max-lg:right-0 max-lg:top-0" appearance="info" dimension="s" aria-hidden>
+                <AdmiralBadge className="max-lg:absolute max-lg:right-0 max-lg:top-1" appearance="info" dimension="s" aria-hidden>
                   {unread > 99 ? '99+' : unread}
                 </AdmiralBadge>
               )}
