@@ -8,12 +8,38 @@ import {
 import './index.css';
 import App from './App';
 import { useUIStore } from './store/uiStore';
-import { applyTheme, useMediaQuery } from './utils/theme';
+import { applyTheme, themeBackground, useMediaQuery } from './utils/theme';
 
 const shape: Theme['shape'] = { borderRadiusKind: 'Border radius 10' };
 const themes = {
-  light: { ...LIGHT_THEME, shape },
-  dark: { ...DARK_THEME, shape },
+  light: {
+    ...LIGHT_THEME,
+    shape,
+    color: {
+      ...LIGHT_THEME.color,
+      'Neutral/Neutral 05': themeBackground.light,
+      'Neutral/Neutral 10': '#edf0f4',
+      'Neutral/Neutral 20': '#e2e6ed',
+      'Neutral/Neutral 60': '#636b78',
+      'Neutral/Neutral 70': '#545b67',
+      'Neutral/Neutral 90': '#1e1e20',
+      'Primary/Primary 60 Main': '#0663ef',
+    },
+  },
+  dark: {
+    ...DARK_THEME,
+    shape,
+    color: {
+      ...DARK_THEME.color,
+      'Neutral/Neutral 00': '#16191f',
+      'Neutral/Neutral 05': themeBackground.dark,
+      'Neutral/Neutral 10': '#20242d',
+      'Neutral/Neutral 20': '#2b313c',
+      'Neutral/Neutral 60': '#a2aab7',
+      'Neutral/Neutral 70': '#b2bac7',
+      'Neutral/Neutral 90': '#f3f4f6',
+    },
+  },
 };
 
 // Charts and page layouts consume the same tokens as the styled Admiral components.

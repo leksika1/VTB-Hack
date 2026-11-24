@@ -1,5 +1,5 @@
 import { NotificationItem, NotificationItemButtonPanel, NotificationItemContent, T, TextButton } from '@admiral-ds/react-ui';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { ChevronDown } from '../ui/icons';
 import { categoryShortages, type MonthSummary } from '../../domain/budget';
 import { CATEGORIES } from '../../utils/categories';
@@ -13,6 +13,7 @@ import { ProgressBar } from '../ui/ProgressBar';
 export function FreeAmountCard({ summary, monthKey }: { summary: MonthSummary; monthKey: string }) {
   const openModal = useUIStore((s) => s.openModal);
   const [explained, setExplained] = useState(false);
+  const explanationId = useId();
   const short = summary.freeByPlan < 0;
   const overspent = summary.leftByPlan < 0;
   const paymentsCount = summary.upcomingPayments.length;
@@ -70,12 +71,12 @@ export function FreeAmountCard({ summary, monthKey }: { summary: MonthSummary; m
 
       <Button
         size="sm" variant="secondary" className="mt-3"
-        onClick={() => setExplained((v) => !v)} aria-expanded={explained}
+        onClick={() => setExplained((v) => !v)} aria-expanded={explained} aria-controls={explanationId}
         icon={<ChevronDown size={16} className={`transition-transform ${explained ? 'rotate-180' : ''}`} />}
       >
         Как считается
       </Button>
-      <div className="collapsible" data-open={explained} aria-hidden={!explained}>
+      <div id={explanationId} className="collapsible" data-open={explained} inert={!explained}>
         <div>
           <dl className="mt-2 rounded-xl bg-surface-muted px-4 py-3 text-sm space-y-1.5">
             <CalcRow label="План на месяц" value={formatCurrency(summary.plan)} />

@@ -74,7 +74,7 @@ export function OnboardingPage({ invite, onInviteDismiss }: OnboardingPageProps)
 
   return (
     <div className="welcome">
-      <header className="welcome-brand"><BrandMark size={36} /><T font="Header/H5" color="Special/Static White">Общий план</T></header>
+      <header className="welcome-brand"><BrandMark size={36} /><T font="Header/H5">Общий план</T></header>
       <main className="welcome-layout">
         <section className="welcome-story" aria-label="Семейный бюджет">
           <T as="h2" font="Header/H1" color="Special/Static White">Общий план для всей семьи</T>
