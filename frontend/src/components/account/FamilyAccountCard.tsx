@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { T } from '@admiral-ds/react-ui';
+import { useMonthChanged } from '../../hooks/useMonthChanged';
 import { computeFamilyAccount } from '../../domain/familyAccount';
 import { useDataStore } from '../../store/dataStore';
 import { useFamilyStore } from '../../store/familyStore';
@@ -14,6 +15,7 @@ import { Calendar, Eye, Plus, Receipt } from '../ui/icons';
 
 export function FamilyAccountCard() {
   const month = useUIStore((s) => s.monthKey);
+  const monthIn = useMonthChanged() ? 'animate-month-in' : '';
   const openModal = useUIStore((s) => s.openModal);
   const family = useFamilyStore((s) => s.family);
   const currentUserId = useFamilyStore((s) => s.currentUserId);
@@ -35,11 +37,11 @@ export function FamilyAccountCard() {
           <T as="h2" id="family-account-title" font="Subtitle/Subtitle 2" color="Special/Static White">Общий счёт</T>
           <span className="account-tag">Демо-счёт</span>
         </div>
-        <p className="mt-5 text-sm text-ink-2">
+        <p key={`label-${month}`} className={`mt-5 text-sm text-ink-2 ${monthIn}`}>
           {account.available < 0 ? 'Не хватает на платежи' : 'Можно потратить'} {formatMonthIn(month)}
         </p>
         <div className="mt-1 flex items-center gap-2">
-          <p className="balance-number account-balance">
+          <p key={month} className={`balance-number account-balance ${monthIn}`}>
             {amountsVisible ? formatCurrency(Math.abs(account.available)) : 'Сумма скрыта'}
           </p>
           <IconButton
@@ -50,7 +52,7 @@ export function FamilyAccountCard() {
             <Eye size={20} />
           </IconButton>
         </div>
-        <dl className="account-metrics">
+        <dl key={month} className={`account-metrics ${monthIn}`}>
           <div>
             <dt>На общем счёте</dt>
             <dd>{amountsVisible ? formatBalance(account.balance) : 'Скрыто'}</dd>
@@ -85,7 +87,7 @@ export function FamilyAccountCard() {
           </Button>
         </div>
         <Disclosure title="Взносы и доли" className="mt-3 select-none">
-          <ul className="space-y-2 pt-3">
+          <ul key={month} className={`space-y-2 pt-3 ${monthIn}`}>
             {family?.members.map((member) => {
               const info = account.members.get(member.id);
               return (

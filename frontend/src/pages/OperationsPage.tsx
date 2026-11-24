@@ -106,20 +106,22 @@ export function OperationsPage() {
       </PageHeader>
 
       <Card tone="brand" className="mb-4 p-5 sm:p-6">
-        <h2 className="text-sm font-medium text-ink-2">{hasRestrictions ? 'Расходы по фильтру' : 'Расходы за месяц'}</h2>
-        <p className="balance-number mt-1">{formatCurrency(total)}</p>
-        {isParent && (
-          <dl className="account-metrics !grid-cols-2">
-            <div>
-              <dt className="flex items-center gap-1.5"><ArrowLeft size={15} /> Пополнения счёта</dt>
-              <dd>{formatCurrency(contributed)}</dd>
-            </div>
-            <div>
-              <dt className="flex items-center gap-1.5"><ArrowRight size={15} /> Все расходы месяца</dt>
-              <dd>{formatCurrency(spent)}</dd>
-            </div>
-          </dl>
-        )}
+        <div key={monthKey} className={monthIn}>
+          <h2 className="text-sm font-medium text-ink-2">{hasRestrictions ? 'Расходы по фильтру' : 'Расходы за месяц'}</h2>
+          <p className="balance-number mt-1">{formatCurrency(total)}</p>
+          {isParent && (
+            <dl className="account-metrics !grid-cols-2">
+              <div>
+                <dt className="flex items-center gap-1.5"><ArrowLeft size={15} /> Пополнения счёта</dt>
+                <dd>{formatCurrency(contributed)}</dd>
+              </div>
+              <div>
+                <dt className="flex items-center gap-1.5"><ArrowRight size={15} /> Все расходы месяца</dt>
+                <dd>{formatCurrency(spent)}</dd>
+              </div>
+            </dl>
+          )}
+        </div>
       </Card>
 
       <Card className="p-4 sm:p-5">
