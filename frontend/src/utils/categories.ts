@@ -3,7 +3,7 @@ import {
   Home,
   Car,
   Study,
-  MoreHorizontal,
+  Archive,
   type AppIcon,
 } from '../components/ui/icons';
 import type { ExpenseCategory } from '../types';
@@ -56,7 +56,7 @@ export const CATEGORIES: Record<ExpenseCategory, CategoryConfig> = {
   other: {
     key: 'other',
     label: 'Другое',
-    icon: MoreHorizontal,
+    icon: Archive,
     color: 'var(--cat-other)',
     inkColor: 'var(--cat-other-ink)',
     softColor: 'var(--cat-other-soft)',

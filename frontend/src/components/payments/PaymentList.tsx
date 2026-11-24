@@ -7,7 +7,7 @@ import { isOverdue } from '../../domain/budget';
 import { setPaymentPaid } from '../../api/client';
 import { useAsyncAction } from '../../hooks/useAsyncAction';
 import { useUIStore } from '../../store/uiStore';
-import { Badge } from '../ui/Misc';
+import { Badge, CategoryIcon } from '../ui/Misc';
 import { Button } from '../ui/Button';
 
 export function PaymentStatusBadge({ payment }: { payment: Payment }) {
@@ -34,51 +34,54 @@ export function PaymentRow({ payment, editable = true }: { payment: Payment; edi
   const canEdit = editable && !paid;
 
   return (
-    <li className="py-3 first:pt-1 last:pb-1">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <div className="min-w-0 flex-[1_1_10rem]">
-          {canEdit ? (
-            <T as="button" type="button" font="Subtitle/Subtitle 2" className="text-left wrap-anywhere hover:underline"
-              title="Изменить платёж" onClick={() => openModal({ type: 'paymentForm', paymentId: payment.id })}>
-              {payment.title}
-            </T>
-          ) : <T font="Subtitle/Subtitle 2" className="wrap-anywhere">{payment.title}</T>}
-        </div>
-        <T font="Subtitle/Subtitle 2" className="tabular whitespace-nowrap">
-          {formatCurrency(payment.amount)}
-        </T>
-      </div>
-      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-ink-2">
-        <T as="time" font="Body/Body 2 Short" color="Neutral/Neutral 50" dateTime={payment.dueDate}>{formatDateShort(payment.dueDate)}</T>
-        {paid ? <PaymentStatusBadge payment={payment} /> : (
-          <Badge tone={isOverdue(payment) ? 'danger' : 'neutral'}>{formatDueIn(payment.dueDate)}</Badge>
-        )}
-        {(payment.accountMode === 'shared_split' || payment.accountMode === 'shared_common') && (
-          <T font="Body/Body 2 Short" color="Neutral/Neutral 70">
-            {payment.accountMode === 'shared_split' ? 'С общего счёта, поровну' : 'С общего счёта'}
+    <li className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-2.5 py-3 first:pt-1 last:pb-1">
+      <CategoryIcon category={payment.category} />
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+          <div className="min-w-0 flex-[1_1_7.5rem]">
+            {canEdit ? (
+              <T as="button" type="button" font="Subtitle/Subtitle 2" className="text-left wrap-anywhere hover:underline"
+                title="Изменить платёж" onClick={() => openModal({ type: 'paymentForm', paymentId: payment.id })}>
+                {payment.title}
+              </T>
+            ) : <T font="Subtitle/Subtitle 2" className="wrap-anywhere">{payment.title}</T>}
+          </div>
+          <T font="Subtitle/Subtitle 2" className="tabular whitespace-nowrap">
+            {formatCurrency(payment.amount)}
           </T>
-        )}
-        {payment.recurring && <Badge icon={<Update size={12} aria-hidden />}>Каждый месяц</Badge>}
-      </div>
-      <div className="mt-2 flex">
-        <Button
-          size="sm"
-          variant={paid ? 'ghost' : 'primary'}
-          icon={paid ? <Undo size={16} /> : undefined}
-          className={paid ? undefined : '!px-2.5'}
-          loading={toggle.pending}
-          onClick={onToggle}
-          aria-label={paid ? `Вернуть «${payment.title}» в предстоящие` : `Отметить «${payment.title}» оплаченным`}
-        >
-          {paid ? 'Вернуть' : (
-            <span className="!inline-flex items-center gap-1">
-              <Check size={16} className="block shrink-0" />
-              Отметить оплату
-            </span>
+        </div>
+        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-ink-2">
+          <T as="time" font="Body/Body 2 Short" color="Neutral/Neutral 50" dateTime={payment.dueDate}>{formatDateShort(payment.dueDate)}</T>
+          {paid ? <PaymentStatusBadge payment={payment} /> : (
+            <Badge tone={isOverdue(payment) ? 'danger' : 'neutral'}>{formatDueIn(payment.dueDate)}</Badge>
           )}
-        </Button>
+          {(payment.accountMode === 'shared_split' || payment.accountMode === 'shared_common') && (
+            <T font="Body/Body 2 Short" color="Neutral/Neutral 70">
+              {payment.accountMode === 'shared_split' ? 'С общего счёта, поровну' : 'С общего счёта'}
+            </T>
+          )}
+          {payment.recurring && <Badge icon={<Update size={12} aria-hidden />}>Каждый месяц</Badge>}
+        </div>
+        <div className="mt-2 flex">
+          <Button
+            size="sm"
+            variant={paid ? 'ghost' : 'primary'}
+            icon={paid ? <Undo size={16} /> : undefined}
+            className={paid ? undefined : '!px-2.5'}
+            loading={toggle.pending}
+            onClick={onToggle}
+            aria-label={paid ? `Вернуть «${payment.title}» в предстоящие` : `Отметить «${payment.title}» оплаченным`}
+          >
+            {paid ? 'Вернуть' : (
+              <span className="!inline-flex items-center gap-1">
+                <Check size={16} className="block shrink-0" />
+                Отметить оплату
+              </span>
+            )}
+          </Button>
+        </div>
+        {toggle.error && <p role="alert" className="text-[13px] text-danger text-right mt-1">{toggle.error}</p>}
       </div>
-      {toggle.error && <p role="alert" className="text-[13px] text-danger text-right mt-1">{toggle.error}</p>}
     </li>
   );
 }

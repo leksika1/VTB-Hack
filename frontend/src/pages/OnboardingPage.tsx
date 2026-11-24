@@ -74,11 +74,11 @@ export function OnboardingPage({ invite, onInviteDismiss }: OnboardingPageProps)
 
   return (
     <div className="welcome">
-      <header className="welcome-brand"><BrandMark size={36} /><T font="Header/H5">Общий план</T></header>
+      <header className="welcome-brand"><BrandMark size={36} /><T font="Header/H5" color="Special/Static White">Общий план</T></header>
       <main className="welcome-layout">
         <section className="welcome-story" aria-label="Семейный бюджет">
-          <T as="h2" font="Header/H1" color="Special/Static White">Ваш семейный бюджет</T>
-          <T as="p" font="Body/Body 1 Long" color="Special/Static White" className="mt-3 max-w-sm">Расходы, платежи и общие накопления всей семьи.</T>
+          <T as="h2" font="Header/H1" color="Special/Static White">Общий план для всей семьи</T>
+          <T as="p" font="Body/Body 1 Long" color="Special/Static White" className="mt-3 max-w-sm">Общий счёт, взносы и платежи по расписанию.</T>
           <div className="welcome-goal" aria-label="Пример семейной цели">
             <div className="welcome-goal-heading">
               <span className="welcome-goal-icon"><Deposit size={26} aria-hidden /></span>
