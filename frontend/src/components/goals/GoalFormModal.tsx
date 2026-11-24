@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Archive, Trash2 } from 'lucide-react';
+import { Archive, DeleteIcon } from '../ui/icons';
 import { archiveGoal, deleteGoal, saveGoal } from '../../api/client';
 import { useAsyncAction, useRequestId } from '../../hooks/useAsyncAction';
 import { useDataStore } from '../../store/dataStore';
@@ -89,10 +89,10 @@ export function GoalFormModal({ goalId }: { goalId?: string }) {
         <div className="flex items-center gap-3">
           {existing && existing.status !== 'archived' && (
             <Button
-              variant={canDelete ? 'dangerSoft' : 'neutral'}
+              variant="secondary"
               size="lg"
               className="flex-1"
-              icon={canDelete ? <Trash2 size={17} /> : <Archive size={17} />}
+              icon={canDelete ? <DeleteIcon size={17} /> : <Archive size={17} />}
               onClick={() => setConfirming(true)}
             >
               {canDelete ? 'Удалить' : 'В архив'}

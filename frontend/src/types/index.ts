@@ -80,6 +80,16 @@ export interface MonthlyBudget {
   updatedAt: number;
 }
 
+export type AccountMode = 'shared_split' | 'shared_common' | 'personal_split' | 'outside';
+
+export interface AccountContribution {
+  id: string;
+  memberId: string | null;
+  amount: number;
+  date: string;
+  createdAt: number;
+}
+
 /** An actual spending that already happened. */
 export interface Expense {
   id: string;
@@ -93,6 +103,8 @@ export interface Expense {
   authorName?: string | null;
   /** Set when the expense was created by marking a mandatory payment as paid */
   paymentId?: string | null;
+  accountMode?: AccountMode | null;
+  splitMembers?: string[] | null;
   /** Who paid; by default the author */
   paidBy?: string | null;
   /** Created from an approved purchase request */
@@ -117,6 +129,7 @@ export interface Payment {
   /** Monthly series: the server keeps a payment in this and the next month (docs/FEATURES.md §6) */
   recurring?: boolean;
   seriesId?: string | null;
+  accountMode?: Exclude<AccountMode, 'personal_split'> | null;
 }
 
 /** Result of «Можем ли купить?» computed by the server for the current month */
@@ -192,4 +205,4 @@ export interface Toast {
   leaving?: boolean;
 }
 
-export type Tab = 'overview' | 'operations' | 'plan' | 'family';
+export type Tab = 'overview' | 'operations' | 'plan' | 'calendar' | 'family';

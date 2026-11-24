@@ -1,4 +1,5 @@
-import { PiggyBank, Plus } from 'lucide-react';
+import { T } from '@admiral-ds/react-ui';
+import { Deposit, Plus } from '../ui/icons';
 import type { Goal } from '../../types';
 import { useDataStore } from '../../store/dataStore';
 import { useIsParent } from '../../store/familyStore';
@@ -47,7 +48,7 @@ export function GoalsCard() {
       ) : (
         <EmptyState
           compact
-          icon={<PiggyBank size={22} />}
+          icon={<Deposit size={22} />}
           title="Целей пока нет"
           description="Отпуск, ремонт, велосипед — откладывайте всей семьёй и смотрите, успеваете ли к сроку"
         />
@@ -73,20 +74,22 @@ function GoalRow({ goal, editable }: { goal: Goal; editable: boolean }) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           {editable ? (
-            <button
+            <T
+              as="button"
+              font="Subtitle/Subtitle 2"
               type="button"
               onClick={() => openModal({ type: 'goalForm', goalId: goal.id })}
               className="font-medium text-ink text-left break-words hover:underline rounded"
               title="Изменить цель"
             >
               {goal.title}
-            </button>
+            </T>
           ) : (
-            <p className="font-medium text-ink break-words">{goal.title}</p>
+            <T as="p" font="Subtitle/Subtitle 2" className="break-words">{goal.title}</T>
           )}
           <p className="text-sm text-ink-2 tabular">
             {formatCurrency(goal.saved)} из {formatCurrency(goal.target)}
-            {goal.deadline && ` · к ${formatDateShort(goal.deadline)}`}
+            {goal.deadline && ` к ${formatDateShort(goal.deadline)}`}
           </p>
         </div>
         {achieved ? (

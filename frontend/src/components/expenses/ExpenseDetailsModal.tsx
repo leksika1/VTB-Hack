@@ -1,5 +1,6 @@
+import { T } from '@admiral-ds/react-ui';
 import { useState } from 'react';
-import { CalendarClock, HandCoins, Pencil, Trash2 } from 'lucide-react';
+import { Calendar, PayCash, Edit, DeleteIcon } from '../ui/icons';
 import { deleteExpense } from '../../api/client';
 import { useAsyncAction } from '../../hooks/useAsyncAction';
 import { useDataStore } from '../../store/dataStore';
@@ -74,13 +75,13 @@ export function ExpenseDetailsModal({ expenseId }: { expenseId: string }) {
       footer={
         canManage ? (
           <div className="flex items-center gap-3">
-            <Button variant="dangerSoft" size="lg" className="flex-1" icon={<Trash2 size={17} />} onClick={() => setConfirming(true)}>
+            <Button variant="secondary" size="lg" className="flex-1" icon={<DeleteIcon size={17} />} onClick={() => setConfirming(true)}>
               Удалить
             </Button>
             <Button
               className="flex-1"
               size="lg"
-              icon={<Pencil size={17} />}
+              icon={<Edit size={17} />}
               onClick={() => openModal({ type: 'expenseForm', expenseId: expense.id })}
             >
               Изменить
@@ -91,7 +92,7 @@ export function ExpenseDetailsModal({ expenseId }: { expenseId: string }) {
     >
       <div className="flex items-center gap-3 mb-4">
         <CategoryIcon category={expense.category} />
-        <span className="text-[28px] font-bold tabular text-ink">−{formatCurrency(expense.amount)}</span>
+        <T font="Header/H3" className="tabular">−{formatCurrency(expense.amount)}</T>
       </div>
       <dl className="divide-y divide-line text-[15px]">
         <DetailRow label="Категория" value={CATEGORIES[expense.category].label} />
@@ -107,13 +108,13 @@ export function ExpenseDetailsModal({ expenseId }: { expenseId: string }) {
       </dl>
       {expense.paymentId && (
         <p className="mt-4 flex gap-2 text-sm text-ink-2 bg-surface-muted rounded-xl p-3">
-          <CalendarClock size={17} className="shrink-0 text-ink-3" aria-hidden />
+          <Calendar size={17} className="shrink-0 text-ink-3" aria-hidden />
           Создано из обязательного платежа. Он учтён в расходах и больше не резервируется.
         </p>
       )}
       {expense.requestId && (
         <p className="mt-4 flex gap-2 text-sm text-ink-2 bg-surface-muted rounded-xl p-3">
-          <HandCoins size={17} className="shrink-0 text-ink-3" aria-hidden />
+          <PayCash size={17} className="shrink-0 text-ink-3" aria-hidden />
           Куплено по одобренному запросу. Карманные деньги эта покупка не уменьшает.
         </p>
       )}

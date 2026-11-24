@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, Copy, Link2, Share2 } from 'lucide-react';
+import { Check, Copy, LinkIcon, Share } from '../ui/icons';
 import type { Role } from '../../types';
 import { createInviteLink } from '../../api/client';
 import { useAsyncAction } from '../../hooks/useAsyncAction';
@@ -8,6 +8,7 @@ import { useUIStore } from '../../store/uiStore';
 import { formatDateShort, toISODate } from '../../utils/date';
 import { Button } from '../ui/Button';
 import { FormError } from '../ui/Field';
+import { SegmentedControl, SegmentedControlItem } from '@admiral-ds/react-ui';
 import { buildInviteUrl } from './invite';
 
 const ROLES: { value: Role; label: string }[] = [
@@ -68,34 +69,32 @@ export function InvitePanel() {
 
   return (
     <div>
-      <div role="radiogroup" aria-label="Кого приглашаете" className="grid grid-cols-2 gap-1 p-1 rounded-[var(--radius-control)] bg-surface-sunken">
+      <SegmentedControl dimension="m" appearance="filled" aria-label="Кого пригласить">
         {ROLES.map((r) => (
-          <button
+          <SegmentedControlItem
             key={r.value}
-            type="button"
-            role="radio"
-            aria-checked={role === r.value}
-            onClick={() => {
+            name="invite-role"
+            value={r.value}
+            checked={role === r.value}
+            onChange={() => {
               setRole(r.value);
               create.reset();
             }}
-            className={`h-10 rounded-[10px] text-sm font-medium transition-colors
-              ${role === r.value ? 'bg-surface text-ink shadow-[var(--shadow-card)]' : 'text-ink-2 hover:text-ink'}`}
           >
             {r.label}
-          </button>
+          </SegmentedControlItem>
         ))}
-      </div>
+      </SegmentedControl>
 
       {link ? (
         <>
-          <div className="mt-3 rounded-xl bg-surface-muted border border-line px-3.5 py-3 text-sm text-ink-2 break-all select-all">{link.url}</div>
+          <div className="mt-3 rounded-xl bg-surface-muted px-3.5 py-3 text-sm text-ink-2 break-all select-all">{link.url}</div>
           <div className="flex flex-wrap items-center gap-2.5 mt-3">
             <Button icon={copied ? <Check size={16} /> : <Copy size={16} />} onClick={() => copy(link.url)}>
               {copied ? 'Скопировано' : 'Скопировать ссылку'}
             </Button>
             {typeof navigator.share === 'function' && (
-              <Button variant="secondary" icon={<Share2 size={16} />} onClick={() => share(link.url)}>
+              <Button variant="secondary" icon={<Share size={16} />} onClick={() => share(link.url)}>
                 Поделиться
               </Button>
             )}
@@ -107,7 +106,7 @@ export function InvitePanel() {
         </>
       ) : (
         <>
-          <Button className="mt-3" icon={<Link2 size={16} />} loading={create.pending} onClick={onCreate}>
+          <Button className="mt-3" icon={<LinkIcon size={16} />} loading={create.pending} onClick={onCreate}>
             Создать ссылку-приглашение
           </Button>
           <p className="text-[13px] text-ink-3 mt-2">

@@ -16,7 +16,7 @@ export function AuthorTotals({ expenses }: { expenses: Expense[] }) {
       const member = family?.members.find((m) => m.id === e.authorId);
       const entry = map.get(key) ?? {
         name: resolveAuthorName(family, e.authorId, e.authorName),
-        color: member?.color ?? '#8792a2',
+        color: member?.color ?? 'var(--ink-3)',
         amount: 0,
         count: 0,
       };

@@ -1,17 +1,17 @@
 import {
-  ShoppingCart,
-  House,
+  ShopCart,
+  Home,
   Car,
-  Baby,
-  Ellipsis,
-  type LucideIcon,
-} from 'lucide-react';
+  Study,
+  MoreHorizontal,
+  type AppIcon,
+} from '../components/ui/icons';
 import type { ExpenseCategory } from '../types';
 
 export interface CategoryConfig {
   key: ExpenseCategory;
   label: string;
-  icon: LucideIcon;
+  icon: AppIcon;
   /** CSS variable for the category hue (chart marks, swatches) */
   color: string;
   /** Deeper step of the same hue, readable as an icon on the soft background */
@@ -24,7 +24,7 @@ export const CATEGORIES: Record<ExpenseCategory, CategoryConfig> = {
   food: {
     key: 'food',
     label: 'Продукты',
-    icon: ShoppingCart,
+    icon: ShopCart,
     color: 'var(--cat-food)',
     inkColor: 'var(--cat-food-ink)',
     softColor: 'var(--cat-food-soft)',
@@ -32,7 +32,7 @@ export const CATEGORIES: Record<ExpenseCategory, CategoryConfig> = {
   housing: {
     key: 'housing',
     label: 'Жильё',
-    icon: House,
+    icon: Home,
     color: 'var(--cat-housing)',
     inkColor: 'var(--cat-housing-ink)',
     softColor: 'var(--cat-housing-soft)',
@@ -48,7 +48,7 @@ export const CATEGORIES: Record<ExpenseCategory, CategoryConfig> = {
   kids: {
     key: 'kids',
     label: 'Дети',
-    icon: Baby,
+    icon: Study,
     color: 'var(--cat-kids)',
     inkColor: 'var(--cat-kids-ink)',
     softColor: 'var(--cat-kids-soft)',
@@ -56,7 +56,7 @@ export const CATEGORIES: Record<ExpenseCategory, CategoryConfig> = {
   other: {
     key: 'other',
     label: 'Другое',
-    icon: Ellipsis,
+    icon: MoreHorizontal,
     color: 'var(--cat-other)',
     inkColor: 'var(--cat-other-ink)',
     softColor: 'var(--cat-other-soft)',

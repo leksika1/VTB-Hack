@@ -1,5 +1,6 @@
+import { T, TextButton } from '@admiral-ds/react-ui';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { ArrowRightLeft, Check, ChevronLeft, ChevronRight, CopyPlus } from 'lucide-react';
+import { ArrowRightLeft, Check, ChevronLeft, ChevronRight, AddTemplate } from '../ui/icons';
 import type { ExpenseCategory } from '../../types';
 import { saveBudget } from '../../api/client';
 import { useAsyncAction, useRequestId } from '../../hooks/useAsyncAction';
@@ -156,13 +157,11 @@ export function BudgetFormModal({ focus, purchase }: BudgetFormModalProps) {
             </span>
             <span className="tabular font-semibold">{formatCurrency(autoTotal ? allocated : Math.abs(unallocated))}</span>
             {overAllocated && (
-              <button
-                type="button"
+              <TextButton
+                dimension="s"
+                text={`Поднять бюджет до ${formatCurrency(allocated)}`}
                 onClick={() => setTotal(amountToInput(allocated))}
-                className="basis-full text-left text-sm font-semibold text-accent-ink hover:underline"
-              >
-                Поднять бюджет до {formatCurrency(allocated)}
-              </button>
+              />
             )}
           </div>
           <Button type="submit" form="budget-form" fullWidth size="lg" loading={save.pending}>
@@ -192,7 +191,7 @@ export function BudgetFormModal({ focus, purchase }: BudgetFormModalProps) {
         </div>
 
         {previous && (
-          <Button variant="secondary" size="sm" icon={<CopyPlus size={16} />} onClick={copyPrevious}>
+          <Button variant="secondary" size="sm" icon={<AddTemplate size={16} />} onClick={copyPrevious}>
             Заполнить как {formatMonthIn(prevMonth)}
           </Button>
         )}
@@ -291,7 +290,7 @@ function CoverPanel({ category, need, moved, purchase, sources, unallocated, onC
       </p>
     );
   }
-  const option = 'w-full flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm bg-surface hover:bg-accent-soft border border-line';
+  const option = 'w-full flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm bg-surface hover:bg-accent-soft';
   return (
     <div className="mt-2 sm:ml-11 rounded-xl bg-warning-soft p-3.5">
       <p className="text-sm text-ink">
@@ -302,25 +301,25 @@ function CoverPanel({ category, need, moved, purchase, sources, unallocated, onC
       <ul className="mt-2 space-y-1.5">
         {unallocated !== null && (
           <li>
-            <button type="button" className={option} onClick={() => onCover('unallocated')}>
+            <T as="button" font="Body/Body 2 Short" type="button" className={option} onClick={() => onCover('unallocated')}>
               <span className="inline-flex items-center gap-2"><ArrowRightLeft size={15} className="text-accent-ink" aria-hidden />Из нераспределённого</span>
               <span className="text-ink-3 tabular whitespace-nowrap">есть {formatCurrency(unallocated)}</span>
-            </button>
+            </T>
           </li>
         )}
         {sources.map((s) => (
           <li key={s.key}>
-            <button type="button" className={option} onClick={() => onCover(s.key)}>
+            <T as="button" font="Body/Body 2 Short" type="button" className={option} onClick={() => onCover(s.key)}>
               <span className="inline-flex items-center gap-2"><ArrowRightLeft size={15} className="text-accent-ink" aria-hidden />Из «{CATEGORIES[s.key].label}»</span>
               <span className="text-ink-3 tabular whitespace-nowrap">свободно {formatCurrency(s.free)}</span>
-            </button>
+            </T>
           </li>
         ))}
         <li>
-          <button type="button" className={option} onClick={() => onCover('total')}>
+          <T as="button" font="Body/Body 2 Short" type="button" className={option} onClick={() => onCover('total')}>
             <span className="inline-flex items-center gap-2"><ArrowRightLeft size={15} className="text-accent-ink" aria-hidden />Увеличить и общий бюджет</span>
             <span className="text-ink-3 tabular whitespace-nowrap">+{formatCurrency(need)}</span>
-          </button>
+          </T>
         </li>
       </ul>
       <p className="text-[13px] text-ink-3 mt-2">Выбор только заполнит форму — лимиты изменятся после сохранения.</p>

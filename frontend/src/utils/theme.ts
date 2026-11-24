@@ -1,13 +1,24 @@
+import { useMemo, useSyncExternalStore } from 'react';
+import { LIGHT_THEME, DARK_THEME } from '@admiral-ds/react-ui';
 import { flushSync } from 'react-dom';
 import { useUIStore, type Theme } from '../store/uiStore';
 
 const darkMedia = () => window.matchMedia('(prefers-color-scheme: dark)');
 
+export function useMediaQuery(query: string) {
+  const media = useMemo(() => window.matchMedia(query), [query]);
+  const subscribe = useMemo(() => (notify: () => void) => {
+    media.addEventListener('change', notify);
+    return () => media.removeEventListener('change', notify);
+  }, [media]);
+  return useSyncExternalStore(subscribe, () => media.matches);
+}
+
 /** Puts the resolved theme on <html>; the colour tokens in index.css follow data-theme */
 export function applyTheme(theme: Theme) {
   const dark = theme === 'dark' || (theme === 'system' && darkMedia().matches);
   document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0c1424' : '#f2f4f7');
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', (dark ? DARK_THEME : LIGHT_THEME).color['Neutral/Neutral 05']);
   // The test bank page (/api/mock-idp) is rendered by the backend without scripts; it reads the theme from here
   document.cookie = `fb-theme=${dark ? 'dark' : 'light'}; path=/; max-age=31536000; SameSite=Lax`;
 }
@@ -25,17 +36,7 @@ export function switchTheme(theme: Theme) {
   if (theme === current) return;
   const update = () => {
     flushSync(() => setTheme(theme));
-    applyTheme(theme);
   };
   if (canCrossFadeTheme()) document.startViewTransition(update);
   else update();
-}
-
-/** Keeps <html> in sync with the stored theme and, for «Как в системе», with the OS setting */
-export function watchSystemTheme(theme: Theme) {
-  applyTheme(theme);
-  const media = darkMedia();
-  const onChange = () => applyTheme(theme);
-  media.addEventListener('change', onChange);
-  return () => media.removeEventListener('change', onChange);
 }

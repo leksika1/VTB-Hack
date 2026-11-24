@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Download, Plus, ReceiptText, Search, SearchX, SlidersHorizontal, X } from 'lucide-react';
+import { Download, Plus, Receipt, Search, Tune, CloseIcon } from '../components/ui/icons';
 import type { ExpenseCategory } from '../types';
 import { useMonthSummary } from '../hooks/useMonthSummary';
 import { useMonthChanged } from '../hooks/useMonthChanged';
@@ -13,9 +13,11 @@ import { downloadFile, expensesToCsv } from '../utils/csv';
 import { Card, PageHeader } from '../components/ui/Card';
 import { MonthSwitcher } from '../components/ui/Misc';
 import { Button } from '../components/ui/Button';
+import { ChoiceChip } from '../components/ui/ChoiceChip';
 import { EmptyState } from '../components/ui/Feedback';
 import { ExpenseDayGroups } from '../components/expenses/ExpenseList';
 import { SpendingCharts } from '../components/expenses/SpendingCharts';
+import { TextButton, TextInput } from '@admiral-ds/react-ui';
 
 export function OperationsPage() {
   const monthKey = useUIStore((s) => s.monthKey);
@@ -73,49 +75,51 @@ export function OperationsPage() {
   return (
     <>
       <PageHeader title="Операции">
-        <div className="flex items-center gap-3">
-          <MonthSwitcher />
+        <div className="flex flex-wrap items-center gap-2 max-sm:w-full">
+          <div className="max-sm:w-full"><MonthSwitcher /></div>
           {filtered.length > 0 && (
             <Button
-              variant="neutral"
+              variant="secondary"
               icon={<Download size={18} />}
               onClick={exportCsv}
               aria-label={hasRestrictions ? 'Скачать найденные операции в CSV' : 'Скачать операции месяца в CSV'}
               title="Скачать CSV для Excel"
-              className="max-sm:w-11 max-sm:px-0"
+              size="sm"
             >
-              <span className="hidden sm:inline">CSV</span>
+              CSV
             </Button>
           )}
           <Button
-            variant="brand"
+            variant="primary"
             icon={<Plus size={20} />}
             onClick={() => openModal({ type: 'expenseForm' })}
             aria-label="Добавить расход"
-            className="max-sm:w-11 max-sm:px-0"
+            size="sm"
           >
-            <span className="hidden sm:inline">Добавить</span>
+            Добавить
           </Button>
         </div>
       </PageHeader>
 
-      <Card className="p-4 sm:p-5">
+      <Card className="p-5 sm:p-6">
+        <div className="mb-5">
+          <h2 className="text-sm font-medium text-ink-2">{hasRestrictions ? 'Расходы по фильтру' : 'Расходы за месяц'}</h2>
+          <p className="balance-number">{formatCurrency(total)}</p>
+        </div>
         <div className="flex gap-2.5">
-          <div className="relative flex-1">
-            <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-3 pointer-events-none" aria-hidden />
-            <input
-              type="search"
+          <div className="min-w-0 flex-1 input-soft-border">
+            <TextInput
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Поиск по названию"
+              placeholder="Поиск"
               aria-label="Поиск по названию операции"
-              className="w-full h-11 pl-10 pr-4 rounded-[var(--radius-control)] bg-surface-muted border border-transparent text-ink
-                placeholder:text-ink-3 focus:outline-none focus:bg-surface focus:border-accent focus:ring-[3px] focus:ring-accent/15"
+              iconsBefore={<Search size={18} className="text-ink-3 ml-2" aria-hidden />}
+              displayClearIcon
             />
           </div>
           <Button
-            variant={activeFilters > 0 ? 'secondary' : 'neutral'}
-            icon={<SlidersHorizontal size={18} />}
+            variant={activeFilters > 0 ? 'primary' : 'secondary'}
+            icon={<Tune size={18} />}
             onClick={() => setFiltersOpen((v) => !v)}
             aria-expanded={filtersOpen}
             aria-controls="operation-filters"
@@ -131,9 +135,9 @@ export function OperationsPage() {
                 <legend className="text-sm font-medium text-ink-2 mb-2">Категории</legend>
                 <div className="flex flex-wrap gap-2">
                   {ALL_CATEGORIES.map((key) => (
-                    <Chip key={key} active={categories.includes(key)} onClick={() => toggleCategory(key)}>
+                    <ChoiceChip dimension="s" key={key} selected={categories.includes(key)} onClick={() => toggleCategory(key)}>
                       {CATEGORIES[key].label}
-                    </Chip>
+                    </ChoiceChip>
                   ))}
                 </div>
               </fieldset>
@@ -141,13 +145,13 @@ export function OperationsPage() {
                 <fieldset>
                   <legend className="text-sm font-medium text-ink-2 mb-2">Кто добавил</legend>
                   <div className="flex flex-wrap gap-2">
-                    <Chip active={author === null} onClick={() => setAuthor(null)}>
+                    <ChoiceChip dimension="s" selected={author === null} onClick={() => setAuthor(null)}>
                       Все
-                    </Chip>
+                    </ChoiceChip>
                     {family.members.map((m) => (
-                      <Chip key={m.id} active={author === m.id} onClick={() => setAuthor(m.id)}>
+                      <ChoiceChip dimension="s" key={m.id} selected={author === m.id} onClick={() => setAuthor(m.id)}>
                         {m.id === currentUserId ? `${m.name} (вы)` : m.name}
-                      </Chip>
+                      </ChoiceChip>
                     ))}
                   </div>
                 </fieldset>
@@ -162,68 +166,46 @@ export function OperationsPage() {
               Найдено {filtered.length} из {expenses.length} на сумму <span className="tabular">{formatCurrency(total)}</span>
               {withTypos && <>, с учётом возможных опечаток</>}
             </span>
-            <button type="button" onClick={resetAll} className="inline-flex items-center gap-1 font-medium text-accent-ink hover:underline">
-              <X size={15} aria-hidden />
-              Сбросить
-            </button>
+            <TextButton type="button" dimension="s" iconStart={<CloseIcon size={16} />} text="Сбросить" onClick={resetAll} />
           </div>
         )}
       </Card>
 
-      {searched.length > 0 && (
-        <SpendingCharts key={`charts-${monthKey}`} expenses={searched} selected={categories} onToggle={toggleCategory} className={monthIn} />
-      )}
-
-      <Card key={`list-${monthKey}`} className={`p-4 sm:p-5 mt-5 ${monthIn}`}>
-        {expenses.length === 0 ? (
-          <EmptyState
-            icon={<ReceiptText size={22} />}
-            title={`За ${formatMonthLower(monthKey)} операций нет`}
-            description="Добавьте расход — он сразу появится у всех участников семьи"
-            action={<Button onClick={() => openModal({ type: 'expenseForm' })}>Добавить расход</Button>}
-          />
-        ) : filtered.length === 0 ? (
-          <EmptyState
-            icon={<SearchX size={22} />}
-            title="Ничего не найдено"
-            description={
-              query.trim()
-                ? `Нет операций с «${query.trim()}» при выбранных фильтрах`
-                : 'Под выбранные фильтры не подходит ни одна операция'
-            }
-            action={
-              <Button variant="secondary" onClick={resetAll}>
-                Сбросить поиск и фильтры
-              </Button>
-            }
-          />
-        ) : (
-          <>
-            {!hasRestrictions && (
-              <p className="text-sm text-ink-2 mb-4">
-                {expenses.length} {plural(expenses.length, 'операция', 'операции', 'операций')} на{' '}
-                <span className="tabular">{formatCurrency(total)}</span>
-              </p>
-            )}
-            <ExpenseDayGroups expenses={filtered} />
-          </>
+      <div className="mt-5 grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+        <Card key={`list-${monthKey}`} className={`p-4 sm:p-5 ${monthIn}`}>
+          {expenses.length === 0 ? (
+            <EmptyState
+              icon={<Receipt size={22} />}
+              title={`За ${formatMonthLower(monthKey)} операций нет`}
+              description="Добавьте расход — он сразу появится у всех участников семьи"
+              action={<Button onClick={() => openModal({ type: 'expenseForm' })}>Добавить расход</Button>}
+            />
+          ) : filtered.length === 0 ? (
+            <EmptyState
+              icon={<Search size={22} />}
+              title="Ничего не найдено"
+              description={
+                query.trim()
+                  ? `Нет операций с «${query.trim()}» при выбранных фильтрах`
+                  : 'Под выбранные фильтры не подходит ни одна операция'
+              }
+              action={
+                <Button variant="secondary" onClick={resetAll}>
+                  Сбросить поиск и фильтры
+                </Button>
+              }
+            />
+          ) : (
+            <>
+              <h2 className="mb-4 text-xl font-semibold">История операций</h2>
+              <ExpenseDayGroups expenses={filtered} />
+            </>
+          )}
+        </Card>
+        {searched.length > 0 && (
+          <SpendingCharts key={`charts-${monthKey}`} expenses={searched} selected={categories} onToggle={toggleCategory} className={monthIn} />
         )}
-      </Card>
+      </div>
     </>
-  );
-}
-
-function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={`h-9 px-3.5 rounded-full text-sm font-medium border transition-colors inline-flex items-center gap-1.5
-        ${active ? 'bg-accent text-white border-accent' : 'bg-surface text-ink border-line-strong hover:border-ink-3'}`}
-    >
-      {active && <span aria-hidden>✓</span>}
-      {children}
-    </button>
   );
 }

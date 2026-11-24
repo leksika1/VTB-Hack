@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
-import { Trash2 } from 'lucide-react';
-import type { ExpenseCategory } from '../../types';
+import { DeleteIcon } from '../ui/icons';
+import type { AccountMode, ExpenseCategory } from '../../types';
 import { deletePayment, savePayment } from '../../api/client';
 import { useAsyncAction, useRequestId } from '../../hooks/useAsyncAction';
 import { useDataStore } from '../../store/dataStore';
@@ -10,7 +10,9 @@ import { formatMonthIn, todayISO, toMonthKey } from '../../utils/date';
 import { Modal } from '../ui/Modal';
 import { AmountField, Field, FieldError, FormError } from '../ui/Field';
 import { Button } from '../ui/Button';
+import { CheckboxField } from '@admiral-ds/react-ui';
 import { CategoryPicker } from '../ui/CategoryPicker';
+import { AccountModeField } from '../account/AccountModeField';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 
 interface PaymentFormModalProps {
@@ -38,6 +40,9 @@ export function PaymentFormModal({ paymentId, prefill, planned }: PaymentFormMod
     existing?.dueDate ?? prefill?.dueDate ?? (planned ? '' : viewedMonth === toMonthKey() ? todayISO() : `${viewedMonth}-01`)
   );
   const [recurring, setRecurring] = useState(existing?.recurring ?? false);
+  const [accountMode, setAccountMode] = useState<Exclude<AccountMode, 'personal_split'>>(
+    existing ? existing.accountMode ?? 'outside' : 'shared_split',
+  );
   const [submitted, setSubmitted] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -50,7 +55,7 @@ export function PaymentFormModal({ paymentId, prefill, planned }: PaymentFormMod
     setSubmitted(true);
     const value = parseAmount(amount);
     if (!title.trim() || validateAmount(amount) || !category || !dueDate || value === null) return;
-    const res = await save.run({ id: paymentId, title, amount: value, category, dueDate, recurring }, requestId);
+    const res = await save.run({ id: paymentId, title, amount: value, category, dueDate, recurring, accountMode }, requestId);
     if (!res.ok) return;
     closeModal();
     const month = dueDate.slice(0, 7);
@@ -107,7 +112,7 @@ export function PaymentFormModal({ paymentId, prefill, planned }: PaymentFormMod
       footer={
         <div className="flex items-center gap-3">
           {paymentId && (
-            <Button variant="dangerSoft" size="lg" className="flex-1" icon={<Trash2 size={17} />} onClick={() => setConfirmDelete(true)}>
+            <Button variant="secondary" size="lg" className="flex-1" icon={<DeleteIcon size={17} />} onClick={() => setConfirmDelete(true)}>
               Удалить
             </Button>
           )}
@@ -154,23 +159,22 @@ export function PaymentFormModal({ paymentId, prefill, planned }: PaymentFormMod
           <CategoryPicker value={category} onChange={setCategory} label="Категория бюджета" />
           {categoryError && <FieldError>{categoryError}</FieldError>}
         </div>
+        <AccountModeField value={accountMode} onChange={setAccountMode}
+          options={['shared_split', 'shared_common', 'outside']} />
         {!planned && (
-          <label className="flex items-start gap-3 p-3.5 rounded-xl bg-surface-muted border border-line cursor-pointer">
-            <input
-              type="checkbox"
+          <div className="p-3.5 rounded-xl bg-surface-muted">
+            <CheckboxField
               checked={recurring}
               onChange={(e) => setRecurring(e.target.checked)}
-              className="mt-0.5 w-5 h-5 accent-[var(--accent)] shrink-0"
-            />
-            <span>
-              <span className="block font-medium text-ink">Повторять каждый месяц</span>
-              <span className="block text-sm text-ink-2">
-                {existing?.recurring && !recurring
+              extraText={
+                existing?.recurring && !recurring
                   ? 'Новые платежи перестанут появляться. Уже созданные останутся — их можно удалить отдельно.'
-                  : 'Аренда, ипотека, садик, связь. Платёж сам появится в следующем месяце с тем же днём и суммой.'}
-              </span>
-            </span>
-          </label>
+                  : 'Аренда, ипотека, садик, связь. Платёж сам появится в следующем месяце с тем же днём и суммой.'
+              }
+            >
+              <span className="font-medium text-ink">Повторять каждый месяц</span>
+            </CheckboxField>
+          </div>
         )}
         {save.error && !save.errorField && <FormError>{save.error}</FormError>}
       </form>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { BadgeCheck, Bell, Check, Eye, Landmark, LogOut, Monitor, Moon, Pencil, PiggyBank, ShieldCheck, Sparkles, Sun, UserPlus, Users, X } from 'lucide-react';
+import { Verified, Bell, Check, Eye, Bank, LogOut, Edit, Deposit, ShieldCheck, Star, PersonAdd, Users, CloseIcon } from '../components/ui/icons';
+import { Accordion, AccordionItem, RadioButton, T, Toggle } from '@admiral-ds/react-ui';
 import type { AppNotification, Me, User } from '../types';
 import {
   approveMember,
@@ -22,11 +23,12 @@ import { useFamilyStore, useIsParent } from '../store/familyStore';
 import { useUIStore, type Theme } from '../store/uiStore';
 import { formatCurrency } from '../utils/currency';
 import { plural } from '../utils/date';
-import { canCrossFadeTheme, switchTheme } from '../utils/theme';
+import { switchTheme } from '../utils/theme';
 import { InvitePanel } from '../components/family/InvitePanel';
 import { Card, PageHeader, SectionHeader } from '../components/ui/Card';
 import { Avatar, Badge } from '../components/ui/Misc';
 import { Button } from '../components/ui/Button';
+import { ChoiceChip } from '../components/ui/ChoiceChip';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { ErrorState, Skeleton } from '../components/ui/Feedback';
 import { Presence } from '../components/ui/Presence';
@@ -45,21 +47,21 @@ export function FamilyPage() {
 
       <div className="grid gap-5 lg:grid-cols-2 items-start">
         <div className="space-y-5 min-w-0">
-          <Card tone="brand" className="p-5 sm:p-6">
+          <Card className="p-5 sm:p-6">
             <div className="flex items-center gap-4 mb-5">
               <span className="w-12 h-12 rounded-full bg-accent-soft text-accent-ink flex items-center justify-center shrink-0" aria-hidden>
                 <Users size={22} />
               </span>
               <div className="min-w-0">
-                <h2 className="text-xl font-semibold text-ink break-words">{family.name}</h2>
+                <T as="h2" font="Header/H4" className="break-words">{family.name}</T>
                 <p className="text-ink-2">
                   {family.members.length} {plural(family.members.length, 'участник', 'участника', 'участников')}
                 </p>
               </div>
             </div>
-            <ul className="divide-y divide-line">
+            <ul className="member-grid">
               {family.members.map((m) => (
-                <li key={m.id} className="flex items-center gap-3 py-3">
+                <li key={m.id} className="flex min-w-0 items-center gap-2 rounded-xl bg-surface-muted px-3 py-3">
                   <Avatar user={m} />
                   <span className="flex-1 min-w-0 font-medium text-ink truncate">{m.name}</span>
                   {m.role === 'child' && <Badge>Ребёнок</Badge>}
@@ -80,38 +82,47 @@ export function FamilyPage() {
               <InvitePanel />
             </Card>
           )}
-          <EventsCard />
+
         </div>
 
         <div className="space-y-5 min-w-0">
-          <Card className="p-5">
-            <SectionHeader title="Правила общего пространства" />
-            <ul className="space-y-3.5 text-[15px]">
-              <Rule icon={<Eye size={18} />}>
-                Участники видят только общие расходы и платежи, которые внесли сюда. Личные счета и покупки вне приложения не видны.
-              </Rule>
-              <Rule icon={<Pencil size={18} />}>
-                Бюджет месяца, обязательные платежи и расходы — общие: любой взрослый может их исправить, например указать, кто платил.
-                Ребёнок меняет только свои траты.
-              </Rule>
-              <Rule icon={<UserPlus size={18} />}>
-                По ссылке-приглашению входят сразу. Вошедший по коду семьи видит данные только после подтверждения взрослым.
-              </Rule>
-              <Rule icon={<ShieldCheck size={18} />}>
-                Права проверяются на сервере: скрытая кнопка не даёт доступа к чужим данным.
-              </Rule>
-            </ul>
-            {isParent && !family.isDemo && (
-              <Button className="mt-5" variant="secondary" icon={<UserPlus size={16} />} onClick={() => openModal({ type: 'invite' })}>
-                Пригласить участника
-              </Button>
-            )}
+          <EventsCard />
+          <Card className="px-5 py-2">
+            <Accordion dimension="m" hideTopDivider hideBottomDivider>
+              <AccordionItem title="Доступ к семейному бюджету" contentMaxHeight="none">
+            <div className="pt-4">
+              <ul className="space-y-3.5 text-[15px]">
+                <Rule icon={<Eye size={18} />}>
+                  Участники видят только общие расходы и платежи, которые внесли сюда. Личные счета и покупки вне приложения не видны.
+                </Rule>
+                <Rule icon={<Edit size={18} />}>
+                  Бюджет месяца, обязательные платежи и расходы — общие: любой взрослый может их исправить, например указать, кто платил.
+                  Ребёнок меняет только свои траты.
+                </Rule>
+                <Rule icon={<PersonAdd size={18} />}>
+                  По ссылке-приглашению входят сразу. Вошедший по коду семьи видит данные только после подтверждения взрослым.
+                </Rule>
+                <Rule icon={<ShieldCheck size={18} />}>
+                  Права проверяются на сервере: скрытая кнопка не даёт доступа к чужим данным.
+                </Rule>
+              </ul>
+              {isParent && !family.isDemo && (
+                <Button className="mt-5" variant="secondary" icon={<PersonAdd size={16} />} onClick={() => openModal({ type: 'invite' })}>
+                  Пригласить участника
+                </Button>
+              )}
+            </div>
+              </AccordionItem>
+              <AccordionItem title="Настройки профиля" contentMaxHeight="none">
+            <div className="mt-4 space-y-4">
+              {!family.isDemo && <VtbIdCard />}
+              <AppearanceCard />
+              <DemoCard />
+              <LeaveCard />
+            </div>
+              </AccordionItem>
+            </Accordion>
           </Card>
-
-          {!family.isDemo && <VtbIdCard />}
-          <AppearanceCard />
-          <DemoCard />
-          <LeaveCard />
         </div>
       </div>
     </>
@@ -147,11 +158,11 @@ function AllowancesCard({ members }: { members: User[] }) {
                 <span className="block font-medium text-ink truncate">{child.name}</span>
                 <span className="block text-sm text-ink-2">
                   {a
-                    ? `${formatCurrency(a.amount)} ${a.period === 'week' ? 'в неделю' : 'в месяц'} · осталось ${formatCurrency(a.left)}`
+                    ? `${formatCurrency(a.amount)} ${a.period === 'week' ? 'в неделю' : 'в месяц'}, осталось ${formatCurrency(a.left)}`
                     : 'Не назначены'}
                 </span>
               </span>
-              <Button size="sm" variant="secondary" icon={<PiggyBank size={15} />} onClick={() => openModal({ type: 'allowanceForm', memberId: child.id })}>
+              <Button size="sm" variant="secondary" icon={<Deposit size={15} />} onClick={() => openModal({ type: 'allowanceForm', memberId: child.id })}>
                 {a ? 'Изменить' : 'Назначить'}
               </Button>
             </li>
@@ -226,10 +237,9 @@ function EventsCard() {
         <p className="text-ink-2 py-2">Пока ничего не произошло. Здесь появятся запросы на покупку, решения по ним и предупреждения о лимитах.</p>
       ) : (
         <>
-          <ul className="divide-y divide-line">
+          <ul className="space-y-1">
             {shown.map((n) => (
-              <li key={n.id} className="py-2.5 first:pt-1 last:pb-1 flex gap-3">
-                <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${n.readAt ? 'bg-transparent' : 'bg-accent'}`} aria-hidden />
+              <li key={n.id} className={`rounded-lg px-3 py-2.5 ${n.readAt ? '' : 'bg-accent-soft'}`}>
                 <span className="min-w-0 flex-1">
                   <span className={`block text-[15px] break-words ${n.readAt ? 'text-ink-2' : 'text-ink font-medium'}`}>
                     {n.title}
@@ -261,7 +271,7 @@ function JoinRequestsCard() {
   if (pending.length === 0) return null;
 
   return (
-    <Card className="p-5 border border-warning/40">
+    <Card className="p-5">
       <SectionHeader
         title="Заявки на вход"
         subtitle="Вошли по коду семьи и ждут подтверждения. Пока вы не подтвердите вход, они не видят данных семьи."
@@ -304,8 +314,8 @@ function JoinRequestRow({ member }: { member: User }) {
         </Button>
         <Button
           size="sm"
-          variant="dangerGhost"
-          icon={<X size={15} />}
+          variant="ghost"
+          icon={<CloseIcon size={15} />}
           loading={decline.pending}
           disabled={busy}
           aria-label={`Отклонить заявку ${member.name}`}
@@ -370,21 +380,21 @@ function VtbIdCard() {
     <Card className="p-5">
       <SectionHeader
         title={config.providerName}
-        action={me.vtbLinked ? <Badge tone="success" icon={<BadgeCheck size={12} aria-hidden />}>Привязан</Badge> : undefined}
+        action={me.vtbLinked ? <Badge tone="success" icon={<Verified size={12} aria-hidden />}>Привязан</Badge> : undefined}
       />
       {me.vtbLinked ? (
         <>
           <p className="text-ink-2">
             Входите через банк на любом устройстве — откроется ваш аккаунт в семье. Отвязать можно в любой момент.
           </p>
-          <Button className="mt-4" variant="dangerGhost" onClick={() => setConfirmUnlink(true)}>
+          <Button className="mt-4" variant="ghost" onClick={() => setConfirmUnlink(true)}>
             Отвязать {config.providerName}
           </Button>
         </>
       ) : (
         <>
           <p className="text-ink-2">Привяжите {config.providerName}, чтобы входить через банк на любом устройстве без приглашения.</p>
-          <Button className="mt-4" variant="outline" icon={<Landmark size={16} />} loading={linking} onClick={link}>
+          <Button className="mt-4" variant="secondary" icon={<Bank size={16} />} loading={linking} onClick={link}>
             Привязать {config.providerName}
           </Button>
         </>
@@ -411,49 +421,26 @@ function VtbIdCard() {
   );
 }
 
-const THEMES: { value: Theme; label: string; icon: React.ReactNode }[] = [
-  { value: 'light', label: 'Светлая', icon: <Sun size={16} /> },
-  { value: 'dark', label: 'Тёмная', icon: <Moon size={16} /> },
-  { value: 'system', label: 'Как в системе', icon: <Monitor size={16} /> },
+const THEMES: { value: Theme; label: string }[] = [
+  { value: 'light', label: 'Светлая' },
+  { value: 'dark', label: 'Тёмная' },
+  { value: 'system', label: 'Как в системе' },
 ];
 
-/**
- * Theme picker with one pill that slides to the chosen option. While the page cross-fades into the new theme,
- * the pill and the labels are captured as separate view-transition layers (index.css), so the pill
- * moves instead of fading and stays under the labels. Without view transitions it slides with CSS.
- */
 function AppearanceCard() {
   const theme = useUIStore((s) => s.theme);
-  const index = THEMES.findIndex((t) => t.value === theme);
-  const [cssSlide] = useState(() => !canCrossFadeTheme());
   return (
     <Card className="p-5">
       <SectionHeader title="Тема" />
-      <div role="radiogroup" aria-label="Тема" className="relative p-1 rounded-[var(--radius-control)] bg-surface-sunken">
-        <span
-          aria-hidden
-          className={`theme-pill absolute top-1 bottom-1 left-1 w-[calc((100%-1rem)/3)] rounded-[10px] bg-surface shadow-[var(--shadow-card)]
-            ${cssSlide ? 'transition-transform duration-(--dur-theme) ease-(--ease-out)' : ''}`}
-          // One step is the pill's own width plus the 0.25rem gap between options
-          style={{ transform: `translateX(calc(${index} * (100% + 0.25rem)))` }}
-        />
-        <div className="theme-options relative grid grid-cols-3 gap-1">
-          {THEMES.map((t) => (
-            <button
-              key={t.value}
-              type="button"
-              role="radio"
-              aria-checked={theme === t.value}
-              onClick={() => switchTheme(t.value)}
-              className={`h-10 rounded-[10px] text-sm font-medium inline-flex items-center justify-center gap-1.5 transition-colors
-                ${theme === t.value ? 'text-ink' : 'text-ink-2 hover:text-ink'}`}
-            >
-              {t.icon}
-              <span className="truncate">{t.label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
+      <fieldset className="flex flex-wrap gap-x-6 gap-y-3">
+        <legend className="sr-only">Выберите тему</legend>
+        {THEMES.map((t) => (
+          <RadioButton key={t.value} name="theme-choice" value={t.value} checked={theme === t.value}
+            onChange={() => switchTheme(t.value)}>
+            {t.label}
+          </RadioButton>
+        ))}
+      </fieldset>
     </Card>
   );
 }
@@ -477,30 +464,27 @@ function DemoCard() {
   };
 
   return (
-    <Card className="p-5 border border-dashed border-warning/50">
+    <Card className="p-5">
       <SectionHeader
         title="Режим демонстрации"
         subtitle="Инструменты для показа прототипа. В настоящем приложении их не будет."
-        action={<Badge tone="warning" icon={<Sparkles size={12} aria-hidden />}>Демо</Badge>}
+        action={<Badge tone="warning" icon={<Star size={12} aria-hidden />}>Демо</Badge>}
       />
 
       {family.isDemo && (
         <div className="mb-5">
-          <h3 className="text-sm font-medium text-ink-2 mb-2">Действовать от имени</h3>
+          <T as="h3" font="Subtitle/Subtitle 2" className="mb-2">Действовать от имени</T>
           <div className="flex flex-wrap gap-2">
             {family.members.map((m) => (
-              <button
+              <ChoiceChip
                 key={m.id}
-                type="button"
-                aria-pressed={m.id === currentUserId}
+                dimension="m"
+                selected={m.id === currentUserId}
                 disabled={switchUser.pending}
                 onClick={() => m.id !== currentUserId && onSwitch(m.id, m.name)}
-                className={`h-11 pl-1.5 pr-4 rounded-full border inline-flex items-center gap-2 text-[15px] font-medium transition-colors
-                  ${m.id === currentUserId ? 'border-accent bg-accent-soft text-accent-ink' : 'border-line-strong text-ink hover:border-ink-3'}`}
               >
-                <Avatar user={m} size="sm" />
                 {m.name}
-              </button>
+              </ChoiceChip>
             ))}
           </div>
           <p className="text-[13px] text-ink-3 mt-2">
@@ -510,20 +494,15 @@ function DemoCard() {
         </div>
       )}
 
-      <label className="flex items-start gap-3 cursor-pointer">
-        <input
-          type="checkbox"
-          checked={simulateErrors}
-          onChange={(e) => setSimulateErrors(e.target.checked)}
-          className="mt-1 w-5 h-5 accent-[var(--accent)] shrink-0"
-        />
-        <span>
-          <span className="block font-medium text-ink">Имитировать ошибки сервера</span>
-          <span className="block text-sm text-ink-2">Все запросы будут завершаться ошибкой — чтобы показать, как приложение их обрабатывает.</span>
-        </span>
-      </label>
+      <Toggle
+        checked={simulateErrors}
+        onChange={(e) => setSimulateErrors(e.target.checked)}
+        extraText="Показывает, как приложение обрабатывает сбои при запросах."
+      >
+        Имитировать ошибки сервера
+      </Toggle>
 
-      <Button className="mt-5" variant="secondary" icon={<Sparkles size={16} />} onClick={() => setConfirmDemo(true)}>
+      <Button className="mt-5" variant="secondary" icon={<Star size={16} />} onClick={() => setConfirmDemo(true)}>
         Загрузить демо-семью
       </Button>
 
@@ -573,7 +552,7 @@ function LeaveCard() {
 
   return (
     <div className="px-1">
-      <Button variant="dangerGhost" icon={<LogOut size={16} />} onClick={() => setConfirm(true)}>
+      <Button variant="ghost" icon={<LogOut size={16} />} onClick={() => setConfirm(true)}>
         {demo ? 'Выйти из демо' : 'Выйти из семьи'}
       </Button>
       <Presence show={confirm}>

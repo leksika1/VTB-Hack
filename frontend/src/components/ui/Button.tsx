@@ -1,10 +1,10 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
-import { LoaderCircle } from 'lucide-react';
+import { Button as AdmiralButton, IconButton as AdmiralIconButton, type ButtonAppearance } from '@admiral-ds/react-ui';
 
-type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'inverse' | 'onBrand' | 'dangerGhost' | 'dangerSoft' | 'neutral' | 'brand' | 'outline';
+type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'inverse';
 type Size = 'md' | 'sm' | 'lg';
 
-interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
   size?: Size;
   loading?: boolean;
@@ -12,24 +12,18 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   fullWidth?: boolean;
 }
 
-const VARIANTS: Record<Variant, string> = {
-  primary: 'bg-accent text-white hover:bg-accent-hover disabled:bg-line-strong disabled:text-ink-3',
-  secondary: 'bg-accent-soft text-accent-ink hover:brightness-95 disabled:opacity-50',
-  ghost: 'bg-transparent text-accent-ink hover:bg-accent-soft disabled:opacity-50',
-  danger: 'bg-danger text-white hover:brightness-110 disabled:opacity-50',
-  inverse: 'bg-white text-brand hover:bg-white/90 disabled:opacity-60',
-  onBrand: 'bg-white/12 text-white hover:bg-white/20 disabled:opacity-60',
-  dangerGhost: 'bg-transparent text-danger hover:bg-danger-soft disabled:opacity-50',
-  dangerSoft: 'bg-danger-soft text-danger hover:brightness-95 disabled:opacity-50',
-  neutral: 'bg-surface-muted text-ink hover:bg-surface-sunken disabled:opacity-50',
-  brand: 'brand-fill hover:brightness-125 disabled:opacity-50',
-  outline: 'bg-surface text-accent-ink border border-accent/40 hover:bg-accent-soft hover:border-accent disabled:opacity-50',
+const ADMIRAL_APPEARANCE_MAP: Record<Variant, ButtonAppearance> = {
+  primary: 'primary',
+  secondary: 'tertiary',
+  ghost: 'ghost',
+  danger: 'danger',
+  inverse: 'tertiary',
 };
 
-const SIZES: Record<Size, string> = {
-  sm: 'h-9 px-3.5 text-sm gap-1.5',
-  md: 'h-11 px-5 text-[15px] gap-2',
-  lg: 'h-12 px-6 text-base gap-2',
+const ADMIRAL_DIMENSION_MAP: Record<Size, 's' | 'm' | 'l'> = {
+  sm: 's',
+  md: 'm',
+  lg: 'l',
 };
 
 export function Button({
@@ -42,43 +36,57 @@ export function Button({
   children,
   disabled,
   type = 'button',
+  style,
   ...rest
 }: ButtonProps) {
   return (
-    <button
+    <AdmiralButton
       type={type}
+      appearance={ADMIRAL_APPEARANCE_MAP[variant]}
+      dimension={ADMIRAL_DIMENSION_MAP[size]}
+      loading={loading}
       disabled={disabled || loading}
-      aria-busy={loading || undefined}
-      className={`inline-flex items-center justify-center rounded-control font-semibold
-        transition-[background-color,filter,color] duration-150 select-none whitespace-nowrap
-        ${VARIANTS[variant]} ${SIZES[size]} ${fullWidth ? 'w-full' : ''} ${className}`}
+      iconStart={icon ? (
+        <span className="flex size-full items-center justify-center">{icon}</span>
+      ) : undefined}
+      style={{
+        width: fullWidth ? '100%' : undefined,
+        ...style,
+      }}
+      className={variant === 'inverse' ? `button-on-blue ${className}` : className}
       {...rest}
     >
-      {loading ? <LoaderCircle size={18} className="animate-spin" aria-hidden /> : icon}
       {children}
-    </button>
+    </AdmiralButton>
   );
 }
 
-interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+export interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   label: string;
   children: ReactNode;
-  tone?: 'default' | 'inverse';
 }
 
-/** Icon-only button with an accessible name and a 44px touch target */
-export function IconButton({ label, children, tone = 'default', className = '', type = 'button', ...rest }: IconButtonProps) {
+/** Icon-only button with an accessible name and touch target using Admiral DS */
+export function IconButton({
+  label,
+  children,
+  className = '',
+  type = 'button',
+  disabled,
+  ...rest
+}: IconButtonProps) {
   return (
-    <button
+    <AdmiralIconButton
       type={type}
+      appearance="secondary"
+      dimension="m"
       aria-label={label}
       title={label}
-      className={`inline-flex items-center justify-center w-11 h-11 rounded-full shrink-0 transition-colors
-        ${tone === 'inverse' ? 'text-white hover:bg-white/15' : 'text-ink-2 hover:bg-surface-sunken hover:text-ink'}
-        disabled:opacity-40 ${className}`}
+      disabled={disabled}
+      className={`shrink-0 ${className}`}
       {...rest}
     >
       {children}
-    </button>
+    </AdmiralIconButton>
   );
 }

@@ -114,6 +114,7 @@ async def _decide(db: AsyncSession, actor: Member, request_id: str, body: Decisi
             author_id=request.author_id,
             paid_by=actor.id,
             request_id=request.id,
+            account_mode="shared_common",
         ))
     await db.flush()
     await db.refresh(request, ["expense"])

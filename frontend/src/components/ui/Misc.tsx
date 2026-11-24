@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from './icons';
+import { Avatar as AdmiralAvatar, Tag, TextButton, T, type TagKind } from '@admiral-ds/react-ui';
 import type { ExpenseCategory, User } from '../../types';
 import { CATEGORIES } from '../../utils/categories';
 import { formatMonthKey, shiftMonth, toMonthKey } from '../../utils/date';
@@ -8,15 +9,16 @@ import { useMonthChanged } from '../../hooks/useMonthChanged';
 import { IconButton } from './Button';
 
 export function Avatar({ user, size = 'md' }: { user: Pick<User, 'name' | 'color'>; size?: 'sm' | 'md' | 'lg' }) {
-  const dims = size === 'sm' ? 'w-7 h-7 text-xs' : size === 'lg' ? 'w-12 h-12 text-lg' : 'w-9 h-9 text-sm';
+  const dimension = size === 'sm' ? 's' : size === 'lg' ? 'l' : 'm';
   return (
-    <span
-      className={`${dims} rounded-control inline-flex items-center justify-center font-semibold text-white shrink-0 ring-2 ring-[var(--line)]`}
-      style={{ backgroundColor: user.color }}
+    <AdmiralAvatar
+      userName={user.name}
+      dimension={dimension}
+      appearance={{ background: user.color, text: 'var(--admiral-color-Special_StaticWhite)' }}
+      {...{ as: 'span' }}
+      showTooltip={false}
       aria-hidden
-    >
-      {user.name.trim().charAt(0).toUpperCase() || '?'}
-    </span>
+    />
   );
 }
 
@@ -44,44 +46,43 @@ export function MonthSwitcher() {
   const changed = useMonthChanged();
 
   return (
-    <div className="inline-flex items-center gap-1 bg-surface rounded-full shadow-card p-0.5">
-      <IconButton label="Предыдущий месяц" onClick={() => setMonthKey(shiftMonth(monthKey, -1))} className="w-10 h-10">
+    <div className="inline-flex items-center gap-1 bg-surface rounded-full p-0.5">
+      <IconButton label="Предыдущий месяц" onClick={() => setMonthKey(shiftMonth(monthKey, -1))} className="!w-10 !h-10">
         <ChevronLeft size={20} />
       </IconButton>
       <div className="min-w-34 text-center leading-tight overflow-hidden" aria-live="polite">
         {/* Name and the «back to current» link slide together as one unit; the link exists only off the current month */}
         <div key={monthKey} className={!changed ? '' : direction > 0 ? 'animate-label-next' : 'animate-label-prev'}>
-          <div className="text-[15px] font-semibold text-ink">{formatMonthKey(monthKey)}</div>
+          <T font="Subtitle/Subtitle 2" className="text-ink block">
+            {formatMonthKey(monthKey)}
+          </T>
           {!isCurrent && (
-            <button type="button" onClick={() => setMonthKey(toMonthKey())} className="text-xs font-medium text-accent-ink hover:underline">
-              К текущему месяцу
-            </button>
+            <TextButton dimension="s" text="К текущему месяцу" onClick={() => setMonthKey(toMonthKey())} />
           )}
         </div>
       </div>
-      <IconButton label="Следующий месяц" onClick={() => setMonthKey(shiftMonth(monthKey, 1))} className="w-10 h-10">
+      <IconButton label="Следующий месяц" onClick={() => setMonthKey(shiftMonth(monthKey, 1))} className="!w-10 !h-10">
         <ChevronRight size={20} />
       </IconButton>
     </div>
   );
 }
 
-type BadgeTone = 'neutral' | 'accent' | 'success' | 'warning' | 'danger';
+export type BadgeTone = 'neutral' | 'accent' | 'success' | 'warning' | 'danger';
 
-const BADGE: Record<BadgeTone, string> = {
-  neutral: 'bg-surface-sunken text-ink-2',
-  accent: 'bg-accent-soft text-accent-ink',
-  success: 'bg-success-soft text-success',
-  warning: 'bg-warning-soft text-warning',
-  danger: 'bg-danger-soft text-danger',
+const tagKinds: Record<BadgeTone, TagKind> = {
+  neutral: 'neutral',
+  accent: 'primary',
+  success: 'success',
+  warning: 'warning',
+  danger: 'danger',
 };
 
 export function Badge({ tone = 'neutral', icon, children }: { tone?: BadgeTone; icon?: ReactNode; children: ReactNode }) {
   return (
-    <span className={`inline-flex items-center gap-1 h-7 px-2.5 rounded-control text-[13px] font-semibold whitespace-nowrap ${BADGE[tone]}`}>
-      {icon}
+    <Tag as="span" dimension="s" kind={tagKinds[tone]} icon={icon} statusViaBackground isBorderHidden>
       {children}
-    </span>
+    </Tag>
   );
 }
 

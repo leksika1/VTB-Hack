@@ -8,7 +8,7 @@ export default defineConfig({
   server: {
     // Backend from backend/ (uvicorn on :8000); override with VITE_API_PROXY
     proxy: {
-      '/api': process.env.VITE_API_PROXY ?? 'http://localhost:8000',
+      '/api': process.env.VITE_API_PROXY ?? 'http://127.0.0.1:18080',
     },
   },
 })

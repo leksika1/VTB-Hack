@@ -7,6 +7,7 @@ import { budgetKey, useDataStore } from '../store/dataStore';
 import { useFamilyStore } from '../store/familyStore';
 import { useUIStore } from '../store/uiStore';
 import type {
+  AccountContribution, AccountMode,
   Allowance,
   AppNotification,
   Expense,
@@ -90,6 +91,7 @@ interface SessionResponse {
 }
 
 interface StateResponse {
+  accountContributions?: AccountContribution[];
   family: Family;
   currentUserId: string;
   budgets: MonthlyBudget[];
@@ -101,7 +103,7 @@ interface StateResponse {
 
 function clearSession() {
   const { family, savedSession } = useFamilyStore.getState();
-  useDataStore.setState({ budgets: {}, expenses: [], payments: [], allowances: [], purchaseRequests: [], goals: [], unreadNotifications: 0 });
+  useDataStore.setState({ budgets: {}, expenses: [], payments: [], allowances: [], purchaseRequests: [], goals: [], unreadNotifications: 0, accountContributions: [] });
   // The demo copy was left or has expired: back to the real account that was open before it
   if (family?.isDemo && savedSession) {
     useFamilyStore.setState({ ...savedSession, savedSession: null });
@@ -119,6 +121,7 @@ function applyState(state: StateResponse) {
     payments: state.payments,
     allowances: state.allowances ?? [],
     unreadNotifications: state.unreadNotifications ?? 0,
+    accountContributions: state.accountContributions ?? [],
   });
 }
 
@@ -526,9 +529,49 @@ export async function saveBudget(input: BudgetInput, requestId: string): Promise
   return budget;
 }
 
+export interface PurchaseImport {
+  id: string;
+  rows: { id: string; date: string | null; amount: number | null; description: string;
+    duplicate: boolean; error: string | null }[];
+}
+
+export function previewPersonalPurchases(filename: string, content: string): Promise<PurchaseImport> {
+  return request('/imports', { method: 'POST', body: { filename, content } });
+}
+
+export function discardPersonalPurchases(id: string): Promise<void> {
+  return request(`/imports/${id}`, { method: 'DELETE' });
+}
+
+export async function confirmPersonalPurchases(batch: PurchaseImport, selected: string[], split: boolean): Promise<number> {
+  const selectedIds = new Set(selected);
+  const rows = batch.rows.map((row) => ({
+    id: row.id, include: selectedIds.has(row.id), accountMode: split ? 'personal_split' : 'outside',
+  }));
+  const result = await request<{ imported: number }>(`/imports/${batch.id}/confirm`, {
+    method: 'POST', body: { rows },
+  });
+  await refreshData().catch(() => {});
+  return result.imported;
+}
+
+export async function contributeToAccount(amount: number, requestId: string): Promise<AccountContribution> {
+  const familyId = useFamilyStore.getState().family?.id;
+  const contribution = await request<AccountContribution>('/account/contributions', {
+    method: 'POST', body: { amount }, requestId,
+  });
+  if (useFamilyStore.getState().family?.id === familyId) {
+    useDataStore.setState((s) => ({
+      accountContributions: [contribution, ...s.accountContributions.filter((item) => item.id !== contribution.id)],
+    }));
+  }
+  return contribution;
+}
+
 /* ── Expenses ── */
 
 export interface ExpenseInput {
+  accountMode?: AccountMode;
   id?: string;
   title: string;
   amount: number;
@@ -539,7 +582,7 @@ export interface ExpenseInput {
 }
 
 export async function saveExpense(input: ExpenseInput, requestId: string): Promise<Expense> {
-  const body = { title: input.title, amount: input.amount, category: input.category, date: input.date, paidBy: input.paidBy };
+  const body = { title: input.title, amount: input.amount, category: input.category, date: input.date, paidBy: input.paidBy, accountMode: input.accountMode };
   if (input.id) {
     const updated = await request<Expense>(`/expenses/${input.id}`, { method: 'PUT', body, requestId });
     useDataStore.setState((s) => ({ expenses: s.expenses.map((e) => (e.id === updated.id ? updated : e)) }));
@@ -567,6 +610,7 @@ export async function deleteExpense(id: string): Promise<void> {
 /* ── Mandatory payments ── */
 
 export interface PaymentInput {
+  accountMode?: Exclude<AccountMode, 'personal_split'>;
   id?: string;
   title: string;
   amount: number;
@@ -577,7 +621,7 @@ export interface PaymentInput {
 }
 
 export async function savePayment(input: PaymentInput, requestId: string): Promise<Payment> {
-  const body = { title: input.title, amount: input.amount, category: input.category, dueDate: input.dueDate, recurring: input.recurring };
+  const body = { title: input.title, amount: input.amount, category: input.category, dueDate: input.dueDate, recurring: input.recurring, accountMode: input.accountMode };
   const wasRecurring = input.id ? useDataStore.getState().payments.find((p) => p.id === input.id)?.recurring : false;
   let saved: Payment;
   if (input.id) {
@@ -735,7 +779,7 @@ export async function listNotifications(): Promise<AppNotification[]> {
 
 export async function markNotificationsRead(): Promise<void> {
   await request<void>('/notifications/read-all', { method: 'POST' });
-  useDataStore.setState({ unreadNotifications: 0 });
+  useDataStore.setState({ unreadNotifications: 0, accountContributions: [] });
 }
 
 export function errorMessage(error: unknown): string {

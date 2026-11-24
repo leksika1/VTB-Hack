@@ -1,4 +1,4 @@
-import { Check, HandCoins, X } from 'lucide-react';
+import { Check, PayCash, CloseIcon } from '../ui/icons';
 import type { PurchaseRequest } from '../../types';
 import { cancelPurchaseRequest, decidePurchaseRequest } from '../../api/client';
 import { useAsyncAction } from '../../hooks/useAsyncAction';
@@ -12,28 +12,42 @@ import { Card, SectionHeader } from '../ui/Card';
 import { Badge } from '../ui/Misc';
 import { Button } from '../ui/Button';
 import { EmptyState } from '../ui/Feedback';
+import { Presence } from '../ui/Presence';
+import { usePresenceClosing } from '../ui/presenceContext';
 import { VERDICT } from './verdict';
 
 /** Adults: pending requests with the server's check of how the purchase fits the month. Hidden when there are none */
 export function PendingRequestsCard() {
-  // Select the stored array and filter here: a selector returning a new array would re-render forever
   const requests = useDataStore((s) => s.purchaseRequests);
-  const pending = requests.filter((r) => r.status === 'pending');
-  if (pending.length === 0) return null;
-
   return (
-    <Card tone="accent" className="p-5">
-      <SectionHeader title="Просят купить" subtitle="При одобрении покупка сразу запишется в расходы семьи" />
-      <ul className="divide-y divide-line">
-        {pending.map((r) => (
-          <PendingRequestRow key={r.id} request={r} />
-        ))}
-      </ul>
-    </Card>
+    <Presence show={requests.some((request) => request.status === 'pending')}>
+      <PendingRequestsList requests={requests} />
+    </Presence>
+  );
+}
+
+function PendingRequestsList({ requests }: { requests: PurchaseRequest[] }) {
+  const closing = usePresenceClosing();
+  return (
+    <div className="collapsible request-collapse" data-open={!closing} inert={closing}>
+      <div>
+        <Card tone="accent" className="mt-5 p-5">
+          <SectionHeader title="Просят купить" subtitle="При одобрении покупка сразу запишется в расходы семьи" />
+          <ul className="divide-y divide-line">
+            {requests.map((request) => (
+              <Presence key={request.id} show={request.status === 'pending'}>
+                <PendingRequestRow request={request} />
+              </Presence>
+            ))}
+          </ul>
+        </Card>
+      </div>
+    </div>
   );
 }
 
 function PendingRequestRow({ request }: { request: PurchaseRequest }) {
+  const closing = usePresenceClosing();
   const addToast = useUIStore((s) => s.addToast);
   const family = useFamilyStore((s) => s.family);
   const currentUserId = useFamilyStore((s) => s.currentUserId);
@@ -58,39 +72,43 @@ function PendingRequestRow({ request }: { request: PurchaseRequest }) {
   };
 
   return (
-    <li className="py-3 first:pt-1 last:pb-1">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="font-medium text-ink break-words">{request.title}</p>
-          <p className="text-sm text-brand-2">
-            {formatDateShort(toISODate(new Date(request.createdAt)))}, {own ? 'Ваш запрос' : author}, {CATEGORIES[request.category].label}
-          </p>
-          {request.comment && <p className="text-sm text-ink-2 mt-1 break-words">Комментарий: {request.comment}</p>}
+    <li className="group collapsible request-collapse" data-open={!closing} inert={closing}>
+      <div>
+        <div className="py-3 group-first:pt-1 group-last:pb-1">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="font-medium text-ink break-words">{request.title}</p>
+              <p className="text-sm text-brand-2">
+                {formatDateShort(toISODate(new Date(request.createdAt)))}, {own ? 'Ваш запрос' : author}, {CATEGORIES[request.category].label}
+              </p>
+              {request.comment && <p className="text-sm text-ink-2 mt-1 break-words">Комментарий: {request.comment}</p>}
+            </div>
+            <span className="font-semibold tabular text-ink whitespace-nowrap">{formatCurrency(request.amount)}</span>
+          </div>
+          {verdict && VerdictIcon && check && (
+            <p className={`mt-2 flex items-start gap-2 rounded-xl px-3 py-2 text-sm ${verdict.tone}`}>
+              <VerdictIcon size={16} className="shrink-0 mt-0.5" aria-hidden />
+              <span>
+                <span className="font-semibold">{verdict.title}.</span>{' '}
+                <span className="text-ink">После покупки свободно по плану {formatBalance(check.freeAfter)}</span>
+              </span>
+            </p>
+          )}
+          {own ? (
+            <p className="text-sm text-ink-3 mt-2">Решение принимает другой взрослый участник семьи.</p>
+          ) : (
+            <div className="flex items-center gap-2 mt-3">
+              <Button size="sm" icon={<Check size={15} />} loading={approve.pending} disabled={busy} onClick={() => decide('approve')}>
+                Одобрить
+              </Button>
+              <Button size="sm" variant="ghost" icon={<CloseIcon size={15} />} loading={reject.pending} disabled={busy} onClick={() => decide('reject')}>
+                Отклонить
+              </Button>
+            </div>
+          )}
+          {error && <p role="alert" className="text-sm text-danger mt-2">{error}</p>}
         </div>
-        <span className="font-semibold tabular text-ink whitespace-nowrap">{formatCurrency(request.amount)}</span>
       </div>
-      {verdict && VerdictIcon && check && (
-        <p className={`mt-2 flex items-start gap-2 rounded-xl px-3 py-2 text-sm ${verdict.tone}`}>
-          <VerdictIcon size={16} className="shrink-0 mt-0.5" aria-hidden />
-          <span>
-            <span className="font-semibold">{verdict.title}.</span>{' '}
-            <span className="text-ink">После покупки свободно по плану {formatBalance(check.freeAfter)}</span>
-          </span>
-        </p>
-      )}
-      {own ? (
-        <p className="text-sm text-ink-3 mt-2">Решение принимает другой взрослый участник семьи.</p>
-      ) : (
-        <div className="flex items-center gap-2 mt-3">
-          <Button size="sm" icon={<Check size={15} />} loading={approve.pending} disabled={busy} onClick={() => decide('approve')}>
-            Одобрить
-          </Button>
-          <Button size="sm" variant="dangerGhost" icon={<X size={15} />} loading={reject.pending} disabled={busy} onClick={() => decide('reject')}>
-            Отклонить
-          </Button>
-        </div>
-      )}
-      {error && <p role="alert" className="text-sm text-danger mt-2">{error}</p>}
     </li>
   );
 }
@@ -119,7 +137,7 @@ export function MyRequestsCard() {
       <SectionHeader
         title="Мои запросы"
         action={
-          <Button size="sm" variant="secondary" icon={<HandCoins size={16} />} onClick={() => openModal({ type: 'purchaseRequestForm' })}>
+          <Button size="sm" variant="secondary" icon={<PayCash size={16} />} onClick={() => openModal({ type: 'purchaseRequestForm' })}>
             Попросить
           </Button>
         }
@@ -133,7 +151,7 @@ export function MyRequestsCard() {
       ) : (
         <EmptyState
           compact
-          icon={<HandCoins size={22} />}
+          icon={<PayCash size={22} />}
           title="Запросов пока нет"
           description="Хотите что-то дороже карманных денег? Попросите взрослых — они увидят запрос и ответят."
         />

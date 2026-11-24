@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
-import { CalendarPlus } from 'lucide-react';
-import type { ExpenseCategory } from '../../types';
+import { CalendarUpdate } from '../ui/icons';
+import type { AccountMode, ExpenseCategory } from '../../types';
 import { saveExpense } from '../../api/client';
 import { useAsyncAction, useRequestId } from '../../hooks/useAsyncAction';
 import { useDataStore } from '../../store/dataStore';
@@ -12,7 +12,8 @@ import { Modal } from '../ui/Modal';
 import { AmountField, Field, FieldError, FormError } from '../ui/Field';
 import { Button } from '../ui/Button';
 import { CategoryPicker } from '../ui/CategoryPicker';
-import { Avatar } from '../ui/Misc';
+import { AccountModeField } from '../account/AccountModeField';
+import { RadioButton } from '@admiral-ds/react-ui';
 
 interface ExpenseFormModalProps {
   expenseId?: string;
@@ -47,11 +48,13 @@ export function ExpenseFormModal({ expenseId, prefill }: ExpenseFormModalProps) 
   const [date, setDate] = useState(existing?.date ?? defaultDate(viewedMonth));
   const initialPayer = existing ? existing.paidBy ?? existing.authorId : user?.id ?? null;
   const [paidBy, setPaidBy] = useState(initialPayer);
+  const [accountMode, setAccountMode] = useState<AccountMode>(existing ? existing.accountMode ?? 'outside' : 'shared_split');
   const [submitted, setSubmitted] = useState(false);
 
   // An adult may name any adult as the payer (docs/FEATURES.md §7); a child's own spending stays the child's
   const adults = family?.members.filter((m) => m.role !== 'child') ?? [];
   const payerIsAdult = adults.some((m) => m.id === initialPayer);
+  const editableMode = isParent && !existing?.paymentId && (!existing || payerIsAdult);
   const choosePayer = isParent && adults.length > 1 && (!existing || payerIsAdult);
   const othersRecord = existing && existing.authorId !== user?.id;
   // A purchase that has not happened yet belongs in the plan, not in expenses; payments are an adult's tool
@@ -73,7 +76,7 @@ export function ExpenseFormModal({ expenseId, prefill }: ExpenseFormModalProps) 
     if (!title.trim() || validateAmount(amount) || !category || !date || value === null) return;
 
     const payer = choosePayer && paidBy && paidBy !== initialPayer ? paidBy : undefined;
-    const res = await save.run({ id: expenseId, title, amount: value, category, date, paidBy: payer }, requestId);
+    const res = await save.run({ id: expenseId, title, amount: value, category, date, paidBy: payer, accountMode: editableMode ? accountMode : undefined }, requestId);
     if (!res.ok) return;
 
     const savedMonth = date.slice(0, 7);
@@ -139,27 +142,25 @@ export function ExpenseFormModal({ expenseId, prefill }: ExpenseFormModalProps) 
           <CategoryPicker value={category} onChange={setCategory} />
           {categoryError && <FieldError>{categoryError}</FieldError>}
         </div>
+        {editableMode && (
+          <AccountModeField<AccountMode> value={accountMode} onChange={setAccountMode}
+            options={['shared_split', 'shared_common', 'personal_split', 'outside']} />
+        )}
         {choosePayer && (
           <fieldset>
             <legend className="block text-sm font-medium text-ink-2 mb-1.5">Кто платил</legend>
-            <div role="radiogroup" className="flex flex-wrap gap-2">
-              {adults.map((m) => {
-                const active = paidBy === m.id;
-                return (
-                  <button
-                    key={m.id}
-                    type="button"
-                    role="radio"
-                    aria-checked={active}
-                    onClick={() => setPaidBy(m.id)}
-                    className={`h-11 pl-1.5 pr-4 rounded-full border inline-flex items-center gap-2 text-[15px] font-medium transition-colors
-                      ${active ? 'border-accent bg-accent-soft text-accent-ink ring-1 ring-accent' : 'border-line bg-surface-muted text-ink hover:border-line-strong'}`}
-                  >
-                    <Avatar user={m} size="sm" />
-                    {m.id === user?.id ? `${m.name} (вы)` : m.name}
-                  </button>
-                );
-              })}
+            <div className="flex flex-wrap gap-x-5 gap-y-3">
+              {adults.map((m) => (
+                <RadioButton
+                  key={m.id}
+                  name="expense-payer"
+                  value={m.id}
+                  checked={paidBy === m.id}
+                  onChange={() => setPaidBy(m.id)}
+                >
+                  {m.id === user?.id ? `${m.name} (вы)` : m.name}
+                </RadioButton>
+              ))}
             </div>
             {save.errorField === 'paidBy' && <FieldError>{save.error}</FieldError>}
           </fieldset>
@@ -188,8 +189,8 @@ export function ExpenseFormModal({ expenseId, prefill }: ExpenseFormModalProps) 
             </p>
             <Button
               size="sm"
-              variant="outline"
-              icon={<CalendarPlus size={16} />}
+              variant="secondary"
+              icon={<CalendarUpdate size={16} />}
               onClick={() =>
                 openModal({
                   type: 'paymentForm',

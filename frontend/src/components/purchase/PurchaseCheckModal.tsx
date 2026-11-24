@@ -1,5 +1,6 @@
+import { TextButton } from '@admiral-ds/react-ui';
 import { useMemo, useRef, useState } from 'react';
-import { CalendarPlus, ChevronDown, ReceiptText, Scale, TriangleAlert } from 'lucide-react';
+import { CalendarUpdate, ChevronDown, Receipt, Balance, WarningIcon } from '../ui/icons';
 import type { ExpenseCategory } from '../../types';
 import { categoryShortages, checkPurchase, type CategorySummary, type PurchaseCheck } from '../../domain/budget';
 import { useMonthSummary } from '../../hooks/useMonthSummary';
@@ -108,7 +109,7 @@ export function PurchaseCheckModal({ prefill }: { prefill?: PurchaseDraft }) {
 
         {/* Checking a purchase and recording one are different actions: ask first, then open a prefilled form */}
         {result && (
-          <div className="rounded-xl border border-line p-4">
+          <div className="rounded-xl bg-surface-muted p-4">
             <p className="font-medium text-ink">Покупка уже совершена?</p>
             <p className="text-sm text-ink-2 mt-0.5">
               Если да — запишем расход, укажете название и дату. Если только собираетесь — сумму можно зарезервировать заранее.
@@ -118,16 +119,16 @@ export function PurchaseCheckModal({ prefill }: { prefill?: PurchaseDraft }) {
                 size="sm"
                 variant="secondary"
                 className="sm:flex-1"
-                icon={<ReceiptText size={16} />}
+                icon={<Receipt size={16} />}
                 onClick={() => openModal({ type: 'expenseForm', prefill: draft })}
               >
                 Да, записать расход
               </Button>
               <Button
                 size="sm"
-                variant="outline"
+                variant="secondary"
                 className="sm:flex-1"
-                icon={<CalendarPlus size={16} />}
+                icon={<CalendarUpdate size={16} />}
                 onClick={() => openModal({ type: 'paymentForm', planned: true, prefill: draft })}
               >
                 Нет, запланировать
@@ -145,7 +146,7 @@ function ShortagesNote({ shortages, onRevise }: { shortages: CategorySummary[]; 
   const worst = shortages[0];
   return (
     <div className="flex items-start gap-3 rounded-xl bg-warning-soft p-3.5 text-[15px]">
-      <TriangleAlert size={18} className="shrink-0 mt-0.5 text-warning" aria-hidden />
+      <WarningIcon size={18} className="shrink-0 mt-0.5 text-warning" aria-hidden />
       <div className="min-w-0">
         <p className="text-ink">
           {shortages.length > 1 ? (
@@ -160,9 +161,8 @@ function ShortagesNote({ shortages, onRevise }: { shortages: CategorySummary[]; 
             </>
           )}
         </p>
-        <button type="button" onClick={() => onRevise(worst)} className="mt-1 text-sm font-semibold text-accent-ink hover:underline">
-          Пересмотреть лимит «{CATEGORIES[worst.key].label}»
-        </button>
+        <TextButton dimension="s" text={`Пересмотреть лимит «${CATEGORIES[worst.key].label}»`}
+          onClick={() => onRevise(worst)} className="mt-2" />
       </div>
     </div>
   );
@@ -195,7 +195,7 @@ function PurchaseResult({ result, onRebalance }: { result: PurchaseCheck; onReba
   }
 
   return (
-    <div className="rounded-2xl border border-line overflow-hidden animate-fade-in">
+    <div className="rounded-2xl bg-surface-muted overflow-hidden animate-fade-in">
       <div className={`flex items-start gap-3 p-4 ${v.tone}`}>
         <Icon size={22} className="shrink-0 mt-0.5" aria-hidden />
         <div className="min-w-0">
@@ -211,9 +211,9 @@ function PurchaseResult({ result, onRebalance }: { result: PurchaseCheck; onReba
           {result.verdict === 'category-over' && cat && (
             <Button
               size="sm"
-              variant="outline"
+              variant="secondary"
               className="mt-2.5"
-              icon={<Scale size={16} />}
+              icon={<Balance size={16} />}
               onClick={() => onRebalance(cat)}
             >
               Перераспределить лимиты

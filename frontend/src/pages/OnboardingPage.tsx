@@ -1,5 +1,6 @@
-import { useEffect, useId, useState, type ClipboardEvent, type FormEvent } from 'react';
-import { BadgeCheck, Calculator, CalendarClock, Landmark, Sparkles, Users } from 'lucide-react';
+import { useEffect, useState, type ClipboardEvent, type FormEvent } from 'react';
+import { ArrowLeft, Bank, Play, Deposit } from '../components/ui/icons';
+import { NotificationItem, NotificationItemButtonPanel, NotificationItemContent, ProgressPage, T } from '@admiral-ds/react-ui';
 import type { InvitePreview } from '../types';
 import {
   clearLinkToken,
@@ -18,7 +19,7 @@ import { useUIStore } from '../store/uiStore';
 import { buildInviteUrl, clearInviteFromUrl } from '../components/family/invite';
 import { plural } from '../utils/date';
 import { BrandMark } from '../components/layout/AppShell';
-import { Field, FieldError, FormError } from '../components/ui/Field';
+import { Field, FormError } from '../components/ui/Field';
 import { Button } from '../components/ui/Button';
 import { Skeleton } from '../components/ui/Feedback';
 
@@ -44,7 +45,7 @@ function useOidcConfig(): OidcConfig | null {
 }
 
 export function OnboardingPage({ invite, onInviteDismiss }: OnboardingPageProps) {
-  const [mode, setMode] = useState<Mode>(invite ? 'join' : 'create');
+  const [mode, setMode] = useState<Mode | null>(invite ? 'join' : getLinkToken() ? 'create' : null);
   const addToast = useUIStore((s) => s.addToast);
   const [demoPending, setDemoPending] = useState(false);
   const oidc = useOidcConfig();
@@ -72,52 +73,42 @@ export function OnboardingPage({ invite, onInviteDismiss }: OnboardingPageProps)
   };
 
   return (
-    <div className="min-h-dvh grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-
-      <aside className="hidden lg:flex flex-col relative justify-center p-12 text-white bg-[linear-gradient(150deg,var(--brand)_0%,var(--brand-2)_100%)]">
-        <div className="absolute top-0 mt-10">
-          <BrandMark size={44} />
-          <span className="text-lg font-semibold">Общий план</span>
-        </div>
-
-        <div className="max-w-md -top-5 relative">
-          <h2 className="text-4xl font-bold leading-tight">Решайте о покупках вместе — с учётом будущих платежей</h2>
-          <ul className="mt-8 space-y-5 text-[17px] text-brand-ink-2">
-            <Promo icon={<Calculator size={20} />}>«Можем ли купить холодильник?» — ответ с расчётом за пару секунд</Promo>
-            <Promo icon={<CalendarClock size={20} />}>Аренда, сад, коммуналка заранее резервируются и не теряются</Promo>
-            <Promo icon={<Users size={20} />}>Общий план на двоих: каждый видит те же цифры</Promo>
-          </ul>
-        </div>
-
-      </aside>
-
-      <main className="flex items-center justify-center px-4 py-6 sm:px-8">
-        <div className="w-full max-w-md">
-          <div className="flex items-center gap-3 mb-8 lg:hidden">
-            <BrandMark size={40} />
-            <span className="text-lg font-semibold text-ink">Общий план</span>
-          </div>
-
-          {vtbConfirmed && (
-            <div className="mb-6 flex gap-3 rounded-xl bg-success-soft px-4 py-3 text-[15px] text-ink">
-              <BadgeCheck size={20} className="shrink-0 mt-0.5 text-success" aria-hidden />
-              <div className="min-w-0">
-                <p>
-                  {oidc?.providerName ?? 'ВТБ ID'} подтверждён, но пока не привязан ни к одной семье. Создайте семью или
-                  присоединитесь по приглашению — в следующий раз войдёте через банк сразу.
-                </p>
-                <button
-                  type="button"
-                  className="mt-1 text-sm font-medium text-accent-ink hover:underline"
-                  onClick={() => {
-                    clearLinkToken();
-                    setVtbConfirmed(false);
-                  }}
-                >
-                  Не привязывать
-                </button>
+    <div className="welcome">
+      <header className="welcome-brand"><BrandMark size={36} /><T font="Header/H5">Общий план</T></header>
+      <main className="welcome-layout">
+        <section className="welcome-story" aria-label="Семейный бюджет">
+          <T as="h2" font="Header/H1" color="Special/Static White">Ваш семейный бюджет</T>
+          <T as="p" font="Body/Body 1 Long" color="Special/Static White" className="mt-3 max-w-sm">Расходы, платежи и общие накопления всей семьи.</T>
+          <div className="welcome-goal" aria-label="Пример семейной цели">
+            <div className="welcome-goal-heading">
+              <span className="welcome-goal-icon"><Deposit size={26} aria-hidden /></span>
+              <div>
+                <T as="div" font="Caption/Caption 1" color="Neutral/Neutral 70">Цель демо-семьи</T>
+                <T as="div" font="Subtitle/Subtitle 2">Стиральная машина</T>
               </div>
             </div>
+            <div className="mt-4 flex flex-wrap items-baseline gap-x-2">
+              <T font="Header/H3">45 000 ₽</T>
+              <T font="Body/Body 2 Short" color="Neutral/Neutral 70">из 60 000 ₽</T>
+            </div>
+            <ProgressPage percent={75} role="progressbar" aria-label="Накоплено на цель" aria-valuemin={0} aria-valuemax={100} aria-valuenow={75} />
+          </div>
+        </section>
+        <section className="welcome-panel">
+          {vtbConfirmed && (
+            <NotificationItem status="success" displayStatusIcon isBorderHidden className="mb-6">
+              <NotificationItemContent>
+                {oidc?.providerName ?? 'ВТБ ID'} подтверждён. Создайте семью или присоединитесь по приглашению, чтобы в следующий раз войти через банк.
+              </NotificationItemContent>
+              <NotificationItemButtonPanel>
+                <Button size="sm" variant="ghost" onClick={() => {
+                  clearLinkToken();
+                  setVtbConfirmed(false);
+                }}>
+                  Не привязывать
+                </Button>
+              </NotificationItemButtonPanel>
+            </NotificationItem>
           )}
 
           {invite && mode === 'join' ? (
@@ -131,74 +122,39 @@ export function OnboardingPage({ invite, onInviteDismiss }: OnboardingPageProps)
             />
           ) : (
             <>
-              <h1 className="text-[28px] font-bold text-ink leading-tight text-nowrap">
-                {mode === 'create' ? 'Создайте семейное пространство' : 'Присоединиться по коду'}
-              </h1>
-              <p className="text-ink-2 mt-2">
-                {mode === 'create'
-                  ? 'Задайте название — затем пригласите партнёра по ссылке.'
-                  : 'Введите код, который вам прислали, или откройте ссылку-приглашение.'}
-              </p>
-
-              {/* One pill slides to the selected option (duration: --dur-switch in index.css) */}
-              <div role="tablist" aria-label="Способ входа" className="relative p-1 mt-6 rounded-[var(--radius-control)] bg-surface-sunken">
-                <span
-                  aria-hidden
-                  className="absolute top-1 bottom-1 left-1 w-[calc((100%-0.75rem)/2)] rounded-[10px] bg-surface shadow-[var(--shadow-card)]
-                    transition-transform duration-(--dur-switch) ease-(--ease-out)"
-                  // One step is the pill's own width plus the 0.25rem gap between options
-                  style={{ transform: mode === 'join' ? 'translateX(calc(100% + 0.25rem))' : undefined }}
-                />
-                <div className="relative grid grid-cols-2 gap-1">
-                  {(['create', 'join'] as Mode[]).map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      role="tab"
-                      aria-selected={mode === m}
-                      onClick={() => setMode(m)}
-                      className={`h-10 rounded-[10px] text-[15px] font-medium transition-colors duration-(--dur-switch)
-                        ${mode === m ? 'text-ink' : 'text-ink-2 hover:text-ink'}`}
-                    >
-                      {m === 'create' ? 'Новая семья' : 'У меня есть код'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div key={mode} className="mt-6 animate-fade-in">
-                {mode === 'create' ? <CreateForm /> : <JoinForm invite={null} />}
+              {mode && <Button size="sm" variant="ghost" icon={<ArrowLeft size={16} />} onClick={() => setMode(null)}>Назад</Button>}
+              <T as="h1" font="Header/H3" className="mt-3">
+                {mode === 'create' ? 'Новая семья' : mode === 'join' ? 'Вход по приглашению' : 'Войти в Общий план'}
+              </T>
+              <div className="mt-6 space-y-3">
+                {mode === 'create' ? <CreateForm /> : mode === 'join' ? <JoinForm invite={null} /> : (
+                  <>
+                    {oidc?.enabled && !vtbConfirmed && (
+                      <Button fullWidth size="lg" icon={<Bank size={18} />} loading={oidcPending} onClick={signInWithBank}>
+                        Войти через {oidc.providerName}
+                      </Button>
+                    )}
+                    <Button fullWidth size="lg" variant="secondary" onClick={() => setMode('create')}>Создать семью</Button>
+                    <Button fullWidth variant="ghost" onClick={() => setMode('join')}>У меня есть код</Button>
+                  </>
+                )}
               </div>
             </>
           )}
-
-          {oidc && !vtbConfirmed && (
-            <div className="mt-6">
-              <div className="flex items-center gap-3 text-sm text-ink-3 mb-4" aria-hidden>
-                <span className="h-px flex-1 bg-line" />
-                или
-                <span className="h-px flex-1 bg-line" />
-              </div>
-              <Button variant="outline" fullWidth size="lg" icon={<Landmark size={18} />} loading={oidcPending} onClick={signInWithBank}>
-                Войти через {oidc.providerName}
-              </Button>
-              <p className="text-sm text-ink-3 mt-2 px-1">
-                Уже есть семья — откроется ваш аккаунт. Нет — после входа создадите семью или присоединитесь по приглашению.
-              </p>
-            </div>
+          {invite && oidc?.enabled && !vtbConfirmed && (
+            <Button className="mt-4" fullWidth variant="secondary" loading={oidcPending} onClick={signInWithBank}>Войти через {oidc.providerName}</Button>
           )}
-
-          <div className="mt-6 pt-5 border-t border-line flex justify-center">
+          <div className="mt-6 flex justify-center">
             <Button
               variant="ghost"
-              icon={<Sparkles size={17} />}
+              icon={<Play size={17} />}
               loading={demoPending}
               onClick={async () => {
                 setDemoPending(true);
                 try {
                   await startDemo();
                   dismissInvite();
-                  addToast('Загружена демо-семья Смирновых');
+                  addToast('Открыт семейный демо-бюджет');
                 } catch (e) {
                   addToast(errorMessage(e), 'error');
                 } finally {
@@ -206,23 +162,12 @@ export function OnboardingPage({ invite, onInviteDismiss }: OnboardingPageProps)
                 }
               }}
             >
-              Посмотреть на примере демо-семьи
+              Открыть демо
             </Button>
           </div>
-        </div>
+        </section>
       </main>
     </div>
-  );
-}
-
-function Promo({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <li className="flex gap-3.5">
-      <span className="w-10 h-10 rounded-full bg-white/12 text-white flex items-center justify-center shrink-0" aria-hidden>
-        {icon}
-      </span>
-      <span className="pt-2">{children}</span>
-    </li>
   );
 }
 
@@ -313,7 +258,7 @@ function JoinForm({
   if (invite && preview.status === 'error') {
     return (
       <div className="space-y-4">
-        <h1 className="text-[28px] font-bold text-ink leading-tight">Приглашение не открылось</h1>
+        <T as="h1" font="Header/H3">Приглашение не открылось</T>
         <FormError>{preview.error}</FormError>
         {onCancel && (
           <Button variant="secondary" fullWidth onClick={onCancel}>
@@ -331,9 +276,9 @@ function JoinForm({
       {info && (
         <>
           <p className="text-ink-2">Вас пригласили в семейное пространство</p>
-          <h1 className="text-[28px] font-bold text-ink leading-tight break-words">«{info.familyName}»</h1>
+          <T as="h1" font="Header/H3" className="break-words">«{info.familyName}»</T>
           <p className="text-ink-2">
-            {info.membersCount} {plural(info.membersCount, 'участник', 'участника', 'участников')} ·{' '}
+            {info.membersCount} {plural(info.membersCount, 'участник', 'участника', 'участников')},{' '}
             {info.role === 'child' ? 'вы войдёте как ребёнок' : 'вы войдёте как взрослый участник'}
           </p>
           <p className="text-ink-2">
@@ -346,7 +291,7 @@ function JoinForm({
       )}
       {!invite && (
         <CodeField
-          label="Код приглашения (вход подтверждает взрослый участник)"
+          label="Код приглашения"
           value={code}
           onChange={setCode}
           error={submitted && !code.trim() ? 'Введите код' : join.errorField === 'code' ? join.error : null}
@@ -396,13 +341,7 @@ function useInvitePreview(code: string | null): Loadable<InvitePreview> {
 
 const CODE_LENGTH = 6;
 
-/**
- * Six cells over one real input: native typing, backspace, paste and autofill keep working.
- * A pasted invite link opens the invite screen; a 16-character link code does not fit the cells, so it goes there too.
- */
 function CodeField({ label, value, onChange, error }: { label: string; value: string; onChange: (code: string) => void; error?: string | null }) {
-  const id = useId();
-  const [focused, setFocused] = useState(false);
   const clean = (raw: string) => raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
 
   const onPaste = (e: ClipboardEvent<HTMLInputElement>) => {
@@ -417,45 +356,25 @@ function CodeField({ label, value, onChange, error }: { label: string; value: st
     if (code.length > CODE_LENGTH) {
       e.preventDefault();
       window.location.assign(buildInviteUrl(code));
+    } else if (code.length === CODE_LENGTH) {
+      e.preventDefault();
+      onChange(code);
     }
   };
 
   return (
-    <div>
-      <label htmlFor={id} className="block text-sm font-medium text-ink-2 mb-1.5">
-        {label}
-      </label>
-      <div className="relative grid grid-cols-6 gap-2">
-        {Array.from({ length: CODE_LENGTH }, (_, i) => {
-          const active = focused && i === Math.min(value.length, CODE_LENGTH - 1);
-          return (
-            <span
-              key={i}
-              aria-hidden
-              className={`h-12 flex items-center justify-center rounded-[var(--radius-control)] border font-mono text-xl font-semibold text-ink transition-colors
-                ${active ? 'bg-surface border-accent ring-[3px] ring-accent/15' : error ? 'bg-surface-muted border-danger' : 'bg-surface-muted border-line'}`}
-            >
-              {value[i] ?? ''}
-            </span>
-          );
-        })}
-        <input
-          id={id}
-          value={value}
-          onChange={(e) => onChange(clean(e.target.value).slice(0, CODE_LENGTH))}
-          onPaste={onPaste}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          maxLength={CODE_LENGTH}
-          autoComplete="one-time-code"
-          autoCapitalize="characters"
-          spellCheck={false}
-          aria-invalid={error ? true : undefined}
-          aria-describedby={error ? `${id}-error` : undefined}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-text"
-        />
-      </div>
-      {error && <FieldError id={`${id}-error`}>{error}</FieldError>}
-    </div>
+    <Field
+      label={label}
+      hint="Шесть символов из приглашения. Вход подтвердит взрослый участник."
+      value={value}
+      onChange={(e) => onChange(clean(e.target.value).slice(0, CODE_LENGTH))}
+      onPaste={onPaste}
+      placeholder="Например, A1B2C3"
+      maxLength={CODE_LENGTH}
+      autoComplete="one-time-code"
+      autoCapitalize="characters"
+      spellCheck={false}
+      error={error}
+    />
   );
 }

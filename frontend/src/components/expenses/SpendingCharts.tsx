@@ -1,5 +1,6 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ChartColumn, ChartPie } from 'lucide-react';
+import { SegmentedControl, SegmentedControlItem, T } from '@admiral-ds/react-ui';
+import { useEffect, useId, useMemo, useState } from 'react';
+import { BarChart, ChartPie } from '../ui/icons';
 import type { Expense, ExpenseCategory } from '../../types';
 import { ALL_CATEGORIES, CATEGORIES } from '../../utils/categories';
 import { formatCurrency } from '../../utils/currency';
@@ -84,7 +85,7 @@ export function SpendingCharts({ expenses, selected, onToggle, className = '' }:
   };
 
   return (
-    <Card tone="default" className={`p-4 sm:p-5 mt-5 ${className}`}>
+    <Card tone="default" className={`p-4 sm:p-5 ${className}`}>
       <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
         <div>
           <h2 className="text-lg font-semibold text-ink leading-tight">Расходы по категориям</h2>
@@ -114,60 +115,27 @@ export function SpendingCharts({ expenses, selected, onToggle, className = '' }:
 }
 
 const VIEWS: { value: View; label: string; icon: React.ReactNode }[] = [
-  { value: 'bar', label: 'Столбцы', icon: <ChartColumn size={17} /> },
-  { value: 'pie', label: 'Круг', icon: <ChartPie size={17} /> },
+  { value: 'bar', label: 'Столбцы', icon: <BarChart size={20} className="block" /> },
+  { value: 'pie', label: 'Круг', icon: <ChartPie size={20} className="block" /> },
 ];
 
-/** Segmented control with a brand-gradient pill that slides and resizes under the selected option */
 function ViewSwitcher({ view, onChange }: { view: View; onChange: (view: View) => void }) {
-  const refs = useRef<Partial<Record<View, HTMLButtonElement | null>>>({});
-  const [pill, setPill] = useState<{ left: number; width: number } | null>(null);
-  // No transition on the very first placement, otherwise the pill slides in from the edge
-  const [animated, setAnimated] = useState(false);
-
-  useLayoutEffect(() => {
-    const el = refs.current[view];
-    if (!el) return;
-    setPill({ left: el.offsetLeft, width: el.offsetWidth });
-  }, [view]);
-
-  useEffect(() => {
-    if (!pill || animated) return;
-    const id = requestAnimationFrame(() => setAnimated(true));
-    return () => cancelAnimationFrame(id);
-  }, [pill, animated]);
-
+  const name = useId();
   return (
-    <div role="radiogroup" aria-label="Вид графика" className="relative inline-flex p-1 rounded-control bg-surface-sunken">
-      {pill && (
-        <span
-          aria-hidden
-          className={`absolute top-1 bottom-1 rounded-[10px] brand-fill shadow-[var(--shadow-card)] ${animated ? 'transition-[left,width] duration-300 ease-[var(--ease-in-out)]' : ''
-            }`}
-          style={{ left: pill.left, width: pill.width }}
-        />
-      )}
-      {VIEWS.map((v) => {
-        const active = v.value === view;
-        return (
-          <button
-            key={v.value}
-            ref={(el) => {
-              refs.current[v.value] = el;
-            }}
-            type="button"
-            role="radio"
-            aria-checked={active}
-            onClick={() => onChange(v.value)}
-            className={`relative z-10 h-9 px-3 rounded-[10px] inline-flex items-center gap-1.5 text-sm font-medium transition-colors duration-300
-              ${active ? 'text-white' : 'text-ink-2 hover:text-ink'}`}
-          >
-            {v.icon}
-            {v.label}
-          </button>
-        );
-      })}
-    </div>
+    <SegmentedControl dimension="s" appearance="filled" aria-label="Вид графика">
+      {VIEWS.map((option) => (
+        <SegmentedControlItem
+          key={option.value}
+          name={name}
+          value={option.value}
+          iconStart={option.icon}
+          checked={view === option.value}
+          onChange={() => onChange(option.value)}
+        >
+          {option.label}
+        </SegmentedControlItem>
+      ))}
+    </SegmentedControl>
   );
 }
 
@@ -281,7 +249,7 @@ function Tooltip({ slice }: { slice: Slice }) {
   return (
     <span
       role="tooltip"
-      className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-10 whitespace-nowrap rounded-xl bg-[#14243d] text-white px-3 py-2 text-[13px] shadow-[var(--shadow-pop)] animate-fade-in pointer-events-none"
+      className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-10 whitespace-nowrap rounded-xl bg-ink text-surface px-3 py-2 text-[13px] shadow-[var(--shadow-pop)] animate-fade-in pointer-events-none"
     >
       <span className="flex items-center gap-1.5 font-semibold">
         <span className="w-2.5 h-2.5 rounded-[3px]" style={{ background: cfg.color }} aria-hidden />
@@ -365,7 +333,9 @@ function DonutChart({ slices, total, active, onActive, selected, onToggle }: Cha
           const isSelected = selected.includes(s.key);
           return (
             <li key={s.key}>
-              <button
+              <T
+                as="button"
+                font="Body/Body 2 Short"
                 type="button"
                 aria-pressed={isSelected}
                 onClick={() => onToggle(s.key)}
@@ -384,7 +354,7 @@ function DonutChart({ slices, total, active, onActive, selected, onToggle }: Cha
                 </span>
                 <span className="text-ink tabular whitespace-nowrap">{formatCurrency(s.amount)}</span>
                 <span className="text-ink-3 tabular w-10 text-right">{Math.round(s.share * 100)}%</span>
-              </button>
+              </T>
             </li>
           );
         })}

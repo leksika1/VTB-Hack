@@ -1,4 +1,4 @@
-import { CircleAlert, TriangleAlert } from 'lucide-react';
+import { ErrorIcon, WarningIcon } from '../ui/icons';
 import type { CategorySummary } from '../../domain/budget';
 import { CATEGORIES } from '../../utils/categories';
 import { formatCurrency } from '../../utils/currency';
@@ -24,8 +24,8 @@ export function CategoryRow({ category: c }: { category: CategorySummary }) {
             </span>
           </div>
           <p className={`text-sm mt-0.5 flex items-center gap-1 ${TONE_TEXT[tone]}`}>
-            {tone === 'danger' && <CircleAlert size={14} className="shrink-0" aria-hidden />}
-            {tone === 'warning' && <TriangleAlert size={14} className="shrink-0" aria-hidden />}
+            {tone === 'danger' && <ErrorIcon size={14} className="shrink-0" aria-hidden />}
+            {tone === 'warning' && <WarningIcon size={14} className="shrink-0" aria-hidden />}
             <span className={tone === 'neutral' ? '' : 'font-medium'}>{text}</span>
           </p>
         </div>

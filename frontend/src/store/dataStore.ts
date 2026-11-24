@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Allowance, Expense, Goal, MonthlyBudget, Payment, PurchaseRequest } from '../types';
+import type { AccountContribution, Allowance, Expense, Goal, MonthlyBudget, Payment, PurchaseRequest } from '../types';
 
 /**
  * Family data loaded from the backend. Components never mutate it directly — all writes go through
@@ -16,6 +16,7 @@ interface DataState {
   /** Savings goals: active and achieved first, then archived */
   goals: Goal[];
   unreadNotifications: number;
+  accountContributions: AccountContribution[];
 }
 
 export function budgetKey(familyId: string, monthKey: string): string {
@@ -31,5 +32,6 @@ export const useDataStore = create<DataState>()(
     purchaseRequests: [],
     goals: [],
     unreadNotifications: 0,
+    accountContributions: [],
   })
 );

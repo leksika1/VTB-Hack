@@ -1,3 +1,4 @@
+import { TextButton } from '@admiral-ds/react-ui';
 import { useCallback, useEffect, useState } from 'react';
 import { errorMessage, loadInitialData, OIDC_CALLBACK_PATH, refreshData, subscribeToChanges, takeOidcIntent, takeReturnInvite } from './api/client';
 import { useFamilyStore, useIsParent } from './store/familyStore';
@@ -8,19 +9,13 @@ import { Toasts } from './components/ui/Toasts';
 import { ErrorState, PageSkeleton } from './components/ui/Feedback';
 import { OverviewPage } from './pages/OverviewPage';
 import { OperationsPage } from './pages/OperationsPage';
+import { CalendarPage } from './pages/CalendarPage';
 import { PlanPage } from './pages/PlanPage';
 import { FamilyPage } from './pages/FamilyPage';
 import { OnboardingPage } from './pages/OnboardingPage';
 import { AuthCallbackPage, type OidcOutcome } from './pages/AuthCallbackPage';
 import { WaitingApprovalPage } from './pages/WaitingApprovalPage';
 import { buildInviteUrl, readInviteFromUrl } from './components/family/invite';
-import { watchSystemTheme } from './utils/theme';
-
-function useThemeAttribute() {
-  const theme = useUIStore((s) => s.theme);
-  useEffect(() => watchSystemTheme(theme), [theme]);
-}
-
 /** Safety net in case the event stream is cut by a proxy without the client noticing */
 const FALLBACK_SYNC_MS = 60_000;
 
@@ -48,12 +43,11 @@ function useFamilySync(sessionKey: string | null) {
 }
 
 export default function App() {
-  useThemeAttribute();
   const family = useFamilyStore((s) => s.family);
   const isParent = useIsParent();
   // A child has no «План» tab; a tab left over from an adult session falls back to the overview
   const storedTab = useUIStore((s) => s.tab);
-  const tab = storedTab === 'plan' && !isParent ? 'overview' : storedTab;
+  const tab = (storedTab === 'plan' || storedTab === 'calendar') && !isParent ? 'overview' : storedTab;
   const dataStatus = useUIStore((s) => s.dataStatus);
   const setDataStatus = useUIStore((s) => s.setDataStatus);
   const simulateErrors = useUIStore((s) => s.simulateErrors);
@@ -70,15 +64,13 @@ export default function App() {
   const currentUserId = useFamilyStore((s) => s.currentUserId);
   useFamilySync(family && dataStatus === 'ready' ? `${family.id}:${currentUserId}` : null);
 
-  const fetchData = useCallback(async () => {
-    try {
-      await loadInitialData();
-      setDataStatus('ready');
-    } catch (e) {
-      setLoadError(errorMessage(e));
+  const fetchData = useCallback(() => loadInitialData().then(
+    () => setDataStatus('ready'),
+    (error: unknown) => {
+      setLoadError(errorMessage(error));
       setDataStatus('error');
     }
-  }, [setDataStatus]);
+  ), [setDataStatus]);
 
   const retry = () => {
     setDataStatus('loading');
@@ -153,9 +145,7 @@ export default function App() {
             {simulateErrors && (
               <p className="text-center text-sm text-ink-3">
                 Включена имитация ошибок.{' '}
-                <button type="button" className="font-medium text-accent-ink hover:underline" onClick={() => setSimulateErrors(false)}>
-                  Выключить
-                </button>
+                <TextButton type="button" dimension="s" text="Выключить" onClick={() => setSimulateErrors(false)} />
               </p>
             )}
           </>
@@ -165,6 +155,7 @@ export default function App() {
             {tab === 'overview' && <OverviewPage />}
             {tab === 'operations' && <OperationsPage />}
             {tab === 'plan' && <PlanPage />}
+            {tab === 'calendar' && <CalendarPage />}
             {tab === 'family' && <FamilyPage />}
           </div>
         )}
