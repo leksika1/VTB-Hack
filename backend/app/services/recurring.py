@@ -34,6 +34,13 @@ async def stop_series(db: AsyncSession, series_id: str) -> None:
     await db.execute(update(Payment).where(Payment.series_id == series_id).values(recurring=False))
 
 
+async def update_future_account_mode(db: AsyncSession, payment: Payment) -> None:
+    await db.execute(update(Payment).where(
+        Payment.series_id == payment.series_id, Payment.due_date > payment.due_date,
+        Payment.status == "upcoming",
+    ).values(account_mode=payment.account_mode))
+
+
 async def ensure_series(db: AsyncSession, series_id: str) -> int:
     """Создать недостающие платежи серии до следующего месяца включительно. Возвращает, сколько создано."""
     latest = await db.scalar(
@@ -55,7 +62,7 @@ async def ensure_series(db: AsyncSession, series_id: str) -> int:
                 id=new_id(), family_id=latest.family_id, title=latest.title, amount_kop=latest.amount_kop,
                 category=latest.category, due_date=_due_in_month(first.due_date.day, month), status="upcoming",
                 author_id=latest.author_id, created_at=now_ms(), recurring=True, series_id=series_id,
-                series_month=month,
+                series_month=month, account_mode=latest.account_mode,
             ).on_conflict_do_nothing(constraint="uq_payments_series_month")
         )
         created += result.rowcount

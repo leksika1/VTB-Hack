@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { Avatar as AdmiralAvatar, Tag as AdmiralTag, T } from '@admiral-ds/react-ui';
+import { ChevronLeft, ChevronRight } from './icons';
+import { Avatar as AdmiralAvatar, Tag, TextButton, T, type TagKind } from '@admiral-ds/react-ui';
 import type { ExpenseCategory, User } from '../../types';
 import { CATEGORIES } from '../../utils/categories';
 import { formatMonthKey, shiftMonth, toMonthKey } from '../../utils/date';
@@ -14,7 +14,9 @@ export function Avatar({ user, size = 'md' }: { user: Pick<User, 'name' | 'color
     <AdmiralAvatar
       userName={user.name}
       dimension={dimension}
-      appearance={{ background: user.color, text: '#ffffff' }}
+      appearance={{ background: user.color, text: 'var(--admiral-color-Special_StaticWhite)' }}
+      {...{ as: 'span' }}
+      showTooltip={false}
       aria-hidden
     />
   );
@@ -44,20 +46,18 @@ export function MonthSwitcher() {
   const changed = useMonthChanged();
 
   return (
-    <div className="inline-flex items-center gap-1 bg-surface rounded-full shadow-card p-0.5">
+    <div className="inline-flex items-center gap-1 bg-surface rounded-full p-0.5">
       <IconButton label="Предыдущий месяц" onClick={() => setMonthKey(shiftMonth(monthKey, -1))} className="!w-10 !h-10">
         <ChevronLeft size={20} />
       </IconButton>
       <div className="min-w-34 text-center leading-tight overflow-hidden" aria-live="polite">
         {/* Name and the «back to current» link slide together as one unit; the link exists only off the current month */}
         <div key={monthKey} className={!changed ? '' : direction > 0 ? 'animate-label-next' : 'animate-label-prev'}>
-          <T font="Body/Body 1 Short" className="!font-semibold text-ink block">
+          <T font="Subtitle/Subtitle 2" className="text-ink block">
             {formatMonthKey(monthKey)}
           </T>
           {!isCurrent && (
-            <button type="button" onClick={() => setMonthKey(toMonthKey())} className="text-xs font-medium text-accent-ink hover:underline">
-              К текущему месяцу
-            </button>
+            <TextButton dimension="s" text="К текущему месяцу" onClick={() => setMonthKey(toMonthKey())} />
           )}
         </div>
       </div>
@@ -70,7 +70,7 @@ export function MonthSwitcher() {
 
 export type BadgeTone = 'neutral' | 'accent' | 'success' | 'warning' | 'danger';
 
-const TAG_KIND: Record<BadgeTone, 'neutral' | 'primary' | 'success' | 'warning' | 'danger'> = {
+const tagKinds: Record<BadgeTone, TagKind> = {
   neutral: 'neutral',
   accent: 'primary',
   success: 'success',
@@ -80,15 +80,9 @@ const TAG_KIND: Record<BadgeTone, 'neutral' | 'primary' | 'success' | 'warning' 
 
 export function Badge({ tone = 'neutral', icon, children }: { tone?: BadgeTone; icon?: ReactNode; children: ReactNode }) {
   return (
-    <AdmiralTag
-      dimension="s"
-      kind={TAG_KIND[tone]}
-      statusViaBackground
-      icon={icon}
-      style={{ fontWeight: 600, display: 'inline-flex', alignItems: 'center' }}
-    >
+    <Tag as="span" dimension="s" kind={tagKinds[tone]} icon={icon} statusViaBackground isBorderHidden>
       {children}
-    </AdmiralTag>
+    </Tag>
   );
 }
 

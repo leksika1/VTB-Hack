@@ -164,6 +164,8 @@ class Payment(Base):
     series_id: Mapped[str | None] = mapped_column(String(36), default=None)
     series_month: Mapped[str | None] = mapped_column(String(7), default=None)
 
+    account_mode: Mapped[str | None] = mapped_column(String(16), default=None)
+
     # Расход, в который превратился платёж (связь хранится на стороне расхода)
     expense: Mapped["Expense | None"] = relationship(back_populates="payment", lazy="selectin", uselist=False)
 
@@ -191,6 +193,8 @@ class Expense(Base):
     )
     # Кто платил (по умолчанию автор) — для расчёта «кто кому должен» (docs/FEATURES.md §7)
     paid_by: Mapped[str | None] = mapped_column(ForeignKey("members.id", ondelete="SET NULL"), default=None)
+    account_mode: Mapped[str | None] = mapped_column(String(16), default=None)
+    split_members: Mapped[list[str] | None] = mapped_column(JSON, default=None)
     # Расход создан одобрением запроса на покупку (§3) — не уменьшает карманные деньги
     request_id: Mapped[str | None] = mapped_column(
         ForeignKey("purchase_requests.id", ondelete="SET NULL"), unique=True, default=None
@@ -203,6 +207,17 @@ class Expense(Base):
     author: Mapped[Member | None] = relationship(lazy="selectin", foreign_keys=[author_id])
     payment: Mapped[Payment | None] = relationship(back_populates="expense")
     request: Mapped["PurchaseRequest | None"] = relationship(back_populates="expense")
+
+
+class AccountContribution(Base):
+    __tablename__ = "account_contributions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    family_id: Mapped[str] = mapped_column(ForeignKey("families.id", ondelete="CASCADE"), index=True)
+    member_id: Mapped[str | None] = mapped_column(ForeignKey("members.id", ondelete="SET NULL"))
+    amount_kop: Mapped[int] = mapped_column(BigInteger)
+    date: Mapped[date] = mapped_column(Date)
+    created_at: Mapped[int] = mapped_column(BigInteger, default=now_ms)
 
 
 class Allowance(Base):

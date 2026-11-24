@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Hourglass, LogOut, RefreshCw } from 'lucide-react';
+import { Hourglass, LogOut, Refresh } from '../components/ui/icons';
 import { leaveFamily, reloadState } from '../api/client';
 import { useAsyncAction } from '../hooks/useAsyncAction';
 import { useCurrentUser, useFamilyStore } from '../store/familyStore';
@@ -43,7 +43,7 @@ export function WaitingApprovalPage() {
         <div className="mt-6 flex flex-col sm:flex-row gap-2.5">
           <Button
             variant="secondary"
-            icon={<RefreshCw size={16} />}
+            icon={<Refresh size={16} />}
             loading={reload.pending}
             onClick={async () => {
               const res = await reload.run();
@@ -52,7 +52,7 @@ export function WaitingApprovalPage() {
           >
             Проверить
           </Button>
-          <Button variant="dangerGhost" icon={<LogOut size={16} />} onClick={() => setConfirmLeave(true)}>
+          <Button variant="ghost" icon={<LogOut size={16} />} onClick={() => setConfirmLeave(true)}>
             Отменить заявку
           </Button>
         </div>

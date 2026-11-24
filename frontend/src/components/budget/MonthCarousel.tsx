@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ClipboardList } from 'lucide-react';
+import { Clipboard } from '../ui/icons';
 import { useMonthSummary } from '../../hooks/useMonthSummary';
 import { useUIStore } from '../../store/uiStore';
 import { formatMonthLower } from '../../utils/date';
@@ -18,7 +18,7 @@ function MonthSlide({ monthKey }: { monthKey: string }) {
   return (
     <Card className="p-2">
       <EmptyState
-        icon={<ClipboardList size={22} />}
+        icon={<Clipboard size={22} />}
         title={`Бюджет на ${formatMonthLower(monthKey)} не задан`}
         description="Задайте общий план и лимиты по категориям — тогда приложение покажет, сколько свободно с учётом будущих платежей."
         action={<Button onClick={() => openModal({ type: 'budgetForm' })}>Задать бюджет</Button>}

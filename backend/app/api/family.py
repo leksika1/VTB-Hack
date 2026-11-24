@@ -3,7 +3,9 @@ from fastapi import APIRouter, Request, Response
 from ..deps import AnyMember, CurrentMember, Db, IdempotencyKey, ParentMember, mark_silent
 from ..ratelimit import InviteLimit, SignupLimit, client_ip
 from ..schemas import (
+    AccountContributionOut,
     BudgetOut,
+    ContributionAmountIn,
     ChildInviteOut,
     CreateFamilyIn,
     ExpenseOut,
@@ -18,7 +20,7 @@ from ..schemas import (
     StateOut,
     SwitchUserIn,
 )
-from ..services import allowance, demo, families, finance, notifications
+from ..services import account, allowance, demo, families, finance, idempotency, notifications
 
 router = APIRouter(tags=["family"])
 
@@ -126,6 +128,17 @@ async def switch_user(body: SwitchUserIn, request: Request, member: CurrentMembe
     return await families.switch_demo_user(db, member, body.user_id)
 
 
+@router.post("/account/contributions", response_model=AccountContributionOut, status_code=201,
+             summary="Записать пополнение демо-счёта")
+async def contribute_to_account(body: ContributionAmountIn, member: ParentMember, db: Db,
+                                idem: IdempotencyKey = None):
+    async def action():
+        contribution = await account.add_contribution(db, member, body.amount)
+        return AccountContributionOut.of(contribution).model_dump(mode="json", by_alias=True)
+
+    return await idempotency.run(db, member.id, idem, idempotency.fingerprint("account contribution", body.amount), action)
+
+
 @router.get("/state", response_model=StateOut, summary="Все данные семьи для старта приложения")
 async def get_state(member: AnyMember, db: Db):
     family = await families.load_family(db, member.family_id)
@@ -142,4 +155,6 @@ async def get_state(member: AnyMember, db: Db):
         payments=[PaymentOut.of(p) for p in await finance.list_payments(db, family.id)] if adult else [],
         allowances=await allowance.list_allowances(db, member),
         unread_notifications=await notifications.unread_count(db, member),
+        account_contributions=[AccountContributionOut.of(c) for c in await account.list_contributions(db, family.id)]
+        if adult else [],
     )

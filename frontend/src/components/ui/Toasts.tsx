@@ -23,6 +23,7 @@ export function Toasts() {
         >
           <StyledNotificationItem
             status={toast.type}
+            isBorderHidden
             displayStatusIcon
             isClosable
             onClose={() => removeToast(toast.id)}

@@ -1,15 +1,19 @@
 import { useEffect, type ReactNode } from 'react';
-import { LayoutDashboard, ReceiptText, ClipboardList, Users, type LucideIcon } from 'lucide-react';
+import { Badge as AdmiralBadge, HorizontalTab, HorizontalTabs, T } from '@admiral-ds/react-ui';
+import styled from 'styled-components';
+import { Dashboard, Receipt, Clipboard, Users, Calendar } from '../ui/icons';
+import { Button } from '../ui/Button';
 import type { Tab } from '../../types';
 import { useUIStore } from '../../store/uiStore';
 import { useCurrentUser, useFamilyStore, useIsParent } from '../../store/familyStore';
 import { useDataStore } from '../../store/dataStore';
 import { Avatar, Badge } from '../ui/Misc';
 
-const NAV: { tab: Tab; label: string; icon: LucideIcon }[] = [
-  { tab: 'overview', label: 'Обзор', icon: LayoutDashboard },
-  { tab: 'operations', label: 'Операции', icon: ReceiptText },
-  { tab: 'plan', label: 'План', icon: ClipboardList },
+const NAV: { tab: Tab; label: string; icon: typeof Users }[] = [
+  { tab: 'overview', label: 'Обзор', icon: Dashboard },
+  { tab: 'operations', label: 'Операции', icon: Receipt },
+  { tab: 'plan', label: 'План', icon: Clipboard },
+  { tab: 'calendar', label: 'Календарь', icon: Calendar },
   { tab: 'family', label: 'Семья', icon: Users },
 ];
 
@@ -20,24 +24,20 @@ export function BrandMark({ size = 36 }: { size?: number }) {
       style={{ width: size, height: size }}
       aria-hidden
     >
-      <svg width={size * 0.62} height={size * 0.62} viewBox="0 0 22 22" fill="none">
-        <circle cx="8" cy="7" r="3" fill="#fff" />
-        <circle cx="15" cy="8.2" r="2.4" fill="#7ea6ff" />
-        <path d="M2.8 18c0-3.2 2.3-5.4 5.2-5.4s5.2 2.2 5.2 5.4" stroke="#fff" strokeWidth="2.1" strokeLinecap="round" />
-        <path d="M12.3 14c.8-.8 1.7-1.2 2.7-1.2 2.4 0 4.2 1.9 4.2 4.9" stroke="#7ea6ff" strokeWidth="1.9" strokeLinecap="round" />
-      </svg>
+      <Users size={size * 0.65} className="text-white" />
     </span>
   );
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const tab = useUIStore((s) => s.tab);
+  const storedTab = useUIStore((s) => s.tab);
   const setTab = useUIStore((s) => s.setTab);
   const family = useFamilyStore((s) => s.family);
   const user = useCurrentUser();
   // The plan (budget and payments) is for adults only
   const isParent = useIsParent();
-  const nav = isParent ? NAV : NAV.filter((n) => n.tab !== 'plan');
+  const tab = !isParent && (storedTab === 'plan' || storedTab === 'calendar') ? 'overview' : storedTab;
+  const nav = isParent ? NAV : NAV.filter((n) => n.tab !== 'plan' && n.tab !== 'calendar');
   // Unread family events live on the «Семья» page; the tab carries their count
   const unread = useDataStore((s) => s.unreadNotifications);
   const unreadLabel = (t: Tab) => (t === 'family' && unread > 0 ? `, непрочитанных событий: ${unread}` : '');
@@ -49,80 +49,60 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-dvh">
-      <header className="sticky top-0 z-30 bg-surface/80 backdrop-blur border-b border-line">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 h-16 flex items-center gap-4">
-          <div className="flex items-center gap-3 min-w-0 flex-1 lg:flex-none lg:w-64">
+      <header className="sticky top-0 z-30 bg-surface">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 h-16 lg:h-20 flex items-center gap-4">
+          <div className="flex items-center gap-3 min-w-0 flex-1 lg:flex-none lg:w-48">
             <BrandMark />
             <div className="min-w-0 leading-tight">
-              <div className="text-[13px] text-ink-3">Общий план</div>
-              <div className="text-[15px] font-semibold text-ink truncate" title={family?.name}>
+              <T as="div" font="Caption/Caption 1" color="Neutral/Neutral 70">Общий план</T>
+              <T as="div" font="Subtitle/Subtitle 2" className="truncate" title={family?.name}>
                 {family?.name}
-              </div>
+              </T>
             </div>
           </div>
 
-          <DesktopNav nav={nav} tab={tab} onSelect={setTab} unread={unread} unreadLabel={unreadLabel} />
+          <SectionNavigation nav={nav} tab={tab} onSelect={setTab} unread={unread} unreadLabel={unreadLabel} />
           {/* Demo data looks real, so the mark stays on every screen size */}
           {family?.isDemo && <span className="shrink-0 relative sm:left-3"><Badge tone="warning">Демо</Badge></span>}
 
           {user && (
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="lg"
+              className="max-lg:!px-2"
               onClick={() => setTab('family')}
-              className="flex items-center gap-2.5 h-12 pl-1 pr-1 rounded-control hover:bg-surface-sunken transition-colors lg:w-32 lg:justify-center"
               aria-label={`Вы: ${user.name}. Управление семьёй`}
             >
-              <Avatar user={user} />
-              <span className="hidden gap-2 lg:flex text-sm text-center leading-tight">
-                <span className="block font-medium text-ink">{user.name}</span>
+              <span className="!inline-flex min-w-0 items-center gap-2">
+                <Avatar user={user} size="sm" />
+                <span className="hidden max-w-32 truncate lg:block">{user.name}</span>
               </span>
-            </button>
+            </Button>
           )}
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 sm:px-6 pt-5 sm:pt-7 pb-[calc(6.5rem+env(safe-area-inset-bottom))] lg:pb-12">
-        {children}
+      <main className="mx-auto max-w-6xl px-4 sm:px-6 pt-5 sm:pt-9 pb-[calc(6.5rem+env(safe-area-inset-bottom))] lg:pb-12">
+        <div id="section-content" role="tabpanel" aria-labelledby={`section-${tab}`}>{children}</div>
       </main>
 
-      <nav
-        aria-label="Разделы"
-        className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-surface border-t border-line pb-[env(safe-area-inset-bottom)]"
-      >
-        <div className={`grid ${nav.length === 4 ? 'grid-cols-4' : 'grid-cols-3'} max-w-lg mx-auto`}>
-          {nav.map(({ tab: t, label, icon: Icon }) => {
-            const active = tab === t;
-            return (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setTab(t)}
-                aria-current={active ? 'page' : undefined}
-                aria-label={`${label}${unreadLabel(t)}`}
-                className={`h-16 flex flex-col items-center justify-center gap-1 text-xs font-medium transition-colors duration-(--dur-tab) ease-(--ease-out)
-                  ${active ? 'text-accent-ink' : 'text-ink-3 hover:text-ink'}`}
-              >
-                <span className={`relative w-14 h-7 rounded-full flex items-center justify-center transition-colors duration-(--dur-tab) ease-(--ease-out) ${active ? 'bg-accent-soft' : ''}`}>
-                  <Icon size={21} strokeWidth={active ? 2.3 : 1.9} aria-hidden />
-                  {t === 'family' && (
-                    <span className="absolute -top-1 right-1.5">
-                      <UnreadCount count={unread} />
-                    </span>
-                  )}
-                </span>
-                {label}
-              </button>
-            );
-          })}
-        </div>
-      </nav>
     </div>
   );
 }
 
-import { TabMenu, type TabProps, Badge as AdmiralBadge } from '@admiral-ds/react-ui';
+const SectionTab = styled(HorizontalTab)`
+  &,
+  &:focus-visible {
+    border-radius: var(--radius-control);
+  }
 
-interface DesktopNavProps {
+  @media (max-width: 1023px) {
+    height: 56px;
+    padding-inline: 4px;
+  }
+`;
+
+interface SectionNavigationProps {
   nav: typeof NAV;
   tab: Tab;
   onSelect: (tab: Tab) => void;
@@ -130,34 +110,39 @@ interface DesktopNavProps {
   unreadLabel: (tab: Tab) => string;
 }
 
-/** Section tabs using Admiral DS TabMenu */
-function DesktopNav({ nav, tab, onSelect, unread }: DesktopNavProps) {
-  const tabs: TabProps[] = nav.map(({ tab: t, label, icon: Icon }) => ({
-    id: t,
-    content: label,
-    icon: <Icon size={18} />,
-    badge: t === 'family' && unread > 0 ? unread : undefined,
-  }));
-
+function SectionNavigation({ nav, tab, onSelect, unread, unreadLabel }: SectionNavigationProps) {
   return (
-    <nav aria-label="Разделы" className="hidden lg:flex flex-1 justify-center">
-      <TabMenu
+    <nav aria-label="Разделы" className="fixed inset-x-0 bottom-0 bg-surface pb-[env(safe-area-inset-bottom)] lg:static lg:mx-auto lg:pb-0">
+      <HorizontalTabs
+        className="mx-auto max-w-2xl"
+        role="tablist"
+        aria-label="Разделы приложения"
         dimension="m"
-        tabs={tabs}
-        activeTab={tab}
-        onChange={(id) => onSelect(id as Tab)}
-        underline={false}
+        selectedTabId={tab}
+        tabsId={nav.map((item) => item.tab)}
+        tabIsDisabled={() => false}
+        onSelectTab={(id) => onSelect(id as Tab)}
+        renderTab={(id, selected, chooseTab) => {
+          const item = nav.find((entry) => entry.tab === id);
+          if (!item) return null;
+          const Icon = item.icon;
+          return (
+            <SectionTab key={id} id={`section-${id}`} tabId={id} dimension="m" adaptive="fill"
+              selected={selected} onSelectTab={chooseTab} aria-selected={selected}
+              aria-controls="section-content" aria-label={item.label + unreadLabel(item.tab)}>
+              <span className="flex items-center gap-2 max-lg:flex-col max-lg:gap-0.5 max-lg:text-xs">
+                <Icon size={20} aria-hidden />
+                {item.label}
+              </span>
+              {id === 'family' && unread > 0 && (
+                <AdmiralBadge className="max-lg:absolute max-lg:right-0 max-lg:top-0" appearance="info" dimension="s" aria-hidden>
+                  {unread > 99 ? '99+' : unread}
+                </AdmiralBadge>
+              )}
+            </SectionTab>
+          );
+        }}
       />
     </nav>
   );
 }
-
-function UnreadCount({ count }: { count: number }) {
-  if (count <= 0) return null;
-  return (
-    <AdmiralBadge appearance="info" dimension="s" aria-hidden>
-      {count > 99 ? '99+' : count}
-    </AdmiralBadge>
-  );
-}
-

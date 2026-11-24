@@ -1,3 +1,5 @@
+import { ProgressPage } from '@admiral-ds/react-ui';
+
 interface ProgressBarProps {
   /** Actually spent */
   value: number;
@@ -23,14 +25,22 @@ export function ProgressBar({ value, reserved = 0, max, tone = 'accent', label, 
   const limitPct = max > 0 ? (max / total) * 100 : 100;
   const inverse = tone === 'inverse';
   const fill = FILL[tone];
+  const progressValue = Math.round(Math.min(Math.max(max, 0), Math.max(value + reserved, 0)));
+  const progressProps = {
+    role: 'progressbar',
+    'aria-label': label,
+    'aria-valuemin': 0,
+    'aria-valuemax': Math.round(Math.max(0, max)),
+    'aria-valuenow': progressValue,
+  };
+
+  if (!reserved && value <= max && (tone === 'accent' || tone === 'danger')) {
+    return <ProgressPage {...progressProps} percent={spentPct} appearance={tone === 'danger' ? 'error' : 'primary'} />;
+  }
 
   return (
     <div
-      role="progressbar"
-      aria-label={label}
-      aria-valuemin={0}
-      aria-valuemax={Math.round(max)}
-      aria-valuenow={Math.round(value + reserved)}
+      {...progressProps}
       className={`relative w-full ${size === 'sm' ? 'h-2' : 'h-3'} rounded-full overflow-hidden
         ${inverse ? 'bg-white/20' : 'bg-track'}`}
     >

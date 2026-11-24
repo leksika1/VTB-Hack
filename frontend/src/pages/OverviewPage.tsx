@@ -1,4 +1,5 @@
-import { ArrowRight, CalendarClock, HandCoins, PiggyBank, Plus, ReceiptText, UserPlus } from 'lucide-react';
+import { FamilyAccountCard } from '../components/account/FamilyAccountCard';
+import { ArrowRight, Calendar, PayCash, Deposit, Plus, Receipt, PersonAdd } from '../components/ui/icons';
 import { problemCategories } from '../domain/budget';
 import { useMonthSummary } from '../hooks/useMonthSummary';
 import { useMonthChanged } from '../hooks/useMonthChanged';
@@ -46,13 +47,14 @@ function FamilyOverview() {
       </PageHeader>
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_23rem] items-start">
-        <div className="space-y-5 min-w-0">
+        <div className="min-w-0">
+          <div className="mb-5"><FamilyAccountCard /></div>
           <MonthCarousel />
 
           <PendingRequestsCard />
 
           {/* Month-dependent blocks fade in while the main block slides */}
-          <div key={monthKey} className={`space-y-5 ${monthIn}`}>
+          <div key={monthKey} className={`mt-5 space-y-5 ${monthIn}`}>
             {/* Phone order: summary → warnings → upcoming payments → categories → operations */}
             <div className="lg:hidden">{payments}</div>
 
@@ -91,7 +93,7 @@ function FamilyOverview() {
               ) : (
                 <EmptyState
                   compact
-                  icon={<ReceiptText size={22} />}
+                  icon={<Receipt size={22} />}
                   title="Расходов пока нет"
                   description={`Добавьте первую покупку за ${formatMonthLower(monthKey)} — она сразу уменьшит свободную сумму`}
                   action={
@@ -107,6 +109,7 @@ function FamilyOverview() {
 
         <aside className="space-y-5 min-w-0">
           <div key={monthKey} className={`hidden lg:block ${monthIn}`}>{payments}</div>
+          <GoalsCard />
           <FamilyStatusCard />
         </aside>
       </div>
@@ -135,7 +138,7 @@ function UpcomingPaymentsCard() {
       ) : (
         <EmptyState
           compact
-          icon={<CalendarClock size={22} />}
+          icon={<Calendar size={22} />}
           title="Предстоящих платежей нет"
           description="Добавьте аренду, коммунальные услуги или кружки — их сумма будет зарезервирована"
           action={
@@ -173,7 +176,7 @@ function FamilyStatusCard() {
       {alone && isParent && (
         <div className="mt-4 p-4 rounded-xl bg-accent-soft">
           <p className="text-[15px] text-ink">Пока вы ведёте бюджет один. Пригласите партнёра, чтобы планировать вместе.</p>
-          <Button className="mt-3" size="sm" icon={<UserPlus size={16} />} onClick={() => openModal({ type: 'invite' })}>
+          <Button className="mt-3" size="sm" icon={<PersonAdd size={16} />} onClick={() => openModal({ type: 'invite' })}>
             Пригласить
           </Button>
         </div>
@@ -202,7 +205,7 @@ function ChildOverview() {
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_23rem] items-start">
         <div className="space-y-5 min-w-0">
-          <section className="rounded-[var(--radius-card)] brand-surface p-5 sm:p-6 shadow-[var(--shadow-card)]">
+          <section className="rounded-[var(--radius-card)] brand-surface p-5 sm:p-6">
             {allowance ? (
               <>
                 <h2 className="text-[15px] text-brand-ink-2">
@@ -212,7 +215,7 @@ function ChildOverview() {
                   {formatCurrency(allowance.left)}
                 </p>
                 <p className="text-[15px] text-brand-ink-2 mt-1">
-                  из {formatCurrency(allowance.amount)} · {formatDateShort(allowance.periodStart)} — {formatDateShort(allowance.periodEnd)}
+                  из {formatCurrency(allowance.amount)}, {formatDateShort(allowance.periodStart)} — {formatDateShort(allowance.periodEnd)}
                 </p>
                 <div className="mt-5">
                   <ProgressBar
@@ -229,7 +232,7 @@ function ChildOverview() {
             ) : (
               <>
                 <h2 className="text-[15px] text-brand-ink-2 flex items-center gap-2">
-                  <PiggyBank size={18} aria-hidden /> Карманные деньги
+                  <Deposit size={18} aria-hidden /> Карманные деньги
                 </h2>
                 <p className="text-xl font-semibold mt-2">Пока не назначены</p>
                 <p className="text-[15px] text-brand-ink-2 mt-1">
@@ -245,10 +248,10 @@ function ChildOverview() {
                 </Button>
               )}
               <Button
-                variant={allowance ? 'onBrand' : 'inverse'}
+                variant={allowance ? 'inverse' : 'inverse'}
                 size="lg"
                 className="sm:flex-1"
-                icon={<HandCoins size={18} />}
+                icon={<PayCash size={18} />}
                 onClick={() => openModal({ type: 'purchaseRequestForm' })}
               >
                 Попросить покупку
@@ -261,7 +264,7 @@ function ChildOverview() {
             {summary.expenses.length > 0 ? (
               <ExpenseList expenses={summary.expenses} showDate />
             ) : (
-              <EmptyState compact icon={<ReceiptText size={22} />} title="Расходов пока нет" description="Здесь появятся ваши покупки" />
+              <EmptyState compact icon={<Receipt size={22} />} title="Расходов пока нет" description="Здесь появятся ваши покупки" />
             )}
           </Card>
         </div>

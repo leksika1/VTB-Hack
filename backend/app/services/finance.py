@@ -113,7 +113,24 @@ def _check_can_modify(member: Member, expense: Expense, action: str) -> None:
         raise Forbidden(f"{action} можно только свои расходы")
 
 
+async def split_members(db: AsyncSession, family_id: str, mode: str | None) -> list[str] | None:
+    if mode not in {"shared_split", "personal_split"}:
+        return None
+    members = await db.scalars(
+        select(Member).where(Member.family_id == family_id, Member.role == "parent",
+                             Member.left_at.is_(None), Member.status == "active")
+        .order_by(Member.joined_at, Member.id)
+    )
+    return [member.id for member in members]
+
+
+def _check_account_mode(member: Member, mode: str | None) -> None:
+    if not member.is_parent and mode not in {None, "outside"}:
+        raise Forbidden("Семейным счётом управляют взрослые участники")
+
+
 async def create_expense(db: AsyncSession, member: Member, body: ExpenseIn) -> Expense:
+    _check_account_mode(member, body.account_mode)
     await check_capacity(db, Expense, member.family_id)
     amount = amount_to_kop(body.amount)
     on = parse_date(body.date)
@@ -133,6 +150,8 @@ async def create_expense(db: AsyncSession, member: Member, body: ExpenseIn) -> E
         author_id=member.id,
         paid_by=await _payer(db, member, body.paid_by),
         receipt_key=receipt_key,
+        account_mode=body.account_mode,
+        split_members=await split_members(db, member.family_id, body.account_mode),
     )
     db.add(expense)
     await db.flush()
@@ -151,6 +170,7 @@ async def find_by_receipt(db: AsyncSession, family_id: str, receipt_key: str) ->
 async def update_expense(db: AsyncSession, member: Member, expense_id: str, body: ExpenseIn) -> Expense:
     expense = await _get_expense(db, member, expense_id)
     _check_can_modify(member, expense, "Изменять")
+    _check_account_mode(member, body.account_mode)
     amount = amount_to_kop(body.amount)
     on = parse_date(body.date)
     if not member.is_parent:
@@ -159,6 +179,11 @@ async def update_expense(db: AsyncSession, member: Member, expense_id: str, body
     expense.amount_kop = amount
     expense.category = check_category(body.category)
     expense.date = on
+    if body.account_mode is not None and body.account_mode != expense.account_mode:
+        if expense.payment_id:
+            raise ValidationFailed("Источник и доли задаются в связанном платеже", "accountMode")
+        expense.account_mode = body.account_mode
+        expense.split_members = await split_members(db, member.family_id, body.account_mode)
     if body.paid_by is not None:
         expense.paid_by = await _payer(db, member, body.paid_by)
     await db.flush()
@@ -206,6 +231,7 @@ async def create_payment(db: AsyncSession, member: Member, body: PaymentIn) -> P
         amount_kop=amount_to_kop(body.amount),
         category=check_category(body.category),
         due_date=parse_date(body.due_date, "dueDate"),
+        account_mode=body.account_mode,
         status="upcoming",
         author_id=member.id,
     )
@@ -231,6 +257,10 @@ async def update_payment(db: AsyncSession, member: Member, payment_id: str, body
     payment.amount_kop = amount_to_kop(body.amount)
     payment.category = check_category(body.category)
     payment.due_date = due
+    if body.account_mode is not None:
+        payment.account_mode = body.account_mode
+        if payment.series_id:
+            await recurring.update_future_account_mode(db, payment)
     if body.recurring is False and payment.series_id:
         await recurring.stop_series(db, payment.series_id)
     await db.flush()
@@ -276,6 +306,8 @@ async def set_payment_paid(
             author_id=member.id,
             paid_by=member.id,
             payment_id=payment.id,
+            account_mode=payment.account_mode,
+            split_members=await split_members(db, payment.family_id, payment.account_mode),
         )
         payment.status = "paid"
         db.add(expense)
@@ -312,6 +344,7 @@ async def copy_payments_from_previous_month(db: AsyncSession, member: Member, mo
             amount_kop=p.amount_kop,
             category=p.category,
             due_date=_move_to_month(p.due_date, month_key),
+            account_mode=p.account_mode,
             status="upcoming",
             author_id=member.id,
         )

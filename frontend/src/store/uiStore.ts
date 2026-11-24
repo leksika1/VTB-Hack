@@ -22,6 +22,8 @@ export type ModalState =
   | { type: 'allowanceForm'; memberId: string }
   | { type: 'purchaseRequestForm' }
   | { type: 'goalForm'; goalId?: string }
+  | { type: 'personalPurchases' }
+  | { type: 'accountContribution'; amount: number }
   | { type: 'goalContribution'; goalId: string }
   | null;
 

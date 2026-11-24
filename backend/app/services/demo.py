@@ -11,7 +11,7 @@ from datetime import date
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import clock
-from ..models import (Allowance, Budget, Expense, Family, Goal, GoalContribution, Member, Payment, PurchaseRequest,
+from ..models import (AccountContribution, Allowance, Budget, Expense, Family, Goal, GoalContribution, Member, Payment, PurchaseRequest,
                       now_ms)
 from ..schemas import SessionOut
 from ..security import MEMBER_COLORS
@@ -90,7 +90,8 @@ async def build_sample_family(
 
     def payment(title, amount, category, due, author, status="upcoming") -> Payment:
         return Payment(family_id=family.id, title=title, amount_kop=_kop(amount), category=category,
-                       due_date=due, status=status, author_id=author.id, created_at=now - 500 * HOUR_MS)
+                       due_date=due, status=status, author_id=author.id, created_at=now - 500 * HOUR_MS,
+                       account_mode="shared_split" if title in {"Аренда квартиры", "Коммунальные услуги"} else "shared_common")
 
     pay_rent = payment("Аренда квартиры", 38000, "housing", d(month, 1), petya, "paid")
     pay_prev_rent = payment("Аренда квартиры", 38000, "housing", d(prev, 1), petya, "paid")
@@ -109,9 +110,13 @@ async def build_sample_family(
     await db.flush()
 
     def expense(title, amount, category, on, author, age_hours, paid_from=None) -> Expense:
+        mode = None
+        if on.strftime("%Y-%m") == month:
+            mode = paid_from.account_mode if paid_from else "shared_common"
         return Expense(family_id=family.id, title=title, amount_kop=_kop(amount), category=category, date=on,
                        author_id=author.id, paid_by=author.id, payment_id=paid_from.id if paid_from else None,
-                       created_at=now - age_hours * HOUR_MS)
+                       created_at=now - age_hours * HOUR_MS, account_mode=mode,
+                       split_members=[petya.id, masha.id] if mode == "shared_split" else None)
 
     db.add_all(
         [
@@ -130,6 +135,11 @@ async def build_sample_family(
             expense("Коммунальные услуги", 6400, "housing", d(prev, 25), masha, 700, pay_prev_util),
         ]
     )
+    db.add_all([
+        AccountContribution(family_id=family.id, member_id=masha.id, amount_kop=_kop(68789.9), date=d(prev, 1)),
+        AccountContribution(family_id=family.id, member_id=masha.id, amount_kop=_kop(30000), date=d(month, 1)),
+        AccountContribution(family_id=family.id, member_id=petya.id, amount_kop=_kop(10600), date=d(month, 1)),
+    ])
     headphones = PurchaseRequest(family_id=family.id, author_id=sonya.id, title="Беспроводные наушники", amount_kop=_kop(3500),
                                  category="other", comment="Старые сломались", created_at=now - 3 * HOUR_MS)
     db.add_all([

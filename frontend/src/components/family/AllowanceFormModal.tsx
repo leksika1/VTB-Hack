@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Trash2 } from 'lucide-react';
+import { DeleteIcon } from '../ui/icons';
 import { deleteAllowance, saveAllowance } from '../../api/client';
 import { useAsyncAction, useRequestId } from '../../hooks/useAsyncAction';
 import { useDataStore } from '../../store/dataStore';
@@ -83,7 +83,7 @@ export function AllowanceFormModal({ memberId }: { memberId: string }) {
       footer={
         <div className="flex items-center gap-3">
           {existing && (
-            <Button variant="dangerSoft" size="lg" className="flex-1" icon={<Trash2 size={17} />} onClick={() => setConfirmRemove(true)}>
+            <Button variant="secondary" size="lg" className="flex-1" icon={<DeleteIcon size={17} />} onClick={() => setConfirmRemove(true)}>
               Отменить
             </Button>
           )}

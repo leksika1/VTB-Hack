@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, Copy, Link2, Share2 } from 'lucide-react';
+import { Check, Copy, LinkIcon, Share } from '../ui/icons';
 import type { Role } from '../../types';
 import { createInviteLink } from '../../api/client';
 import { useAsyncAction } from '../../hooks/useAsyncAction';
@@ -69,7 +69,7 @@ export function InvitePanel() {
 
   return (
     <div>
-      <SegmentedControl dimension="m" appearance="filled">
+      <SegmentedControl dimension="m" appearance="filled" aria-label="Кого пригласить">
         {ROLES.map((r) => (
           <SegmentedControlItem
             key={r.value}
@@ -88,13 +88,13 @@ export function InvitePanel() {
 
       {link ? (
         <>
-          <div className="mt-3 rounded-xl bg-surface-muted border border-line px-3.5 py-3 text-sm text-ink-2 break-all select-all">{link.url}</div>
+          <div className="mt-3 rounded-xl bg-surface-muted px-3.5 py-3 text-sm text-ink-2 break-all select-all">{link.url}</div>
           <div className="flex flex-wrap items-center gap-2.5 mt-3">
             <Button icon={copied ? <Check size={16} /> : <Copy size={16} />} onClick={() => copy(link.url)}>
               {copied ? 'Скопировано' : 'Скопировать ссылку'}
             </Button>
             {typeof navigator.share === 'function' && (
-              <Button variant="secondary" icon={<Share2 size={16} />} onClick={() => share(link.url)}>
+              <Button variant="secondary" icon={<Share size={16} />} onClick={() => share(link.url)}>
                 Поделиться
               </Button>
             )}
@@ -106,7 +106,7 @@ export function InvitePanel() {
         </>
       ) : (
         <>
-          <Button className="mt-3" icon={<Link2 size={16} />} loading={create.pending} onClick={onCreate}>
+          <Button className="mt-3" icon={<LinkIcon size={16} />} loading={create.pending} onClick={onCreate}>
             Создать ссылку-приглашение
           </Button>
           <p className="text-[13px] text-ink-3 mt-2">

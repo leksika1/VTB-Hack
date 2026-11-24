@@ -10,6 +10,8 @@ import { AllowanceFormModal } from '../family/AllowanceFormModal';
 import { PurchaseRequestModal } from '../purchase/PurchaseRequestModal';
 import { GoalFormModal } from '../goals/GoalFormModal';
 import { GoalContributionModal } from '../goals/GoalContributionModal';
+import { PersonalPurchasesModal } from '../account/PersonalPurchasesModal';
+import { AccountContributionModal } from '../account/AccountContributionModal';
 import { Presence } from '../ui/Presence';
 
 function renderModal(modal: NonNullable<ModalState>) {
@@ -32,6 +34,10 @@ function renderModal(modal: NonNullable<ModalState>) {
       return <PurchaseRequestModal />;
     case 'goalForm':
       return <GoalFormModal key={`g-${modal.goalId ?? 'new'}`} goalId={modal.goalId} />;
+    case 'personalPurchases':
+      return <PersonalPurchasesModal />;
+    case 'accountContribution':
+      return <AccountContributionModal amount={modal.amount} />;
     case 'goalContribution':
       return <GoalContributionModal key={modal.goalId} goalId={modal.goalId} />;
   }

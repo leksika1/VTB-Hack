@@ -2,6 +2,8 @@
 DTO API. Поля в camelCase и форма объектов совпадают с типами фронтенда (frontend/src/types/index.ts).
 Входные модели нарочно мягкие (str/float): содержательные проверки с русскими сообщениями — в validation.py.
 """
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
@@ -50,11 +52,19 @@ class BudgetIn(Schema):
     category_plans: dict[str, float] = {}
 
 
+AccountMode = Literal["shared_split", "shared_common", "personal_split", "outside"]
+
+
+class ContributionAmountIn(Schema):
+    amount: float
+
+
 class ExpenseIn(Schema):
     title: str = Field(max_length=500)
     amount: float
     category: str
     date: str
+    account_mode: AccountMode | None = None
     paid_by: str | None = None  # кто платил; по умолчанию автор (docs/FEATURES.md §7)
     receipt: str | None = Field(default=None, max_length=512)  # строка QR-кода чека (§8)
 
@@ -94,6 +104,7 @@ class PaymentIn(Schema):
     due_date: str
     # true — начать серию, false — остановить; не указано — не менять (docs/FEATURES.md §6)
     recurring: bool | None = None
+    account_mode: Literal["shared_split", "shared_common", "outside"] | None = None
 
 
 class GoalIn(Schema):
@@ -128,6 +139,7 @@ class ImportRowChoice(Schema):
     id: str
     category: str | None = None
     include: bool = True
+    account_mode: Literal["personal_split", "outside"] | None = None
 
 
 class ImportConfirmIn(Schema):
@@ -271,6 +283,8 @@ class ExpenseOut(Schema):
     author_name: str | None
     payment_id: str | None
     paid_by: str | None
+    account_mode: AccountMode | None
+    split_members: list[str] | None
     request_id: str | None
     created_at: int
 
@@ -287,6 +301,8 @@ class ExpenseOut(Schema):
             author_name=e.author.name if e.author else None,
             payment_id=e.payment_id,
             paid_by=e.paid_by,
+            account_mode=e.account_mode,
+            split_members=e.split_members,
             request_id=e.request_id,
             created_at=e.created_at,
         )
@@ -303,6 +319,7 @@ class PaymentOut(Schema):
     expense_id: str | None
     author_id: str | None
     created_at: int
+    account_mode: AccountMode | None
     recurring: bool
     series_id: str | None
 
@@ -320,6 +337,7 @@ class PaymentOut(Schema):
             author_id=p.author_id,
             created_at=p.created_at,
             recurring=p.recurring,
+            account_mode=p.account_mode,
             series_id=p.series_id,
         )
 
@@ -335,6 +353,20 @@ class CopyPaymentsOut(Schema):
     payments: list[PaymentOut]
 
 
+class AccountContributionOut(Schema):
+    id: str
+    member_id: str | None
+    amount: float
+    date: str
+    created_at: int
+
+    @classmethod
+    def of(cls, contribution: models.AccountContribution) -> "AccountContributionOut":
+        return cls(id=contribution.id, member_id=contribution.member_id,
+                   amount=kop_to_amount(contribution.amount_kop), date=contribution.date.isoformat(),
+                   created_at=contribution.created_at)
+
+
 class StateOut(Schema):
     """Всё, что нужно приложению на старте (loadInitialData)."""
 
@@ -345,6 +377,7 @@ class StateOut(Schema):
     payments: list[PaymentOut]
     allowances: list["AllowanceOut"] = []
     unread_notifications: int = 0
+    account_contributions: list[AccountContributionOut] = Field(default_factory=list)
 
 
 class CategorySummaryOut(Schema):

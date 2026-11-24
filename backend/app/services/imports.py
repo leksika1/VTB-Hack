@@ -56,13 +56,14 @@ async def create(db: AsyncSession, member: Member, body: ImportIn) -> StatementI
 
 async def _get(db: AsyncSession, member: Member, import_id: str, lock: bool = False) -> StatementImport:
     batch = await db.get(StatementImport, import_id, with_for_update=lock, populate_existing=lock)
-    if batch is None or batch.family_id != member.family_id:
+    if batch is None or batch.family_id != member.family_id or batch.created_by != member.id:
         raise NotFound("Импорт не найден")
     return batch
 
 
 async def list_imports(db: AsyncSession, member: Member) -> list[StatementImport]:
-    return list(await db.scalars(select(StatementImport).where(StatementImport.family_id == member.family_id)
+    return list(await db.scalars(select(StatementImport).where(StatementImport.family_id == member.family_id,
+                                                        StatementImport.created_by == member.id)
                                  .order_by(StatementImport.created_at.desc()).limit(50)))
 
 
@@ -90,15 +91,17 @@ async def confirm(db: AsyncSession, member: Member, import_id: str, body: Import
         category = (choice.category if choice and choice.category else row.suggested_category)
         if category not in CATEGORIES:
             raise ValidationFailed("Выберите категорию", "rows")
-        to_import.append((row, category))
+        to_import.append((row, category, choice.account_mode if choice else None))
     await finance.check_capacity(db, Expense, member.family_id, adding=len(to_import))
 
     rules: dict[str, str] = {}
-    for row, category in to_import:
+    split_members = await finance.split_members(db, member.family_id, "personal_split")
+    for row, category, mode in to_import:
         expense = Expense(
             family_id=member.family_id, title=row.description or "Операция по карте", amount_kop=row.amount_kop,
             category=category, date=row.date, author_id=member.id, paid_by=member.id,
-            import_fingerprint=row.fingerprint,
+            import_fingerprint=row.fingerprint, account_mode=mode,
+            split_members=split_members if mode == "personal_split" else None,
         )
         db.add(expense)
         await db.flush()

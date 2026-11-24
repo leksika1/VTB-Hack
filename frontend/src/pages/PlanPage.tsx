@@ -1,4 +1,4 @@
-import { CalendarClock, ClipboardList, CopyPlus, Pencil, Plus } from 'lucide-react';
+import { Calendar, Clipboard, AddTemplate, Edit, Plus } from '../components/ui/icons';
 import { copyPaymentsFromPreviousMonth } from '../api/client';
 import { useAsyncAction } from '../hooks/useAsyncAction';
 import { useMonthSummary } from '../hooks/useMonthSummary';
@@ -35,21 +35,20 @@ export function PlanPage() {
                 <SectionHeader
                   title={`Бюджет на ${formatMonthLower(monthKey)}`}
                   action={
-                    <Button size="sm" variant="secondary" icon={<Pencil size={15} />} onClick={() => openModal({ type: 'budgetForm' })}>
+                    <Button size="sm" variant="secondary" icon={<Edit size={15} />} onClick={() => openModal({ type: 'budgetForm' })}>
                       Изменить
                     </Button>
                   }
                 />
-                <div className="rounded-xl brand-surface px-4 py-3 mb-4 text-[15px]">
-                  <AmountRow label="Общий план" value={formatCurrency(summary.plan)} strong />
-                  <AmountRow label="Потрачено" value={formatCurrency(summary.spent)} />
-                  <AmountRow label="Зарезервировано на платежи" value={formatCurrency(summary.reserved)} />
-                  <AmountRow
-                    label="Свободно по плану"
-                    value={formatBalance(summary.freeByPlan)}
-                    strong
-                    tone={summary.freeByPlan < 0 ? 'danger' : undefined}
-                  />
+                <div className="plan-balance">
+                  <p className="text-sm text-ink-2">Общий план</p>
+                  <p className="balance-number">{formatCurrency(summary.plan)}</p>
+                  <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                    <AmountRow label="Потрачено" value={formatCurrency(summary.spent)} />
+                    <AmountRow label="В резерве" value={formatCurrency(summary.reserved)} />
+                    <AmountRow label="Свободно" value={formatBalance(summary.freeByPlan)}
+                      tone={summary.freeByPlan < 0 ? 'danger' : undefined} />
+                  </div>
                   {summary.unallocated > 0 && (
                     <AmountRow label="Не распределено по категориям" value={formatCurrency(summary.unallocated)} tone="muted" />
                   )}
@@ -59,7 +58,7 @@ export function PlanPage() {
               </>
             ) : (
               <EmptyState
-                icon={<ClipboardList size={22} />}
+                icon={<Clipboard size={22} />}
                 title={`Бюджет на ${formatMonthLower(monthKey)} не задан`}
                 description="Укажите общую сумму на месяц или лимиты только для важных категорий. Можно взять за основу прошлый месяц."
                 action={<Button onClick={() => openModal({ type: 'budgetForm' })}>Задать бюджет</Button>}
@@ -128,12 +127,12 @@ function PaymentsCard() {
       {!hasAny && (
         <EmptyState
           compact
-          icon={<CalendarClock size={22} />}
+          icon={<Calendar size={22} />}
           title="Платежей на этот месяц нет"
           description="Аренда, коммуналка, сад, страховка — всё, что нужно оплатить обязательно. Их сумма вычитается из свободной."
           action={
             prevCount > 0 ? (
-              <Button variant="secondary" icon={<CopyPlus size={16} />} loading={copy.pending} onClick={onCopy}>
+              <Button variant="secondary" icon={<AddTemplate size={16} />} loading={copy.pending} onClick={onCopy}>
                 Перенести платежи из прошлого месяца ({prevCount})
               </Button>
             ) : undefined
@@ -153,7 +152,7 @@ function PaymentsCard() {
       )}
       {/* Copying payments is separate from copying the budget limits («Заполнить как …» in the budget form) */}
       {hasAny && prevCount > 0 && (
-        <Button size="sm" variant="ghost" className="mt-3" icon={<CopyPlus size={15} />} loading={copy.pending} onClick={onCopy}>
+        <Button size="sm" variant="ghost" className="mt-3" icon={<AddTemplate size={15} />} loading={copy.pending} onClick={onCopy}>
           Перенести платежи из прошлого месяца ({prevCount})
         </Button>
       )}

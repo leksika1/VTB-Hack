@@ -1,7 +1,7 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { Button as AdmiralButton, IconButton as AdmiralIconButton, type ButtonAppearance } from '@admiral-ds/react-ui';
 
-type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'inverse' | 'onBrand' | 'dangerGhost' | 'dangerSoft' | 'neutral' | 'brand' | 'outline';
+type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'inverse';
 type Size = 'md' | 'sm' | 'lg';
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -14,16 +14,10 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const ADMIRAL_APPEARANCE_MAP: Record<Variant, ButtonAppearance> = {
   primary: 'primary',
-  secondary: 'secondary',
+  secondary: 'tertiary',
   ghost: 'ghost',
   danger: 'danger',
-  inverse: 'white',
-  onBrand: 'ghost',
-  dangerGhost: 'ghost',
-  dangerSoft: 'secondary',
-  neutral: 'secondary',
-  brand: 'primary',
-  outline: 'secondary',
+  inverse: 'tertiary',
 };
 
 const ADMIRAL_DIMENSION_MAP: Record<Size, 's' | 'm' | 'l'> = {
@@ -45,31 +39,21 @@ export function Button({
   style,
   ...rest
 }: ButtonProps) {
-  const appearance = ADMIRAL_APPEARANCE_MAP[variant] || 'primary';
-  const dimension = ADMIRAL_DIMENSION_MAP[size] || 'm';
-
-  const customClasses = variant === 'onBrand'
-    ? '!text-white !bg-white/10 hover:!bg-white/20'
-    : variant === 'dangerGhost'
-    ? '!text-danger hover:!bg-danger-soft'
-    : variant === 'dangerSoft'
-    ? '!bg-danger-soft !text-danger hover:brightness-95'
-    : '';
-
   return (
     <AdmiralButton
       type={type}
-      appearance={appearance}
-      dimension={dimension}
+      appearance={ADMIRAL_APPEARANCE_MAP[variant]}
+      dimension={ADMIRAL_DIMENSION_MAP[size]}
       loading={loading}
       disabled={disabled || loading}
-      iconStart={icon}
+      iconStart={icon ? (
+        <span className="flex size-full items-center justify-center">{icon}</span>
+      ) : undefined}
       style={{
         width: fullWidth ? '100%' : undefined,
-        justifyContent: 'center',
         ...style,
       }}
-      className={`font-semibold transition-all duration-150 ${customClasses} ${fullWidth ? 'w-full' : ''} ${className}`}
+      className={variant === 'inverse' ? `button-on-blue ${className}` : className}
       {...rest}
     >
       {children}
@@ -80,14 +64,12 @@ export function Button({
 export interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   label: string;
   children: ReactNode;
-  tone?: 'default' | 'inverse';
 }
 
 /** Icon-only button with an accessible name and touch target using Admiral DS */
 export function IconButton({
   label,
   children,
-  tone = 'default',
   className = '',
   type = 'button',
   disabled,
@@ -101,7 +83,7 @@ export function IconButton({
       aria-label={label}
       title={label}
       disabled={disabled}
-      className={`shrink-0 ${tone === 'inverse' ? '!text-white !bg-white/10 hover:!bg-white/20' : ''} ${className}`}
+      className={`shrink-0 ${className}`}
       {...rest}
     >
       {children}

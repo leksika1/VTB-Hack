@@ -1,6 +1,6 @@
-import type { InputHTMLAttributes, ReactNode } from 'react';
-import { Field as AdmiralField, TextInput } from '@admiral-ds/react-ui';
-import { ServiceErrorOutline, ServiceErrorSolid } from '@admiral-ds/icons';
+import { useId, type InputHTMLAttributes, type ReactNode } from 'react';
+import { InputField, NotificationItem, NotificationItemContent } from '@admiral-ds/react-ui';
+import { ServiceErrorOutline } from '@admiral-ds/icons';
 
 export interface FieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'id'> {
   label: string;
@@ -22,25 +22,24 @@ export function Field({
   required,
   ...rest
 }: FieldProps) {
+  const id = useId();
+  const detailId = `${id}-detail`;
   return (
-    <div className={`mb-3 ${className}`}>
-      <AdmiralField
-        label={label}
-        extraText={error ? <FieldError>{error}</FieldError> : hint}
-        status={error ? 'error' : undefined}
-        disabled={disabled}
-        required={required}
-      >
-        <TextInput
-          dimension={emphasis ? 'xl' : 'm'}
-          status={error ? 'error' : undefined}
-          disabled={disabled}
-          iconsAfter={suffix ? <span className="text-ink-3 pr-2 font-medium" aria-hidden>{suffix}</span> : undefined}
-          style={emphasis ? { fontSize: '1.25rem', fontWeight: 600 } : undefined}
-          {...rest}
-        />
-      </AdmiralField>
-    </div>
+    <InputField
+      {...rest}
+      id={id}
+      label={label}
+      className={`input-soft-border ${className}`}
+      extraText={error ? <FieldError id={detailId}>{error}</FieldError> : hint && <span id={detailId}>{hint}</span>}
+      aria-describedby={error || hint ? detailId : rest['aria-describedby']}
+      aria-invalid={error ? true : undefined}
+      dimension={emphasis ? 'xl' : 'm'}
+      status={error ? 'error' : undefined}
+      disabled={disabled}
+      required={required}
+      displayCharacterCounter={false}
+      iconsAfter={suffix && <span className="pr-2 text-ink-2" aria-hidden>{suffix}</span>}
+    />
   );
 }
 
@@ -61,9 +60,8 @@ export function AmountField(props: Omit<FieldProps, 'type' | 'inputMode' | 'suff
 /** A banner for errors that do not belong to a single field (e.g. network) */
 export function FormError({ children }: { children: ReactNode }) {
   return (
-    <div role="alert" className="flex items-start gap-2.5 p-3.5 rounded-xl bg-danger-soft text-danger text-sm border border-danger/20">
-      <ServiceErrorSolid width={18} height={18} className="shrink-0 mt-0.5 text-danger" aria-hidden />
-      <span className="flex-1">{children}</span>
-    </div>
+    <NotificationItem status="error" displayStatusIcon isBorderHidden>
+      <NotificationItemContent>{children}</NotificationItemContent>
+    </NotificationItem>
   );
 }

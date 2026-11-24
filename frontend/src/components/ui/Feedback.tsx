@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
-import { RefreshCw } from 'lucide-react';
-import { T } from '@admiral-ds/react-ui';
+import { Refresh } from './icons';
+import styled from 'styled-components';
+import { T, skeletonAnimationMixin } from '@admiral-ds/react-ui';
 import { ServiceErrorOutline } from '@admiral-ds/icons';
 import { Button } from './Button';
 
@@ -18,7 +19,7 @@ export function EmptyState({ icon, title, description, action, compact }: EmptyS
       <div className="w-12 h-12 rounded-full bg-accent-soft text-accent-ink flex items-center justify-center mb-3" aria-hidden>
         {icon}
       </div>
-      <T font="Subtitle/Subtitle 2" className="!font-semibold text-ink block">
+      <T font="Subtitle/Subtitle 2" className="text-ink block">
         {title}
       </T>
       {description && <p className="text-sm text-ink-2 max-w-xs mt-1">{description}</p>}
@@ -34,20 +35,22 @@ export function ErrorState({ message, onRetry, retrying }: { message: string; on
       <div className="w-12 h-12 rounded-full bg-danger-soft text-danger flex items-center justify-center mb-3" aria-hidden>
         <ServiceErrorOutline width={24} height={24} />
       </div>
-      <T font="Subtitle/Subtitle 1" className="!font-semibold text-ink block">
+      <T font="Subtitle/Subtitle 1" className="text-ink block">
         Не удалось загрузить данные
       </T>
       <p className="text-sm text-ink-2 max-w-xs mt-1">{message}</p>
-      <Button className="mt-4" variant="secondary" icon={<RefreshCw size={16} />} loading={retrying} onClick={onRetry}>
+      <Button className="mt-4" variant="secondary" icon={<Refresh size={16} />} loading={retrying} onClick={onRetry}>
         Повторить
       </Button>
     </div>
   );
 }
 
-export function Skeleton({ className = '' }: { className?: string }) {
-  return <div className={`skeleton ${className}`} aria-hidden />;
-}
+export const Skeleton = styled.div.attrs({ 'aria-hidden': true })`
+  border-radius: var(--admiral-border-radius-Medium);
+  background: var(--admiral-color-Neutral_Neutral10);
+  ${skeletonAnimationMixin}
+`;
 
 /** Placeholder for a whole page while the first request is in flight */
 export function PageSkeleton() {
