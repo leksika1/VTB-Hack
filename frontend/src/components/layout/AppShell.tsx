@@ -50,8 +50,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh">
       <header className="sticky top-0 z-30 app-header">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 h-16 lg:h-20 flex items-center gap-3">
-          <div className="flex items-center gap-3 min-w-0 flex-1 lg:flex-[1_1_13rem]">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 h-16 lg:h-20 flex items-center gap-3 lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
             <BrandMark />
             <div className="min-w-0 leading-tight">
               <T as="div" font="Caption/Caption 1" color="Neutral/Neutral 70">Общий план</T>
@@ -62,23 +62,25 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
 
           <SectionNavigation nav={nav} tab={tab} onSelect={setTab} unread={unread} unreadLabel={unreadLabel} />
-          {/* Demo data looks real, so the mark stays on every screen size */}
-          {family?.isDemo && <span className="shrink-0"><Badge tone="warning">Демо</Badge></span>}
+          <div className="flex min-w-0 items-center justify-end gap-2">
+            {/* Demo data looks real, so the mark stays on every screen size */}
+            {family?.isDemo && <span className="shrink-0"><Badge tone="warning">Демо</Badge></span>}
 
-          {user && (
-            <Button
-              variant="ghost"
-              size="lg"
-              className="!px-2 lg:!px-3"
-              onClick={() => setTab('family')}
-              aria-label={`Вы: ${user.name}. Управление семьёй`}
-            >
-              <span className="!inline-flex min-w-0 items-center gap-2">
-                <Avatar user={user} size="sm" />
-                <span className="hidden max-w-32 truncate lg:block">{user.name}</span>
-              </span>
-            </Button>
-          )}
+            {user && (
+              <Button
+                variant="ghost"
+                size="lg"
+                className="min-w-0 !px-2 lg:!px-3"
+                onClick={() => setTab('family')}
+                aria-label={`Вы: ${user.name}. Управление семьёй`}
+              >
+                <span className="!inline-flex min-w-0 max-w-full items-center gap-2">
+                  <Avatar user={user} size="sm" />
+                  <span className="hidden min-w-0 max-w-32 truncate lg:block">{user.name}</span>
+                </span>
+              </Button>
+            )}
+          </div>
         </div>
       </header>
 
@@ -95,7 +97,7 @@ const SectionTab = styled(HorizontalTab)`
     min-width: 0;
     height: 44px;
     padding-inline: 12px;
-    border-radius: 999px;
+    border-radius: var(--radius-control);
     color: var(--nav-ink);
     transition: background-color 180ms ease, color 180ms ease;
   }
@@ -119,7 +121,6 @@ const SectionTab = styled(HorizontalTab)`
     && {
       height: 52px;
       padding-inline: 2px;
-      border-radius: 16px;
     }
   }
 `;

@@ -65,7 +65,7 @@ export function FamilyPage() {
                 <li key={m.id} className="flex min-w-0 items-center gap-2 family-member-tile">
                   <Avatar user={m} />
                   <span className="flex-1 min-w-0 font-medium text-ink truncate">{m.name}</span>
-                  {m.role === 'child' && <Badge>Ребёнок</Badge>}
+                  {m.role === 'child' && <span className="account-tag shrink-0">Ребёнок</span>}
                   {m.id === currentUserId && <Badge tone="accent">Вы</Badge>}
                 </li>
               ))}
