@@ -1,5 +1,5 @@
 import { TextButton } from '@admiral-ds/react-ui';
-import { useMemo, useRef, useState } from 'react';
+import { useId, useMemo, useRef, useState } from 'react';
 import { CalendarUpdate, ChevronDown, Receipt, Balance, WarningIcon } from '../ui/icons';
 import type { ExpenseCategory } from '../../types';
 import { categoryShortages, checkPurchase, type CategorySummary, type PurchaseCheck } from '../../domain/budget';
@@ -169,6 +169,8 @@ function ShortagesNote({ shortages, onRevise }: { shortages: CategorySummary[]; 
 }
 
 function PurchaseResult({ result, onRebalance }: { result: PurchaseCheck; onRebalance: (c: CategorySummary) => void }) {
+  const [paymentsOpen, setPaymentsOpen] = useState(false);
+  const paymentsId = useId();
   const v = VERDICT[result.verdict];
   const Icon = v.icon;
   const cat = result.category;
@@ -241,26 +243,31 @@ function PurchaseResult({ result, onRebalance }: { result: PurchaseCheck; onReba
         )}
 
         {result.reservedPayments.length > 0 ? (
-          <details className="group mt-3 pt-3 border-t border-line">
-            <summary className="flex items-center justify-between gap-3 cursor-pointer list-none font-medium text-ink [&::-webkit-details-marker]:hidden">
+          <div className="mt-3 pt-3 border-t border-line">
+            <button type="button" className="flex w-full items-center justify-between gap-3 text-left font-medium text-ink"
+              aria-expanded={paymentsOpen} aria-controls={paymentsId} onClick={() => setPaymentsOpen(!paymentsOpen)}>
               <span>
                 Учтены {result.reservedPayments.length}{' '}
                 {plural(result.reservedPayments.length, 'предстоящий платёж', 'предстоящих платежа', 'предстоящих платежей')}
               </span>
-              <ChevronDown size={18} className="shrink-0 text-ink-3 transition-transform group-open:rotate-180" aria-hidden />
-            </summary>
-            <ul className="space-y-1 text-sm mt-2">
-              {result.reservedPayments.map((p) => (
-                <li key={p.id} className="flex justify-between gap-3 text-ink-2">
-                  <span className="flex gap-3 min-w-0">
-                    <span className="text-ink-3 w-[5.5rem] shrink-0">{formatDateShort(p.dueDate)}</span>
-                    <span className="truncate">{p.title}</span>
-                  </span>
-                  <span className="tabular whitespace-nowrap">{formatCurrency(p.amount)}</span>
-                </li>
-              ))}
-            </ul>
-          </details>
+              <ChevronDown size={18} className={`shrink-0 text-ink-3 transition-transform ${paymentsOpen ? 'rotate-180' : ''}`} aria-hidden />
+            </button>
+            <div id={paymentsId} className="collapsible" data-open={paymentsOpen} inert={!paymentsOpen}>
+              <div>
+                <ul className="space-y-1 text-sm pt-2">
+                  {result.reservedPayments.map((p) => (
+                    <li key={p.id} className="flex justify-between gap-3 text-ink-2">
+                      <span className="flex gap-3 min-w-0">
+                        <span className="text-ink-3 w-[5.5rem] shrink-0">{formatDateShort(p.dueDate)}</span>
+                        <span className="truncate">{p.title}</span>
+                      </span>
+                      <span className="tabular whitespace-nowrap">{formatCurrency(p.amount)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
         ) : (
           <p className="mt-3 pt-3 border-t border-line text-sm text-ink-2">Предстоящих платежей в этом месяце нет</p>
         )}

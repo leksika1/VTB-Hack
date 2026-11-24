@@ -21,6 +21,8 @@
 
 Два Compose-сервиса в проекте Dokploy (в каждом окружении: prod — ветка `main`, dev — `dev`):
 
+[Dev-стенд «Общего плана»](https://dev.vtb.leksika1.ru/) обновляется при выкладке из ветки `dev`.
+
 | Сервис | Compose Path | Что поднимает | Domains |
 |---|---|---|---|
 | **Backend** | `./backend/docker-compose.yml` | backend + PostgreSQL + Redis | не нужен |

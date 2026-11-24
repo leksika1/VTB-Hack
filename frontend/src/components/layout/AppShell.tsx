@@ -69,7 +69,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Button
               variant="ghost"
               size="lg"
-              className="max-lg:!px-2"
+              className="!px-2 lg:!px-3"
               onClick={() => setTab('family')}
               aria-label={`Вы: ${user.name}. Управление семьёй`}
             >

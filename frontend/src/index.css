@@ -237,6 +237,24 @@ input[type='number']::-webkit-inner-spin-button {
   min-height: 0;
 }
 
+/* Admiral's default max-height cannot interpolate to none. */
+.animated-accordion .accordion-item > [aria-controls] + div {
+  display: grid;
+  grid-template-rows: 0fr;
+  max-height: none;
+  transition: grid-template-rows 250ms var(--ease-out), visibility 250ms;
+}
+
+.animated-accordion .accordion-item > [aria-expanded='true'] + div {
+  grid-template-rows: 1fr;
+}
+
+.animated-accordion .accordion-item > [aria-controls] + div > [role='region'] {
+  min-height: 0;
+  padding-block: 0;
+  overflow: hidden;
+}
+
 .request-collapse {
   transition: grid-template-rows var(--dur-exit) ease-in-out, opacity var(--dur-exit) ease-out;
 }

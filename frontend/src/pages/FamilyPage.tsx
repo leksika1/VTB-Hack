@@ -88,7 +88,7 @@ export function FamilyPage() {
         <div className="space-y-5 min-w-0">
           <EventsCard />
           <Card className="px-5 py-2">
-            <Accordion dimension="m" hideTopDivider hideBottomDivider>
+            <Accordion className="animated-accordion" dimension="m" hideTopDivider hideBottomDivider>
               <AccordionItem title="Доступ к семейному бюджету" contentMaxHeight="none">
             <div className="pt-4">
               <ul className="space-y-3.5 text-[15px]">

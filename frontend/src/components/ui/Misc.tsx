@@ -46,22 +46,24 @@ export function MonthSwitcher() {
   const changed = useMonthChanged();
 
   return (
-    <div className="inline-flex items-center gap-1 bg-surface rounded-full p-0.5">
-      <IconButton label="Предыдущий месяц" onClick={() => setMonthKey(shiftMonth(monthKey, -1))} className="!w-10 !h-10">
+    <div className="inline-flex h-12 select-none items-center gap-1 rounded-full bg-surface px-1">
+      <IconButton label="Предыдущий месяц" onClick={() => setMonthKey(shiftMonth(monthKey, -1))} className="!size-10 !rounded-full shrink-0">
         <ChevronLeft size={20} />
       </IconButton>
       <div className="min-w-34 text-center leading-tight overflow-hidden" aria-live="polite">
-        {/* Name and the «back to current» link slide together as one unit; the link exists only off the current month */}
-        <div key={monthKey} className={!changed ? '' : direction > 0 ? 'animate-label-next' : 'animate-label-prev'}>
+        <div
+          key={monthKey}
+          className={`flex h-11 flex-col items-center justify-center ${!changed ? '' : direction > 0 ? 'animate-label-next' : 'animate-label-prev'}`}
+        >
           <T font="Subtitle/Subtitle 2" className="text-ink block">
             {formatMonthKey(monthKey)}
           </T>
           {!isCurrent && (
-            <TextButton dimension="s" text="К текущему месяцу" onClick={() => setMonthKey(toMonthKey())} />
+            <TextButton dimension="s" className="shrink-0" text="К текущему месяцу" onClick={() => setMonthKey(toMonthKey())} />
           )}
         </div>
       </div>
-      <IconButton label="Следующий месяц" onClick={() => setMonthKey(shiftMonth(monthKey, 1))} className="!w-10 !h-10">
+      <IconButton label="Следующий месяц" onClick={() => setMonthKey(shiftMonth(monthKey, 1))} className="!size-10 !rounded-full shrink-0">
         <ChevronRight size={20} />
       </IconButton>
     </div>

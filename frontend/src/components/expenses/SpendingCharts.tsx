@@ -104,11 +104,6 @@ export function SpendingCharts({ expenses, selected, onToggle, className = '' }:
           <DonutChart slices={slices} total={total} active={active} onActive={setActive} selected={selected} onToggle={onToggle} />
         )}
       </div>
-      <p className="text-[13px] text-ink-3 mt-3">
-        {selected.length > 0
-          ? 'Список ниже показывает выбранные категории. Нажмите ещё раз, чтобы снять выбор.'
-          : 'Нажмите на категорию, чтобы показать только её операции.'}
-      </p>
       <AuthorTotals expenses={expenses} />
     </Card>
   );
@@ -343,17 +338,15 @@ function DonutChart({ slices, total, active, onActive, selected, onToggle }: Cha
                 onMouseLeave={() => onActive(null)}
                 onFocus={() => onActive(s.key)}
                 onBlur={() => onActive(null)}
-                className={`w-[calc(100%+1rem)] flex items-center gap-3 py-2.5 px-2 -mx-2 rounded-lg text-left transition-colors ${isActive || isSelected ? 'bg-surface-muted' : ''} ${isDimmed(s.key, active, selected) ? 'opacity-50' : ''}`}
+                className={`grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-baseline gap-x-2 gap-y-0.5 py-2.5 px-1 rounded-lg text-left transition-colors ${isActive || isSelected ? 'bg-surface-muted' : ''} ${isDimmed(s.key, active, selected) ? 'opacity-50' : ''}`}
               >
-                <span className="w-3 h-3 rounded-[3px] shrink-0" style={{ background: cfg.color }} aria-hidden />
-                <span className="flex-1 min-w-0">
-                  <span className={`block text-ink truncate ${isSelected ? 'font-semibold' : ''}`}>{cfg.label}</span>
-                  <span className="block text-[13px] text-ink-3">
-                    {s.count} {plural(s.count, 'операция', 'операции', 'операций')}
-                  </span>
+                <span className="size-3 self-center rounded-[3px]" style={{ background: cfg.color }} aria-hidden />
+                <span className={`min-w-0 break-words text-ink ${isSelected ? 'font-semibold' : ''}`}>{cfg.label}</span>
+                <span className="text-right text-ink tabular whitespace-nowrap">{formatCurrency(s.amount)}</span>
+                <span className="col-start-2 whitespace-nowrap text-[13px] text-ink-3">
+                  {s.count} {plural(s.count, 'операция', 'операции', 'операций')}
                 </span>
-                <span className="text-ink tabular whitespace-nowrap">{formatCurrency(s.amount)}</span>
-                <span className="text-ink-3 tabular w-10 text-right">{Math.round(s.share * 100)}%</span>
+                <span className="text-right text-[13px] text-ink-3 tabular">{Math.round(s.share * 100)}%</span>
               </T>
             </li>
           );

@@ -48,7 +48,6 @@ export function FamilyAccountCard() {
         <div>
           <p className="text-sm text-ink-2">Ваш баланс по взносам</p>
           <p className="font-semibold tabular">{formatSigned(own?.balance ?? 0)}</p>
-          {due > 0 && <p className="mt-1 text-sm text-ink-2">Нужно докинуть {formatCurrency(due)}</p>}
         </div>
         {canTopUp && (
           <Button icon={<Plus size={16} />} onClick={() => openModal({ type: 'accountContribution', amount: due })}>
@@ -67,9 +66,9 @@ export function FamilyAccountCard() {
           Из покупок или выписки
         </Button>
       </div>
-      <Accordion className="mt-4">
-        <AccordionItem title="Взносы и доли" contentMaxHeight="none">
-          <ul className="space-y-2">
+      <Accordion className="animated-accordion mt-6 select-none" hideTopDivider hideBottomDivider>
+        <AccordionItem title="Взносы и доли" contentMaxHeight="none" className="rounded-control">
+          <ul className="space-y-2 pt-3">
             {family?.members.map((member) => {
               const info = account.members.get(member.id);
               return (

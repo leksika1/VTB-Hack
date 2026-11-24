@@ -71,7 +71,7 @@ export function FreeAmountCard({ summary, monthKey }: { summary: MonthSummary; m
       <Button
         size="sm" variant="secondary" className="mt-3"
         onClick={() => setExplained((v) => !v)} aria-expanded={explained}
-        icon={<ChevronDown size={16} className={explained ? 'rotate-180' : ''} />}
+        icon={<ChevronDown size={16} className={`transition-transform ${explained ? 'rotate-180' : ''}`} />}
       >
         Как считается
       </Button>
