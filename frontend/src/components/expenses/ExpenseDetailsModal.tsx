@@ -1,6 +1,7 @@
 import { T } from '@admiral-ds/react-ui';
 import { useState } from 'react';
-import { Calendar, PayCash, Edit, DeleteIcon } from '../ui/icons';
+import { Calendar, Edit, DeleteIcon } from '../ui/icons';
+import { expenseShares, usesFamilyAccount } from '../../domain/familyAccount';
 import { deleteExpense } from '../../api/client';
 import { useAsyncAction } from '../../hooks/useAsyncAction';
 import { useDataStore } from '../../store/dataStore';
@@ -37,10 +38,9 @@ export function ExpenseDetailsModal({ expenseId }: { expenseId: string }) {
   const own = expense.authorId === currentUserId;
   // Same rule as the server: an adult changes any expense; a child — only own, and not one bought by an approved request
   const canManage = isParent || (own && !expense.requestId);
-  const authorName = resolveAuthorName(family, expense.authorId, expense.authorName);
+  const shares = expenseShares(expense);
   const payerId = expense.paidBy ?? expense.authorId;
   const payerName = resolveAuthorName(family, payerId, expense.authorName);
-  const created = new Date(expense.createdAt);
 
   const onDelete = async () => {
     const res = await remove.run(expense.id);
@@ -97,14 +97,17 @@ export function ExpenseDetailsModal({ expenseId }: { expenseId: string }) {
       <dl className="divide-y divide-line text-[15px]">
         <DetailRow label="Категория" value={CATEGORIES[expense.category].label} />
         <DetailRow label="Дата покупки" value={`${formatDateShort(expense.date)} ${parseISODate(expense.date).getFullYear()}`} />
-        <DetailRow label="Кто добавил" value={own ? `${authorName} (вы)` : authorName} />
-        {payerId !== expense.authorId && (
+        {isParent && expense.accountMode && (
+          <DetailRow label="Источник" value={usesFamilyAccount(expense.accountMode) ? 'Общий счёт' : 'Личная карта'} />
+        )}
+        {isParent && expense.accountMode && !usesFamilyAccount(expense.accountMode) && payerId && (
           <DetailRow label="Кто платил" value={payerId === currentUserId ? `${payerName} (вы)` : payerName} />
         )}
-        <DetailRow
-          label="Запись создана"
-          value={created.toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
-        />
+        {isParent && expense.accountMode && <DetailRow label="Деление" value={expense.splitPercentages ? 'В долях' : shares.length ? 'Поровну' : 'Без деления'} />}
+        {isParent && expense.splitPercentages && shares.map(({ id, amount }) => (
+          <DetailRow key={id} label={`${resolveAuthorName(family, id)} · ${expense.splitPercentages?.[id]}%`}
+            value={formatCurrency(amount / 100)} />
+        ))}
       </dl>
       {expense.paymentId && (
         <p className="mt-4 flex gap-2 text-sm text-ink-2 bg-surface-muted rounded-xl p-3">
@@ -112,15 +115,9 @@ export function ExpenseDetailsModal({ expenseId }: { expenseId: string }) {
           Создано из обязательного платежа. Он учтён в расходах и больше не резервируется.
         </p>
       )}
-      {expense.requestId && (
-        <p className="mt-4 flex gap-2 text-sm text-ink-2 bg-surface-muted rounded-xl p-3">
-          <PayCash size={17} className="shrink-0 text-ink-3" aria-hidden />
-          Куплено по одобренному запросу. Карманные деньги эта покупка не уменьшает.
-        </p>
-      )}
       {!canManage && (
         <p className="mt-4 text-sm text-ink-3">
-          {expense.requestId ? 'Изменить покупку по запросу может взрослый участник семьи.' : `Изменить запись может ${authorName} или взрослый участник семьи.`}
+          Изменить эту покупку может взрослый участник семьи.
         </p>
       )}
     </Modal>

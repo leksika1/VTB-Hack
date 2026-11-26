@@ -8,12 +8,11 @@ import { formatCurrency } from '../../utils/currency';
 import { formatDateShort, todayISO } from '../../utils/date';
 import { Button } from '../ui/Button';
 import { FormError } from '../ui/Field';
-import { Modal } from '../ui/Modal';
+import { Card, SectionHeader } from '../ui/Card';
 
 const MAX_CSV_BYTES = 1_000_000;
 
-export function PersonalPurchasesModal() {
-  const close = useUIStore((s) => s.closeModal);
+export function PersonalPurchases() {
   const toast = useUIStore((s) => s.addToast);
   const demo = useFamilyStore((s) => s.family?.isDemo);
   const preview = useAsyncAction(previewPersonalPurchases);
@@ -57,23 +56,20 @@ export function PersonalPurchasesModal() {
     if (!batch || !selected.length) return;
     const res = await confirm.run(batch, selected, split);
     if (res.ok) {
-      close();
+      setBatch(null);
+      setSelected([]);
       toast(`Расходов добавлено: ${res.value}`);
     }
   }
 
   return (
-    <Modal title="Добавить из личных покупок" onClose={() => {
-      if (busy) return;
-      if (batch) void discardPersonalPurchases(batch.id).catch(() => {});
-      close();
-    }}
-      description="Выписку видите только вы. В семейный бюджет попадут выбранные покупки."
-      footer={batch && <Button onClick={save} disabled={!selected.length} loading={confirm.pending} fullWidth>Добавить выбранные</Button>}>
+    <Card className="min-w-0 p-5">
+      <SectionHeader title="Из покупок или выписки"
+        subtitle="Выберите, какие покупки добавить в семейный бюджет." />
       <div className="space-y-4">
         {!batch && (
           <>
-            {demo && <Button variant="secondary" onClick={showDemoCard} loading={preview.pending}>Показать покупки демо-карты</Button>}
+            {demo && <Button variant="secondary" onClick={showDemoCard} loading={preview.pending}>Покупки демо-карты</Button>}
             <label className="block text-sm font-medium">
               Загрузить выписку CSV
               <input type="file" accept=".csv,text/csv" disabled={busy}
@@ -84,6 +80,10 @@ export function PersonalPurchasesModal() {
         )}
         {batch && (
           <>
+            <Button size="sm" variant="secondary" disabled={busy}
+              onClick={() => setSelected(batch.rows.filter((row) => !row.duplicate && !row.error).map((row) => row.id))}>
+              Выбрать все доступные
+            </Button>
             <ul className="space-y-2">
               {batch.rows.map((row) => (
                 <li key={row.id} className="flex min-w-0 items-start justify-between gap-3 rounded-control bg-surface-muted p-3">
@@ -105,7 +105,17 @@ export function PersonalPurchasesModal() {
           </>
         )}
         {(fileError || preview.error || confirm.error) && <FormError>{fileError || preview.error || confirm.error}</FormError>}
+        {batch && (
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={save} disabled={!selected.length} loading={confirm.pending}>Добавить выбранные ({selected.length})</Button>
+            <Button variant="secondary" disabled={busy} onClick={() => {
+              void discardPersonalPurchases(batch.id).catch(() => {});
+              setBatch(null);
+              setSelected([]);
+            }}>Отменить выбор</Button>
+          </div>
+        )}
       </div>
-    </Modal>
+    </Card>
   );
 }

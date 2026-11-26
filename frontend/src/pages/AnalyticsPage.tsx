@@ -5,29 +5,33 @@ import { useMonthSummary } from '../hooks/useMonthSummary';
 import { useMonthChanged } from '../hooks/useMonthChanged';
 import { useUIStore } from '../store/uiStore';
 import { formatCurrency, formatBalance } from '../utils/currency';
-import { formatMonthIn, formatMonthLower, plural, shiftMonth } from '../utils/date';
+import { formatMonthLower, plural, shiftMonth } from '../utils/date';
 import { Card, PageHeader, SectionHeader } from '../components/ui/Card';
 import { AmountRow, MonthSwitcher } from '../components/ui/Misc';
 import { Button } from '../components/ui/Button';
 import { EmptyState } from '../components/ui/Feedback';
 import { CategoryList } from '../components/budget/CategoryList';
-import { SpendingStructure } from '../components/budget/SpendingStructure';
+import { AccountHistory } from '../components/account/AccountHistory';
+import { OperationsHistory } from '../components/expenses/OperationsHistory';
+import { useIsParent } from '../store/familyStore';
 import { PaymentList } from '../components/payments/PaymentList';
 import { GoalsCard } from '../components/goals/GoalsCard';
 
-export function PlanPage() {
+export function AnalyticsPage() {
   const monthKey = useUIStore((s) => s.monthKey);
   const openModal = useUIStore((s) => s.openModal);
   const summary = useMonthSummary();
   const monthIn = useMonthChanged() ? 'animate-month-in' : '';
 
+  const isParent = useIsParent();
+
   return (
     <>
-      <PageHeader title="План">
+      <PageHeader title="Аналитика">
         <MonthSwitcher />
       </PageHeader>
 
-      <div key={monthKey} className={`grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-start ${monthIn}`}>
+      {isParent && <div key={monthKey} className={`grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-start ${monthIn}`}>
         <div className="space-y-5 min-w-0">
           <Card className="p-5">
             {summary.hasBudget ? (
@@ -45,7 +49,7 @@ export function PlanPage() {
                   <p className="balance-number">{formatCurrency(summary.plan)}</p>
                   <div className="mt-4 grid gap-2 sm:grid-cols-3">
                     <AmountRow label="Потрачено" value={formatCurrency(summary.spent)} />
-                    <AmountRow label="В резерве" value={formatCurrency(summary.reserved)} />
+                    <AmountRow label="Запланировано" value={formatCurrency(summary.reserved)} />
                     <AmountRow label="Свободно" value={formatBalance(summary.freeByPlan)}
                       tone={summary.freeByPlan < 0 ? 'danger' : undefined} />
                   </div>
@@ -72,11 +76,11 @@ export function PlanPage() {
         <div className="space-y-5 min-w-0">
           <PaymentsCard />
 
-          <Card className="p-5">
-            <SectionHeader title="Структура расходов" subtitle={`Куда ушли деньги ${formatMonthIn(monthKey)}`} />
-            <SpendingStructure summary={summary} />
-          </Card>
         </div>
+      </div>}
+      <div className={isParent ? 'mt-5 space-y-5' : undefined}>
+        {isParent && <AccountHistory month={monthKey} />}
+        <OperationsHistory key={monthKey} />
       </div>
     </>
   );
@@ -114,7 +118,7 @@ function PaymentsCard() {
         title="Обязательные платежи"
         subtitle={
           summary.upcomingPayments.length > 0
-            ? `Предстоит ${formatCurrency(summary.reserved)} — эта сумма зарезервирована`
+            ? `Запланировано ${formatCurrency(summary.reserved)}`
             : undefined
         }
         action={

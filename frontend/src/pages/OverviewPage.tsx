@@ -1,5 +1,5 @@
 import { FamilyAccountCard } from '../components/account/FamilyAccountCard';
-import { ArrowRight, Calendar, PayCash, Deposit, Plus, Receipt, PersonAdd } from '../components/ui/icons';
+import { ArrowRight, Calendar, Deposit, Plus, Receipt, PersonAdd } from '../components/ui/icons';
 import { problemCategories } from '../domain/budget';
 import { useMonthSummary } from '../hooks/useMonthSummary';
 import { useMonthChanged } from '../hooks/useMonthChanged';
@@ -18,7 +18,7 @@ import { MonthCarousel } from '../components/budget/MonthCarousel';
 import { CategoryList } from '../components/budget/CategoryList';
 import { ExpenseList } from '../components/expenses/ExpenseList';
 import { PaymentList } from '../components/payments/PaymentList';
-import { MyRequestsCard, PendingRequestsCard } from '../components/purchase/RequestCards';
+import { SpendingStructure } from '../components/budget/SpendingStructure';
 import { GoalsCard } from '../components/goals/GoalsCard';
 
 const RECENT_LIMIT = 5;
@@ -51,12 +51,15 @@ function FamilyOverview() {
           <div className="mb-5"><FamilyAccountCard /></div>
           <MonthCarousel />
 
-          <PendingRequestsCard />
-
           {/* Month-dependent blocks fade in while the main block slides */}
           <div key={monthKey} className={`mt-5 space-y-5 ${monthIn}`}>
             {/* Phone order: summary → warnings → upcoming payments → categories → operations */}
             <div className="lg:hidden">{payments}</div>
+
+            <Card className="p-5">
+              <SectionHeader title="Расходы по категориям" />
+              <SpendingStructure summary={summary} limit={3} />
+            </Card>
 
             {summary.hasBudget && (
               <Card className="p-5">
@@ -68,8 +71,8 @@ function FamilyOverview() {
                       : 'Все категории в пределах лимитов, с учётом предстоящих платежей'
                   }
                   action={
-                    <Button size="sm" variant="ghost" onClick={() => setTab('plan')} icon={<ArrowRight size={16} />} className="flex-row-reverse">
-                      План
+                    <Button size="sm" variant="ghost" onClick={() => setTab('analytics')} icon={<ArrowRight size={16} />} className="flex-row-reverse">
+                      Аналитика
                     </Button>
                   }
                 />
@@ -82,7 +85,7 @@ function FamilyOverview() {
                 title="Последние операции"
                 action={
                   summary.expenses.length > RECENT_LIMIT && (
-                    <Button size="sm" variant="ghost" onClick={() => setTab('operations')} icon={<ArrowRight size={16} />} className="flex-row-reverse">
+                    <Button size="sm" variant="ghost" onClick={() => setTab('analytics')} icon={<ArrowRight size={16} />} className="flex-row-reverse">
                       Все
                     </Button>
                   )
@@ -98,7 +101,7 @@ function FamilyOverview() {
                   description={`Добавьте первую покупку за ${formatMonthLower(monthKey)} — она сразу уменьшит свободную сумму`}
                   action={
                     <Button variant="secondary" onClick={() => openModal({ type: 'expenseForm' })}>
-                      Добавить расход
+                      Записать покупку
                     </Button>
                   }
                 />
@@ -128,7 +131,7 @@ function UpcomingPaymentsCard() {
       <SectionHeader
         title="Ближайшие платежи"
         action={
-          <Button size="sm" variant="ghost" onClick={() => setTab('plan')} icon={<ArrowRight size={16} />} className="flex-row-reverse">
+          <Button size="sm" variant="ghost" onClick={() => setTab('analytics')} icon={<ArrowRight size={16} />} className="flex-row-reverse">
             Все
           </Button>
         }
@@ -140,7 +143,7 @@ function UpcomingPaymentsCard() {
           compact
           icon={<Calendar size={22} />}
           title="Предстоящих платежей нет"
-          description="Добавьте аренду, коммунальные услуги или кружки — их сумма будет зарезервирована"
+          description="Добавьте аренду, коммунальные услуги или кружки — они появятся в запланированных платежах"
           action={
             <Button variant="secondary" onClick={() => openModal({ type: 'paymentForm' })}>
               Добавить платёж
@@ -236,26 +239,16 @@ function ChildOverview() {
                 </h2>
                 <p className="text-xl font-semibold mt-2">Пока не назначены</p>
                 <p className="text-[15px] text-brand-ink-2 mt-1">
-                  Когда взрослые назначат карманные деньги, вы сможете сами записывать траты. А купить что-то можно попросить уже сейчас.
+                  Когда взрослые назначат карманные деньги, вы сможете сами записывать траты.
                 </p>
               </>
             )}
-            {/* Without pocket money the server does not accept own expenses — only a request */}
             <div className="mt-5 flex flex-col sm:flex-row gap-2.5">
               {allowance && (
                 <Button variant="inverse" size="lg" className="sm:flex-1" icon={<Plus size={18} />} onClick={() => openModal({ type: 'expenseForm' })}>
-                  Добавить расход
+                  Записать покупку
                 </Button>
               )}
-              <Button
-                variant={allowance ? 'inverse' : 'inverse'}
-                size="lg"
-                className="sm:flex-1"
-                icon={<PayCash size={18} />}
-                onClick={() => openModal({ type: 'purchaseRequestForm' })}
-              >
-                Попросить покупку
-              </Button>
             </div>
           </section>
 
@@ -270,7 +263,6 @@ function ChildOverview() {
         </div>
 
         <aside className="space-y-5 min-w-0">
-          <MyRequestsCard />
           <GoalsCard />
           <FamilyStatusCard />
         </aside>

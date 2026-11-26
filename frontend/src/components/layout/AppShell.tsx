@@ -1,18 +1,18 @@
 import { useEffect, type ReactNode } from 'react';
 import { Badge as AdmiralBadge, HorizontalTab, HorizontalTabs, T } from '@admiral-ds/react-ui';
 import styled from 'styled-components';
-import { Dashboard, Receipt, Clipboard, Users, Calendar } from '../ui/icons';
-import { Button } from '../ui/Button';
+import { Dashboard, Receipt, BarChart, Users, Calendar } from '../ui/icons';
+import { ProfileDropdown } from './ProfileDropdown';
 import type { Tab } from '../../types';
 import { useUIStore } from '../../store/uiStore';
 import { useCurrentUser, useFamilyStore, useIsParent } from '../../store/familyStore';
 import { useDataStore } from '../../store/dataStore';
-import { Avatar, Badge } from '../ui/Misc';
+import { Badge } from '../ui/Misc';
 
 const NAV: { tab: Tab; label: string; icon: typeof Users }[] = [
   { tab: 'overview', label: 'Обзор', icon: Dashboard },
-  { tab: 'operations', label: 'Операции', icon: Receipt },
-  { tab: 'plan', label: 'План', icon: Clipboard },
+  { tab: 'records', label: 'Записи', icon: Receipt },
+  { tab: 'analytics', label: 'Аналитика', icon: BarChart },
   { tab: 'calendar', label: 'Календарь', icon: Calendar },
   { tab: 'family', label: 'Семья', icon: Users },
 ];
@@ -36,8 +36,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const user = useCurrentUser();
   // The plan (budget and payments) is for adults only
   const isParent = useIsParent();
-  const tab = !isParent && (storedTab === 'plan' || storedTab === 'calendar') ? 'overview' : storedTab;
-  const nav = isParent ? NAV : NAV.filter((n) => n.tab !== 'plan' && n.tab !== 'calendar');
+  const tab = !isParent && storedTab === 'calendar' ? 'overview' : storedTab;
+  const nav = isParent ? NAV : NAV.filter((n) => n.tab !== 'calendar');
   // Unread family events live on the «Семья» page; the tab carries their count
   const unread = useDataStore((s) => s.unreadNotifications);
   const unreadLabel = (t: Tab) => (t === 'family' && unread > 0 ? `, непрочитанных событий: ${unread}` : '');
@@ -66,20 +66,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             {/* Demo data looks real, so the mark stays on every screen size */}
             {family?.isDemo && <span className="shrink-0"><Badge tone="warning">Демо</Badge></span>}
 
-            {user && (
-              <Button
-                variant="ghost"
-                size="lg"
-                className="min-w-0 !px-2 lg:!px-3"
-                onClick={() => setTab('family')}
-                aria-label={`Вы: ${user.name}. Управление семьёй`}
-              >
-                <span className="!inline-flex min-w-0 max-w-full items-center gap-2">
-                  <Avatar user={user} size="sm" />
-                  <span className="hidden min-w-0 max-w-32 truncate lg:block">{user.name}</span>
-                </span>
-              </Button>
-            )}
+            {user && <ProfileDropdown user={user} />}
           </div>
         </div>
       </header>
@@ -117,6 +104,13 @@ const SectionTab = styled(HorizontalTab)`
     outline-offset: -2px;
   }
 
+  @media (min-width: 1024px) {
+    && {
+      flex: 0 0 auto;
+      width: auto;
+    }
+  }
+
   @media (max-width: 1023px) {
     && {
       height: 52px;
@@ -137,7 +131,7 @@ function SectionNavigation({ nav, tab, onSelect, unread, unreadLabel }: SectionN
   return (
     <nav aria-label="Разделы" className="section-navigation">
       <HorizontalTabs
-        className="section-tabs mx-auto max-w-lg lg:max-w-none"
+        className="section-tabs mx-auto max-w-lg gap-1 lg:max-w-none"
         role="tablist"
         aria-label="Разделы приложения"
         dimension="m"

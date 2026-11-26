@@ -32,12 +32,12 @@ export function FreeAmountCard({ summary, monthKey }: { summary: MonthSummary; m
         {formatCurrency(Math.abs(summary.freeByPlan))}
       </T>
       <p className="mt-2 text-sm text-ink-2">
-        {short ? 'Расходы и предстоящие платежи превышают бюджет.' : 'После расходов и резерва на предстоящие платежи.'}
+        {short ? 'Расходы и предстоящие платежи превышают бюджет.' : 'После расходов и запланированных платежей.'}
       </p>
       <dl className="budget-metrics mt-5">
         <CalcRow label="План месяца" value={formatCurrency(summary.plan)} />
         <CalcRow label="Потрачено" value={formatCurrency(summary.spent)} />
-        <CalcRow label="В резерве" value={formatCurrency(summary.reserved)} />
+        <CalcRow label="Запланировано" value={formatCurrency(summary.reserved)} />
       </dl>
 
       {worst && (
@@ -65,7 +65,7 @@ export function FreeAmountCard({ summary, monthKey }: { summary: MonthSummary; m
           value={summary.spent}
           reserved={summary.reserved}
           max={summary.plan}
-          label={`Потрачено ${formatCurrency(summary.spent)} и зарезервировано ${formatCurrency(summary.reserved)} из ${formatCurrency(summary.plan)}`}
+          label={`Потрачено ${formatCurrency(summary.spent)} и запланировано ${formatCurrency(summary.reserved)} из ${formatCurrency(summary.plan)}`}
         />
       </div>
 

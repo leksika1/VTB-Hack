@@ -105,6 +105,8 @@ export interface Expense {
   paymentId?: string | null;
   accountMode?: AccountMode | null;
   splitMembers?: string[] | null;
+  /** Custom allocation of this demo purchase, keyed by member ID. */
+  splitPercentages?: Record<string, number> | null;
   /** Who paid; by default the author */
   paidBy?: string | null;
   /** Created from an approved purchase request */
@@ -141,28 +143,6 @@ export interface ServerPurchaseCheck {
   freeBefore: number;
   freeAfter: number;
   categoryLeftAfter: number | null;
-}
-
-export type PurchaseRequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
-
-/** «Можно купить?»: any member asks, an adult other than the author decides (docs/FEATURES.md §3) */
-export interface PurchaseRequest {
-  id: string;
-  familyId: string;
-  authorId: string | null;
-  title: string;
-  amount: number;
-  category: ExpenseCategory;
-  comment: string | null;
-  status: PurchaseRequestStatus;
-  decidedBy: string | null;
-  decidedAt: number | null;
-  decisionComment: string | null;
-  /** Expense created on approval */
-  expenseId: string | null;
-  createdAt: number;
-  /** Adults only, pending only: how the purchase fits this month's plan */
-  check?: ServerPurchaseCheck | null;
 }
 
 /** Family savings goal. Contributions are set aside money, not spending: they do not enter the budget (§4) */
@@ -205,4 +185,4 @@ export interface Toast {
   leaving?: boolean;
 }
 
-export type Tab = 'overview' | 'operations' | 'plan' | 'calendar' | 'family';
+export type Tab = 'overview' | 'records' | 'analytics' | 'calendar' | 'family';

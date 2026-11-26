@@ -6,7 +6,6 @@ import { ALL_CATEGORIES, CATEGORIES } from '../../utils/categories';
 import { formatCurrency } from '../../utils/currency';
 import { plural } from '../../utils/date';
 import { Card } from '../ui/Card';
-import { AuthorTotals } from './AuthorTotals';
 
 type View = 'bar' | 'pie';
 
@@ -52,7 +51,7 @@ function niceMax(value: number): number {
 
 /** Spending of the shown operations by category: column chart or donut, switchable */
 interface SpendingChartsProps {
-  /** Operations after search and author filters, but before the category filter — so every category stays visible */
+  /** The month’s expenses, so every category stays visible while filtering the history. */
   expenses: Expense[];
   /** Categories selected as a filter for the list */
   selected: ExpenseCategory[];
@@ -104,7 +103,6 @@ export function SpendingCharts({ expenses, selected, onToggle, className = '' }:
           <DonutChart slices={slices} total={total} active={active} onActive={setActive} selected={selected} onToggle={onToggle} />
         )}
       </div>
-      <AuthorTotals expenses={expenses} />
     </Card>
   );
 }
