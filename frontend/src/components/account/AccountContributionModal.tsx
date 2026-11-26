@@ -24,7 +24,7 @@ export function AccountContributionModal({ amount }: { amount: number }) {
     const result = await request.run(value, requestId);
     if (result.ok) {
       close();
-      toast(`Демо-счёт пополнен на ${formatCurrency(result.value.amount)}`);
+      toast(`Общий счёт пополнен на ${formatCurrency(result.value.amount)}`);
     }
   };
 
@@ -39,7 +39,7 @@ export function AccountContributionModal({ amount }: { amount: number }) {
           </span>
           <div>
             <p className="text-xs text-ink-2">Куда</p>
-            <p className="font-medium">Общий демо-счёт</p>
+            <p className="font-medium">Общий счёт</p>
           </div>
         </div>
         <AmountField label="Сумма" value={input} data-autofocus emphasis

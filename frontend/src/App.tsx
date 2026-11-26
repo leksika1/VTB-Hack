@@ -8,9 +8,9 @@ import { ModalHost } from './components/layout/ModalHost';
 import { Toasts } from './components/ui/Toasts';
 import { ErrorState, PageSkeleton } from './components/ui/Feedback';
 import { OverviewPage } from './pages/OverviewPage';
-import { OperationsPage } from './pages/OperationsPage';
+import { RecordsPage } from './pages/RecordsPage';
 import { CalendarPage } from './pages/CalendarPage';
-import { PlanPage } from './pages/PlanPage';
+import { AnalyticsPage } from './pages/AnalyticsPage';
 import { FamilyPage } from './pages/FamilyPage';
 import { OnboardingPage } from './pages/OnboardingPage';
 import { AuthCallbackPage, type OidcOutcome } from './pages/AuthCallbackPage';
@@ -45,9 +45,8 @@ function useFamilySync(sessionKey: string | null) {
 export default function App() {
   const family = useFamilyStore((s) => s.family);
   const isParent = useIsParent();
-  // A child has no «План» tab; a tab left over from an adult session falls back to the overview
   const storedTab = useUIStore((s) => s.tab);
-  const tab = (storedTab === 'plan' || storedTab === 'calendar') && !isParent ? 'overview' : storedTab;
+  const tab = storedTab === 'calendar' && !isParent ? 'overview' : storedTab;
   const dataStatus = useUIStore((s) => s.dataStatus);
   const setDataStatus = useUIStore((s) => s.setDataStatus);
   const simulateErrors = useUIStore((s) => s.simulateErrors);
@@ -58,7 +57,7 @@ export default function App() {
   const pendingInvite = invite && invite !== family?.inviteCode;
   // The bank returns to /auth/callback; the rest of the app waits until the sign-in is finished
   const [oidcCallback, setOidcCallback] = useState(() => window.location.pathname === OIDC_CALLBACK_PATH);
-  const setTab = useUIStore((s) => s.setTab);
+  const setProfileOpen = useUIStore((s) => s.setProfileOpen);
   const addToast = useUIStore((s) => s.addToast);
   // Keyed by family id: switching family or demo user reconnects the stream with the new token
   const currentUserId = useFamilyStore((s) => s.currentUserId);
@@ -93,7 +92,7 @@ export default function App() {
       setOidcCallback(false);
       if (outcome === 'cancelled') {
         // fetchData started on mount sets the data status itself; the person lands where they pressed the button
-        if (intent === 'link') setTab('family');
+        if (intent === 'link') setProfileOpen(true);
         addToast(intent === 'link' ? 'Привязка ВТБ ID отменена' : 'Вход через ВТБ ID отменён', 'info');
         return;
       }
@@ -101,11 +100,11 @@ export default function App() {
       const name = useFamilyStore.getState().family?.members.find((m) => m.id === useFamilyStore.getState().currentUserId)?.name;
       if (outcome === 'session') addToast(name ? `Вы вошли как ${name}` : 'Вы вошли через банк');
       if (outcome === 'linked') {
-        setTab('family');
+        setProfileOpen(true);
         addToast('ВТБ ID привязан — теперь можно входить через банк');
       }
     },
-    [addToast, setDataStatus, setTab]
+    [addToast, setDataStatus, setProfileOpen]
   );
 
   if (oidcCallback) {
@@ -153,8 +152,8 @@ export default function App() {
         {dataStatus === 'ready' && (
           <div key={tab} className="animate-tab-in">
             {tab === 'overview' && <OverviewPage />}
-            {tab === 'operations' && <OperationsPage />}
-            {tab === 'plan' && <PlanPage />}
+            {tab === 'records' && <RecordsPage />}
+            {tab === 'analytics' && <AnalyticsPage />}
             {tab === 'calendar' && <CalendarPage />}
             {tab === 'family' && <FamilyPage />}
           </div>

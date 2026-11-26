@@ -5,17 +5,13 @@ import type { Expense } from '../../types';
 import { CATEGORIES } from '../../utils/categories';
 import { formatCurrency } from '../../utils/currency';
 import { formatDateShort, formatDayHeading } from '../../utils/date';
-import { resolveAuthorName, useFamilyStore } from '../../store/familyStore';
 import { useUIStore } from '../../store/uiStore';
 import { CategoryIcon } from '../ui/Misc';
 
 /** Compact operation row; details and actions open on tap */
 export function ExpenseRow({ expense, showDate }: { expense: Expense; showDate?: boolean }) {
-  const family = useFamilyStore((s) => s.family);
-  const currentUserId = useFamilyStore((s) => s.currentUserId);
   const openModal = useUIStore((s) => s.openModal);
   const cfg = CATEGORIES[expense.category];
-  const author = expense.authorId === currentUserId ? 'Вы' : resolveAuthorName(family, expense.authorId, expense.authorName);
 
   return (
     <li>
@@ -32,7 +28,7 @@ export function ExpenseRow({ expense, showDate }: { expense: Expense; showDate?:
             {expense.title}
           </span>
           <span className="block truncate text-sm text-ink-2">
-            {cfg.label}, {author}
+            {cfg.label}
             {showDate && `, ${formatDateShort(expense.date)}`}
           </span>
         </span>

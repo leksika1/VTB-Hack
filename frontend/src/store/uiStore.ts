@@ -20,9 +20,7 @@ export type ModalState =
   | { type: 'purchaseCheck'; prefill?: PurchaseDraft }
   | { type: 'invite' }
   | { type: 'allowanceForm'; memberId: string }
-  | { type: 'purchaseRequestForm' }
   | { type: 'goalForm'; goalId?: string }
-  | { type: 'personalPurchases' }
   | { type: 'accountContribution'; amount: number }
   | { type: 'goalContribution'; goalId: string }
   | null;
@@ -32,6 +30,7 @@ export type DataStatus = 'loading' | 'ready' | 'error';
 
 interface UIState {
   tab: Tab;
+  profileOpen: boolean;
   /** Month the user is viewing. Independent from the date of an expense being edited. */
   monthKey: string;
   /** Direction of the last month change, drives the carousel: 1 — forward, -1 — back */
@@ -45,6 +44,7 @@ interface UIState {
   /** Invite links created in this tab: the server shows a code only once. Key: `${familyId}:${role}` */
   inviteLinks: Record<string, { url: string; expiresAt: number }>;
   setTab: (tab: Tab) => void;
+  setProfileOpen: (profileOpen: boolean) => void;
   setMonthKey: (monthKey: string) => void;
   openModal: (modal: NonNullable<ModalState>) => void;
   closeModal: () => void;
@@ -60,6 +60,7 @@ export const useUIStore = create<UIState>()(
   persist(
     (set, get) => ({
       tab: 'overview',
+      profileOpen: false,
       monthKey: toMonthKey(),
       monthDirection: 1,
       modal: null,
@@ -69,7 +70,8 @@ export const useUIStore = create<UIState>()(
       dataStatus: 'loading',
       inviteLinks: {},
 
-      setTab: (tab) => set({ tab }),
+      setTab: (tab) => set({ tab, profileOpen: false }),
+      setProfileOpen: (profileOpen) => set({ profileOpen }),
       setMonthKey: (monthKey) =>
         set((state) => (monthKey === state.monthKey ? state : { monthKey, monthDirection: monthKey > state.monthKey ? 1 : -1 })),
       openModal: (modal) => set({ modal }),

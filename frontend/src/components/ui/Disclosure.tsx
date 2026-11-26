@@ -2,12 +2,15 @@ import { useId, useState, type ReactNode } from 'react';
 import { T } from '@admiral-ds/react-ui';
 import { ChevronDown } from './icons';
 
-export function Disclosure({ title, children, className = '' }: {
+export function Disclosure({ title, children, className = '', open: controlled, onOpenChange }: {
   title: string;
   children: ReactNode;
   className?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const open = controlled ?? expanded;
   const id = useId();
 
   return (
@@ -18,7 +21,10 @@ export function Disclosure({ title, children, className = '' }: {
         type="button"
         aria-expanded={open}
         aria-controls={id}
-        onClick={() => setOpen((expanded) => !expanded)}
+        onClick={() => {
+          if (controlled === undefined) setExpanded(!open);
+          onOpenChange?.(!open);
+        }}
         className="flex w-full items-center justify-between gap-3 rounded-control px-3 py-3 text-left text-ink transition-colors hover:bg-surface-muted"
       >
         {title}

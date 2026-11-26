@@ -206,7 +206,7 @@ export function BudgetFormModal({ focus, purchase }: BudgetFormModalProps) {
           hint={
             [
               autoTotal ? 'Можно не заполнять — тогда бюджет равен сумме лимитов категорий' : null,
-              committed > 0 ? `Уже потрачено и зарезервировано: ${formatCurrency(committed)}` : null,
+              committed > 0 ? `Уже потрачено и запланировано: ${formatCurrency(committed)}` : null,
               previous ? `План ${formatMonthIn(prevMonth)}: ${formatCurrency(previous.totalAmount)}` : null,
             ]
               .filter(Boolean)

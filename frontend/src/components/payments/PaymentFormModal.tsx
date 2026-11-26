@@ -66,10 +66,10 @@ export function PaymentFormModal({ paymentId, prefill, planned }: PaymentFormMod
         paymentId
           ? 'Платёж изменён'
           : planned
-            ? `Покупка запланирована — ${formatCurrency(value)} зарезервировано. Когда купите, отметьте оплату`
+            ? `Покупка запланирована на ${formatCurrency(value)}`
             : recurring
-            ? `Платёж добавлен и будет повторяться каждый месяц — ${formatCurrency(value)} зарезервировано`
-            : `Платёж добавлен — ${formatCurrency(value)} зарезервировано`
+              ? `Ежемесячный платёж на ${formatCurrency(value)} запланирован`
+              : `Платёж на ${formatCurrency(value)} запланирован`
       );
     }
   };
@@ -79,7 +79,7 @@ export function PaymentFormModal({ paymentId, prefill, planned }: PaymentFormMod
     const res = await remove.run(paymentId);
     if (!res.ok) return;
     closeModal();
-    addToast('Платёж удалён, резерв снят');
+    addToast('Платёж удалён из запланированных');
   };
 
   if (confirmDelete && existing) {
@@ -93,8 +93,7 @@ export function PaymentFormModal({ paymentId, prefill, planned }: PaymentFormMod
         onConfirm={onDelete}
       >
         <p>
-          «<span className="text-ink font-medium break-words">{existing.title}</span>» больше не будет резервировать{' '}
-          {formatCurrency(existing.amount)}.
+          «<span className="text-ink font-medium break-words">{existing.title}</span>» на {formatCurrency(existing.amount)} исчезнет из плана.
         </p>
       </ConfirmDialog>
     );
@@ -105,8 +104,8 @@ export function PaymentFormModal({ paymentId, prefill, planned }: PaymentFormMod
       title={paymentId ? 'Изменить платёж' : planned ? 'Запланировать покупку' : 'Обязательный платёж'}
       description={
         planned
-          ? 'Сумма будет зарезервирована среди предстоящих платежей и вычтется из свободной. Когда купите — отметьте оплату, и покупка станет расходом.'
-          : 'Пока платёж не оплачен, его сумма вычитается из свободной. После оплаты он станет расходом.'
+          ? 'Покупка появится в запланированных платежах. После покупки запишите оплату, чтобы учесть её в расходах.'
+          : 'Добавьте срок оплаты и источник средств. Когда оплатите, запишите оплату из списка платежей.'
       }
       onClose={closeModal}
       footer={
@@ -151,7 +150,7 @@ export function PaymentFormModal({ paymentId, prefill, planned }: PaymentFormMod
               : dueDate && dueDate.slice(0, 7) !== viewedMonth
                 ? `${planned ? 'Покупка будет учтена' : 'Платёж будет учтён'} в плане ${formatMonthIn(dueDate.slice(0, 7))}`
                 : planned && !dueDate
-                  ? 'Сумма будет зарезервирована в плане месяца этой даты'
+                  ? 'Покупка появится в плане на выбранный месяц'
                   : undefined
           }
         />
@@ -169,7 +168,7 @@ export function PaymentFormModal({ paymentId, prefill, planned }: PaymentFormMod
               extraText={
                 existing?.recurring && !recurring
                   ? 'Новые платежи перестанут появляться. Уже созданные останутся — их можно удалить отдельно.'
-                  : 'Аренда, ипотека, садик, связь. Платёж сам появится в следующем месяце с тем же днём и суммой.'
+                  : 'В следующем месяце появится такой же запланированный платёж. Оплату нужно записать вручную.'
               }
             >
               <span className="font-medium text-ink">Повторять каждый месяц</span>

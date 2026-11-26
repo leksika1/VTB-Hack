@@ -42,7 +42,7 @@ export function CategoryRow({ category: c }: { category: CategorySummary }) {
           />
           {c.reserved > 0 && (
             <p className="text-[13px] text-ink-3 mt-1.5">
-              Ещё {formatCurrency(c.reserved)} зарезервировано на платежи
+              Ещё {formatCurrency(c.reserved)} запланировано на платежи
             </p>
           )}
         </div>

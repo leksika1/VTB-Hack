@@ -1,8 +1,10 @@
+import { useMemo } from 'react';
+import { useDataStore } from '../../store/dataStore';
 import { T } from '@admiral-ds/react-ui';
 import { Check, Update, Undo } from '../ui/icons';
 import type { Payment } from '../../types';
 import { formatCurrency } from '../../utils/currency';
-import { formatDateShort, formatDueIn, formatMonthIn } from '../../utils/date';
+import { formatDateShort, formatDueIn, todayISO } from '../../utils/date';
 import { isOverdue } from '../../domain/budget';
 import { setPaymentPaid } from '../../api/client';
 import { useAsyncAction } from '../../hooks/useAsyncAction';
@@ -16,7 +18,7 @@ export function PaymentStatusBadge({ payment }: { payment: Payment }) {
   return <Badge tone="accent">Предстоит</Badge>;
 }
 
-export function PaymentRow({ payment, editable = true }: { payment: Payment; editable?: boolean }) {
+function PaymentRow({ payment, editable = true, paidDate }: { payment: Payment; editable?: boolean; paidDate?: string }) {
   const openModal = useUIStore((s) => s.openModal);
   const addToast = useUIStore((s) => s.addToast);
   const toggle = useAsyncAction(setPaymentPaid);
@@ -25,11 +27,15 @@ export function PaymentRow({ payment, editable = true }: { payment: Payment; edi
   const onToggle = async () => {
     const res = await toggle.run(payment.id, !paid);
     if (!res.ok) return;
-    addToast(
-      paid
-        ? `«${payment.title}» снова в предстоящих — сумма зарезервирована`
-        : `«${payment.title}» оплачен и записан в расходы ${formatMonthIn(payment.dueDate.slice(0, 7))}`
-    );
+    if (paid) addToast(`«${payment.title}» снова в запланированных`);
+    else if (res.value?.date === todayISO()) addToast(`Оплата «${payment.title}» записана на сегодня`);
+    else if (res.value) {
+      const { id, date } = res.value;
+      addToast(`Оплата записана на ${formatDateShort(date)}. Дату не удалось изменить.`, 'info', {
+        label: 'Изменить дату', onClick: () => openModal({ type: 'expenseForm', expenseId: id }),
+      });
+    }
+    else addToast(`«${payment.title}» уже отмечен оплаченным`, 'info');
   };
   const canEdit = editable && !paid;
 
@@ -51,7 +57,9 @@ export function PaymentRow({ payment, editable = true }: { payment: Payment; edi
           </T>
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-ink-2">
-          <T as="time" font="Body/Body 2 Short" color="Neutral/Neutral 50" dateTime={payment.dueDate}>{formatDateShort(payment.dueDate)}</T>
+          <T as="time" font="Body/Body 2 Short" color="Neutral/Neutral 50" dateTime={paidDate ?? payment.dueDate}>
+            {formatDateShort(paidDate ?? payment.dueDate)}
+          </T>
           {paid ? <PaymentStatusBadge payment={payment} /> : (
             <Badge tone={isOverdue(payment) ? 'danger' : 'neutral'}>{formatDueIn(payment.dueDate)}</Badge>
           )}
@@ -66,18 +74,12 @@ export function PaymentRow({ payment, editable = true }: { payment: Payment; edi
           <Button
             size="sm"
             variant={paid ? 'ghost' : 'primary'}
-            icon={paid ? <Undo size={16} /> : undefined}
-            className={paid ? undefined : '!px-2.5'}
+            icon={paid ? <Undo size={16} /> : <Check size={16} />}
             loading={toggle.pending}
             onClick={onToggle}
-            aria-label={paid ? `Вернуть «${payment.title}» в предстоящие` : `Отметить «${payment.title}» оплаченным`}
+            aria-label={paid ? `Вернуть «${payment.title}» в запланированные` : `Записать оплату «${payment.title}»`}
           >
-            {paid ? 'Вернуть' : (
-              <span className="!inline-flex items-center gap-1">
-                <Check size={16} className="block shrink-0" />
-                Отметить оплату
-              </span>
-            )}
+            {paid ? 'Вернуть' : 'Записать оплату'}
           </Button>
         </div>
         {toggle.error && <p role="alert" className="text-[13px] text-danger text-right mt-1">{toggle.error}</p>}
@@ -86,11 +88,18 @@ export function PaymentRow({ payment, editable = true }: { payment: Payment; edi
   );
 }
 
-export function PaymentList({ payments, editable }: { payments: Payment[]; editable?: boolean }) {
+export function PaymentList({ payments, editable, paidDates }: {
+  payments: Payment[];
+  editable?: boolean;
+  paidDates?: ReadonlyMap<string, string>;
+}) {
+  const expenses = useDataStore((state) => state.expenses);
+  const actualDates = useMemo(() => paidDates ?? new Map(expenses.flatMap((expense) =>
+    expense.paymentId ? [[expense.paymentId, expense.date] as const] : [])), [expenses, paidDates]);
   return (
     <ul className="divide-y divide-line">
       {payments.map((p) => (
-        <PaymentRow key={p.id} payment={p} editable={editable} />
+        <PaymentRow key={p.id} payment={p} editable={editable} paidDate={actualDates.get(p.id)} />
       ))}
     </ul>
   );

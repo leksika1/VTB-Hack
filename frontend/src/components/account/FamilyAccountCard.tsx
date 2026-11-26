@@ -16,6 +16,7 @@ import { Calendar, Eye, Plus, Receipt } from '../ui/icons';
 export function FamilyAccountCard() {
   const month = useUIStore((s) => s.monthKey);
   const monthIn = useMonthChanged() ? 'animate-month-in' : '';
+  const setTab = useUIStore((s) => s.setTab);
   const openModal = useUIStore((s) => s.openModal);
   const family = useFamilyStore((s) => s.family);
   const currentUserId = useFamilyStore((s) => s.currentUserId);
@@ -26,23 +27,20 @@ export function FamilyAccountCard() {
     [month, expenses, payments, contributions]);
   const [amountsVisible, setAmountsVisible] = useState(true);
   const own = currentUserId ? account.members.get(currentUserId) : undefined;
-  const due = Math.max(0, -(own?.balance ?? 0));
+  const due = own?.due ?? 0;
   const canTopUp = month === toMonthKey();
   const recent = contributions.filter(({ date }) => date.startsWith(month)).slice(0, 4);
 
   return (
     <Card className="account-card">
       <section className="brand-surface account-hero" aria-labelledby="family-account-title">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <T as="h2" id="family-account-title" font="Subtitle/Subtitle 2" color="Special/Static White">Общий счёт</T>
-          <span className="account-tag">Демо-счёт</span>
-        </div>
+        <T as="h2" id="family-account-title" font="Subtitle/Subtitle 2" color="Special/Static White">Общий счёт</T>
         <p key={`label-${month}`} className={`mt-5 text-sm text-ink-2 ${monthIn}`}>
-          {account.available < 0 ? 'Не хватает на платежи' : 'Можно потратить'} {formatMonthIn(month)}
+          {canTopUp ? 'Текущий остаток' : `Остаток ${formatMonthIn(month)}`}
         </p>
         <div className="mt-1 flex items-center gap-2">
           <p key={month} className={`balance-number account-balance ${monthIn}`}>
-            {amountsVisible ? formatCurrency(Math.abs(account.available)) : 'Сумма скрыта'}
+            {amountsVisible ? formatBalance(account.balance) : 'Сумма скрыта'}
           </p>
           <IconButton
             label={amountsVisible ? 'Скрыть суммы счёта' : 'Показать суммы счёта'}
@@ -54,22 +52,22 @@ export function FamilyAccountCard() {
         </div>
         <dl key={month} className={`account-metrics ${monthIn}`}>
           <div>
-            <dt>На общем счёте</dt>
-            <dd>{amountsVisible ? formatBalance(account.balance) : 'Скрыто'}</dd>
+            <dt>После запланированных</dt>
+            <dd>{amountsVisible ? formatBalance(account.available) : 'Скрыто'}</dd>
           </div>
           <div>
-            <dt>Резерв на платежи</dt>
+            <dt>Запланировано</dt>
             <dd>{amountsVisible ? formatCurrency(account.reserved) : 'Скрыто'}</dd>
           </div>
           <div>
-            <dt>Ваш баланс по взносам</dt>
-            <dd>{amountsVisible ? formatSigned(own?.balance ?? 0) : 'Скрыто'}</dd>
+            <dt>Вам осталось внести</dt>
+            <dd>{amountsVisible ? formatCurrency(due) : 'Скрыто'}</dd>
           </div>
         </dl>
         {canTopUp && (
           <Button className="account-top-up mt-4" icon={<Plus size={16} />}
             onClick={() => openModal({ type: 'accountContribution', amount: due })}>
-            {due > 0 ? 'Докинуть свою долю' : 'Пополнить общий счёт'}
+            Пополнить общий счёт
           </Button>
         )}
       </section>
@@ -77,12 +75,12 @@ export function FamilyAccountCard() {
       <div className="account-tools">
         <div className="account-actions">
           <Button variant="secondary" icon={<Plus size={21} />} onClick={() => openModal({ type: 'expenseForm' })}>
-            Записать расход
+            Записать покупку
           </Button>
           <Button variant="secondary" icon={<Calendar size={21} />} onClick={() => openModal({ type: 'paymentForm' })}>
             Запланировать платёж
           </Button>
-          <Button variant="secondary" icon={<Receipt size={21} />} onClick={() => openModal({ type: 'personalPurchases' })}>
+          <Button variant="secondary" icon={<Receipt size={21} />} onClick={() => setTab('records')}>
             Из покупок или выписки
           </Button>
         </div>
@@ -96,10 +94,10 @@ export function FamilyAccountCard() {
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap justify-between gap-2">
                       <p className="font-medium wrap-anywhere">{member.name}</p>
-                      {member.role !== 'child' && <p className="font-medium tabular">{amountsVisible ? formatSigned(info?.balance ?? 0) : 'Скрыто'}</p>}
+                      {member.role !== 'child' && <p className="font-medium tabular">{amountsVisible ? (info?.due ? `Внести ${formatCurrency(info.due)}` : 'К внесению 0 ₽') : 'Скрыто'}</p>}
                     </div>
                     {member.role === 'child' ? <p className="text-sm text-ink-2">Не участвует в делении</p> : amountsVisible && (
-                      <p className="text-sm text-ink-2">Внесено {formatCurrency(info?.contributed ?? 0)}, доля {formatCurrency(info?.share ?? 0)}
+                      <p className="text-sm text-ink-2">Доля {formatCurrency(info?.share ?? 0)} ({formatPercent(info?.percent ?? 0)}), внесено {formatCurrency(info?.contributed ?? 0)} ({formatPercent(info?.contributedPercent ?? 0)})
                         {!!info?.paidPersonally && `, оплачено лично ${formatCurrency(info.paidPersonally)}`}
                       </p>
                     )}
@@ -122,3 +120,6 @@ export function FamilyAccountCard() {
     </Card>
   );
 }
+
+const percentage = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 1 });
+const formatPercent = (amount: number) => `${percentage.format(amount)}%`;

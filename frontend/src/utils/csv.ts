@@ -1,4 +1,5 @@
 import type { Expense, Family } from '../types';
+import { usesFamilyAccount } from '../domain/familyAccount';
 import { resolveAuthorName } from '../store/familyStore';
 import { CATEGORIES } from './categories';
 
@@ -13,14 +14,13 @@ function cell(value: string): string {
 
 /** Excel with Russian locale: «;» between cells, comma as the decimal separator, BOM so it detects UTF-8 */
 export function expensesToCsv(expenses: Expense[], family: Family | null): string {
-  const header = ['Дата', 'Что купили', 'Категория', 'Сумма, ₽', 'Кто добавил', 'Кто платил'];
+  const header = ['Дата', 'Что купили', 'Категория', 'Сумма, ₽', 'Кто платил'];
   const rows = expenses.map((e) => [
     e.date,
     cell(e.title),
     cell(CATEGORIES[e.category].label),
     e.amount.toFixed(2).replace('.', ','),
-    cell(resolveAuthorName(family, e.authorId, e.authorName)),
-    cell(resolveAuthorName(family, e.paidBy ?? e.authorId, e.authorName)),
+    cell(usesFamilyAccount(e.accountMode) ? 'Общий счёт' : e.paidBy ? resolveAuthorName(family, e.paidBy) : '—'),
   ]);
   return '﻿' + [header.map(cell), ...rows].map((r) => r.join(';')).join('\r\n');
 }
