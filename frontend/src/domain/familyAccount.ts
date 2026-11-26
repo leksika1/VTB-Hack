@@ -83,8 +83,8 @@ export function computeFamilyAccount(
 
 export function computeAccountHistory(month: string, expenses: Expense[], contributions: AccountContribution[], today = todayISO()) {
   const currentMonth = today.slice(0, 7);
-  const months = [-3, -2, -1, 0].map((offset) => shiftMonth(month, offset));
-  const rows = months.map((key) => {
+  const months = [-2, -1, 0].map((offset) => shiftMonth(month, offset));
+  return months.map((key) => {
     if (key > currentMonth) return { month: key, balance: null, shared: null, personal: null, legacy: null };
     const cutoff = key === currentMonth ? today : `${key}-31`;
     const totals = { shared: 0, personal: 0, legacy: 0 };
@@ -96,14 +96,6 @@ export function computeAccountHistory(month: string, expenses: Expense[], contri
     return {
       month: key, balance: computeAccountAtDate(cutoff, expenses, contributions),
       shared: totals.shared / 100, personal: totals.personal / 100, legacy: totals.legacy / 100,
-    };
-  });
-  return rows.slice(1).map((row, index) => {
-    const previous = rows[index];
-    return {
-      ...row,
-      sharedChange: row.shared === null || previous.shared === null ? null : row.shared - previous.shared,
-      personalChange: row.personal === null || previous.personal === null ? null : row.personal - previous.personal,
     };
   });
 }

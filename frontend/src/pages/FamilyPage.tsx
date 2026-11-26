@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Bell, Check, Eye, Edit, Deposit, ShieldCheck, PersonAdd, Users, CloseIcon } from '../components/ui/icons';
+import { Bell, Check, Deposit, Users, CloseIcon } from '../components/ui/icons';
 import { T } from '@admiral-ds/react-ui';
 import type { AppNotification, User } from '../types';
 import {
@@ -25,7 +25,6 @@ import { Disclosure } from '../components/ui/Disclosure';
 export function FamilyPage() {
   const family = useFamilyStore((s) => s.family);
   const currentUserId = useFamilyStore((s) => s.currentUserId);
-  const openModal = useUIStore((s) => s.openModal);
   const isParent = useIsParent();
   if (!family) return null;
   const children = family.members.filter((m) => m.role === 'child');
@@ -76,33 +75,7 @@ export function FamilyPage() {
 
         <div className="space-y-5 min-w-0">
           <EventsCard />
-          <Card className="px-5 py-2">
-            <Disclosure title="Доступ к семейному бюджету">
-              <div className="pt-4">
-                <ul className="space-y-3.5 text-[15px]">
-                  <Rule icon={<Eye size={18} />}>
-                    Участники видят только общие расходы и платежи, которые внесли сюда. Личные счета и покупки вне приложения не видны.
-                  </Rule>
-                  <Rule icon={<Edit size={18} />}>
-                    Бюджет месяца, обязательные платежи и расходы — общие: любой взрослый может их исправить, например указать, кто платил.
-                    Ребёнок меняет только свои траты.
-                  </Rule>
-                  <Rule icon={<PersonAdd size={18} />}>
-                    По ссылке-приглашению входят сразу. Вошедший по коду семьи видит данные только после подтверждения взрослым.
-                  </Rule>
-                  <Rule icon={<ShieldCheck size={18} />}>
-                    Права проверяются на сервере: скрытая кнопка не даёт доступа к чужим данным.
-                  </Rule>
-                </ul>
-                {isParent && !family.isDemo && (
-                  <Button className="mt-5" variant="secondary" icon={<PersonAdd size={16} />} onClick={() => openModal({ type: 'invite' })}>
-                    Пригласить участника
-                  </Button>
-                )}
-              </div>
-            </Disclosure>
-            <FamilyFaq />
-          </Card>
+          <FamilyFaq />
         </div>
       </div>
     </>
@@ -112,13 +85,15 @@ export function FamilyPage() {
 const FAQ = [
   ['Как пополнить общий счёт?', 'Откройте «Обзор» и нажмите «Пополнить общий счёт». Сумма увеличит остаток и отразится во взносах участника.'],
   ['Откуда берётся сумма к внесению?', 'Из доли участника в разделённых покупках и платежах вычитаются его взносы и личная оплата разделённых покупок. Покупки с общего счёта без деления уменьшают остаток счёта.'],
-  ['Как пригласить участника?', 'Отправьте ссылку из раздела «Семья». Если участник воспользовался кодом, взрослому нужно подтвердить заявку.'],
+  ['Как пригласить участника?', 'Отправьте ссылку из раздела «Семья» для быстрого входа. При входе по коду доступ к бюджету появится после подтверждения взрослым.'],
+  ['Кто видит данные бюджета?', 'Взрослые участники видят общий бюджет, запланированные платежи и покупки, добавленные в приложение. Личные счета и покупки вне приложения остаются приватными. Доступ проверяется на сервере.'],
+  ['Кто может изменить записи?', 'Любой взрослый участник может изменить бюджет месяца, обязательные платежи и покупки, в том числе исправить, кто платил. Ребёнок может изменить только свои покупки.'],
   ['Что видит ребёнок?', 'Ребёнок видит свои карманные деньги, свои покупки и семейные цели. Взрослые задают лимит карманных денег.'],
 ] as const;
 
 function FamilyFaq() {
   return (
-    <div className="border-t border-line pt-3 pb-2">
+    <Card className="px-3 py-3">
       <h2 className="px-3 py-2 font-semibold">Частые вопросы</h2>
       <div className="space-y-1">
         {FAQ.map(([question, answer]) => (
@@ -127,18 +102,7 @@ function FamilyFaq() {
           </Disclosure>
         ))}
       </div>
-    </div>
-  );
-}
-
-function Rule({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <li className="flex gap-3">
-      <span className="text-accent-ink shrink-0 mt-0.5" aria-hidden>
-        {icon}
-      </span>
-      <span className="text-ink-2">{children}</span>
-    </li>
+    </Card>
   );
 }
 

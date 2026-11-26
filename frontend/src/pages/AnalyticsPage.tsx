@@ -1,3 +1,4 @@
+import { T } from '@admiral-ds/react-ui';
 import { Calendar, Clipboard, AddTemplate, Edit, Plus } from '../components/ui/icons';
 import { copyPaymentsFromPreviousMonth } from '../api/client';
 import { useAsyncAction } from '../hooks/useAsyncAction';
@@ -36,14 +37,14 @@ export function AnalyticsPage() {
           <Card className="p-5">
             {summary.hasBudget ? (
               <>
-                <SectionHeader
-                  title={`Бюджет на ${formatMonthLower(monthKey)}`}
-                  action={
-                    <Button size="sm" variant="secondary" icon={<Edit size={15} />} onClick={() => openModal({ type: 'budgetForm' })}>
-                      Изменить
-                    </Button>
-                  }
-                />
+                <div className="mb-4 flex items-center justify-between gap-2">
+                  <T as="h2" font="Header/H5" className="min-w-0 text-ink max-sm:!text-base">
+                    <span className="sm:hidden">Бюджет на месяц</span>
+                    <span className="hidden sm:inline">Бюджет на {formatMonthLower(monthKey)}</span>
+                  </T>
+                  <Button size="sm" variant="secondary" className="shrink-0 max-sm:!px-2" icon={<Edit size={15} />}
+                    onClick={() => openModal({ type: 'budgetForm' })}>Изменить</Button>
+                </div>
                 <div className="plan-balance brand-surface">
                   <p className="text-sm text-ink-2">Общий план</p>
                   <p className="balance-number">{formatCurrency(summary.plan)}</p>
@@ -63,7 +64,7 @@ export function AnalyticsPage() {
             ) : (
               <EmptyState
                 icon={<Clipboard size={22} />}
-                title={`Бюджет на ${formatMonthLower(monthKey)} не задан`}
+                title="Бюджет на месяц не задан"
                 description="Укажите общую сумму на месяц или лимиты только для важных категорий. Можно взять за основу прошлый месяц."
                 action={<Button onClick={() => openModal({ type: 'budgetForm' })}>Задать бюджет</Button>}
               />
