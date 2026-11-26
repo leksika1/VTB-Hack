@@ -24,15 +24,15 @@ export function RecordsPage() {
         <div className="space-y-5 min-w-0">
           <Card className="p-5">
             <SectionHeader title="Добавить вручную" />
-            <div className="flex flex-wrap gap-2">
+            <div className={`gap-2 sm:flex sm:flex-wrap ${isParent ? 'grid grid-cols-2' : 'flex'}`}>
               {(isParent || hasAllowance) && (
-                <Button icon={<Plus size={18} />} onClick={() => openModal({ type: 'expenseForm' })}>
-                  Записать покупку
+                <Button icon={<Plus size={18} />} aria-label="Записать покупку" className="min-w-0 max-sm:!px-2" onClick={() => openModal({ type: 'expenseForm' })}>
+                  <span className="sm:hidden">Покупка</span><span className="hidden sm:inline">Записать покупку</span>
                 </Button>
               )}
               {isParent && (
-                <Button variant="secondary" icon={<Calendar size={18} />} onClick={() => openModal({ type: 'paymentForm' })}>
-                  Запланировать платёж
+                <Button variant="secondary" icon={<Calendar size={18} />} aria-label="Запланировать платёж" className="min-w-0 max-sm:!px-2" onClick={() => openModal({ type: 'paymentForm' })}>
+                  <span className="sm:hidden">Платёж</span><span className="hidden sm:inline">Запланировать платёж</span>
                 </Button>
               )}
               {!isParent && !hasAllowance && <p className="text-ink-2">Записывать покупки можно после назначения карманных денег.</p>}

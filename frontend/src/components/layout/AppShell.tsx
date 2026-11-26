@@ -1,13 +1,17 @@
 import { useEffect, type ReactNode } from 'react';
 import { Badge as AdmiralBadge, HorizontalTab, HorizontalTabs, T } from '@admiral-ds/react-ui';
 import styled from 'styled-components';
-import { Dashboard, Receipt, BarChart, Users, Calendar } from '../ui/icons';
+import { Dashboard, Receipt, BarChart, Users, Calendar, Settings, ArrowLeft } from '../ui/icons';
 import { ProfileDropdown } from './ProfileDropdown';
 import type { Tab } from '../../types';
 import { useUIStore } from '../../store/uiStore';
 import { useCurrentUser, useFamilyStore, useIsParent } from '../../store/familyStore';
 import { useDataStore } from '../../store/dataStore';
-import { Badge } from '../ui/Misc';
+import { Avatar, Badge } from '../ui/Misc';
+import { Button, IconButton } from '../ui/Button';
+import { Card, PageHeader } from '../ui/Card';
+import { ProfileSettings } from '../family/ProfileSettings';
+import { useMediaQuery } from '../../utils/theme';
 
 const NAV: { tab: Tab; label: string; icon: typeof Users }[] = [
   { tab: 'overview', label: 'Обзор', icon: Dashboard },
@@ -34,6 +38,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   const setTab = useUIStore((s) => s.setTab);
   const family = useFamilyStore((s) => s.family);
   const user = useCurrentUser();
+  const profileOpen = useUIStore((s) => s.profileOpen);
+  const setProfileOpen = useUIStore((s) => s.setProfileOpen);
+  const mobile = useMediaQuery('(max-width: 1023px)');
+  const profilePage = mobile && profileOpen;
   // The plan (budget and payments) is for adults only
   const isParent = useIsParent();
   const tab = !isParent && storedTab === 'calendar' ? 'overview' : storedTab;
@@ -45,7 +53,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   // Each section opens from its top instead of inheriting the previous scroll position
   useEffect(() => {
     window.scrollTo({ top: 0 });
-  }, [tab]);
+  }, [tab, profilePage]);
 
   return (
     <div className="min-h-dvh">
@@ -61,18 +69,34 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
           </div>
 
-          <SectionNavigation nav={nav} tab={tab} onSelect={setTab} unread={unread} unreadLabel={unreadLabel} />
+          <SectionNavigation nav={nav} tab={tab} profilePage={profilePage} onSelect={setTab} unread={unread} unreadLabel={unreadLabel} />
           <div className="flex min-w-0 items-center justify-end gap-2">
             {/* Demo data looks real, so the mark stays on every screen size */}
             {family?.isDemo && <span className="shrink-0"><Badge tone="warning">Демо</Badge></span>}
 
-            {user && <ProfileDropdown user={user} />}
+            {user && (mobile ? (
+              <div className="flex shrink-0 items-center gap-1">
+                <Avatar user={user} size="sm" />
+                <IconButton label="Настройки профиля" className="!size-10"
+                  aria-current={profilePage ? 'page' : undefined} onClick={() => setProfileOpen(!profileOpen)}>
+                  <Settings size={20} />
+                </IconButton>
+              </div>
+            ) : <ProfileDropdown user={user} />)}
           </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-7xl px-4 sm:px-6 pt-5 sm:pt-8 pb-[calc(6.5rem+env(safe-area-inset-bottom))] lg:pb-12">
-        <div id="section-content" role="tabpanel" aria-labelledby={`section-${tab}`}>{children}</div>
+        <div id="section-content" role="tabpanel" aria-labelledby={`section-${tab}`} hidden={profilePage}>{children}</div>
+        {profilePage && (
+          <div className="animate-tab-in">
+            <PageHeader title="Настройки профиля">
+              <Button variant="ghost" size="sm" icon={<ArrowLeft size={16} />} onClick={() => setProfileOpen(false)}>Назад</Button>
+            </PageHeader>
+            <Card><ProfileSettings /></Card>
+          </div>
+        )}
       </main>
 
     </div>
@@ -122,12 +146,13 @@ const SectionTab = styled(HorizontalTab)`
 interface SectionNavigationProps {
   nav: typeof NAV;
   tab: Tab;
+  profilePage: boolean;
   onSelect: (tab: Tab) => void;
   unread: number;
   unreadLabel: (tab: Tab) => string;
 }
 
-function SectionNavigation({ nav, tab, onSelect, unread, unreadLabel }: SectionNavigationProps) {
+function SectionNavigation({ nav, tab, profilePage, onSelect, unread, unreadLabel }: SectionNavigationProps) {
   return (
     <nav aria-label="Разделы" className="section-navigation">
       <HorizontalTabs
@@ -143,17 +168,25 @@ function SectionNavigation({ nav, tab, onSelect, unread, unreadLabel }: SectionN
           const item = nav.find((entry) => entry.tab === id);
           if (!item) return null;
           const Icon = item.icon;
+          const count = id === 'family' && unread > 0 ? (unread > 99 ? '99+' : unread) : null;
+          const active = selected && !profilePage;
           return (
             <SectionTab key={id} id={`section-${id}`} tabId={id} dimension="m" adaptive="fill"
-              selected={selected} onSelectTab={chooseTab} aria-selected={selected}
+              selected={active} onSelectTab={chooseTab} aria-selected={active}
               aria-controls="section-content" aria-label={item.label + unreadLabel(item.tab)}>
               <span className="flex items-center gap-2 max-lg:flex-col max-lg:gap-0.5 max-lg:text-[10px]">
-                <Icon size={20} aria-hidden />
+                <span className="relative shrink-0">
+                  <Icon size={20} aria-hidden />
+                  {count !== null && (
+                    <AdmiralBadge data-nav-count="" className="!absolute -top-1 left-full ml-0.5 !h-3.5 !min-w-3.5 !px-0.5 !text-[9px] lg:!hidden"
+                      appearance="info" dimension="s" aria-hidden>{count}</AdmiralBadge>
+                  )}
+                </span>
                 {item.label}
               </span>
-              {id === 'family' && unread > 0 && (
-                <AdmiralBadge data-nav-count="" className="max-lg:absolute max-lg:right-0 max-lg:top-1" appearance="info" dimension="s" aria-hidden>
-                  {unread > 99 ? '99+' : unread}
+              {count !== null && (
+                <AdmiralBadge data-nav-count="" className="max-lg:!hidden" appearance="info" dimension="s" aria-hidden>
+                  {count}
                 </AdmiralBadge>
               )}
             </SectionTab>

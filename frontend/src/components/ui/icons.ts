@@ -50,6 +50,7 @@ import {
   SystemPersonAddOutline,
   SystemRefreshOutline,
   SystemSearchOutline,
+  SystemSettingsOutline,
   SystemStarOutline,
   SystemTuneOutline,
   SystemUndoOutline,
@@ -107,6 +108,7 @@ export const Receipt = sized(CategoryReceiptOutline);
 export const Refresh = sized(SystemRefreshOutline);
 export const Update = sized(SystemUpdateOutline);
 export const Balance = sized(SystemBalanceOutline);
+export const Settings = sized(SystemSettingsOutline);
 export const Search = sized(SystemSearchOutline);
 export const Share = sized(ServiceShareOutline);
 export const ShieldCheck = sized(SecuritySafetyCertificateOutline);

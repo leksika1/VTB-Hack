@@ -5,6 +5,8 @@ import { useUIStore } from '../../store/uiStore';
 import { ProfileSettings } from '../family/ProfileSettings';
 import { Button } from '../ui/Button';
 import { Avatar } from '../ui/Misc';
+import { Presence } from '../ui/Presence';
+import { usePresenceClosing } from '../ui/presenceContext';
 
 export function ProfileDropdown({ user }: { user: User }) {
   const open = useUIStore((state) => state.profileOpen);
@@ -36,18 +38,23 @@ export function ProfileDropdown({ user }: { user: User }) {
         aria-label={`Профиль: ${user.name}`}>
         <span className="!inline-flex min-w-0 max-w-full items-center gap-2">
           <Avatar user={user} size="sm" />
-          <span className="hidden min-w-0 max-w-32 truncate lg:block">{user.name}</span>
+          <span className="min-w-0 max-w-32 truncate">{user.name}</span>
         </span>
       </Button>
-      {open && (
-        <section id={id} aria-labelledby={titleId}
-          className="absolute right-0 top-full z-10 mt-2 max-h-[calc(100dvh-6.5rem)] w-96 max-w-[calc(100vw-2rem)] overflow-y-auto overscroll-contain rounded-card border border-line bg-surface shadow-[var(--shadow-pop)]">
-          <T as="h2" id={titleId} font="Subtitle/Subtitle 1" className="border-b border-line px-5 py-3.5">
-            Настройки профиля
-          </T>
-          <ProfileSettings />
-        </section>
-      )}
+      <Presence show={open}><ProfilePanel id={id} titleId={titleId} /></Presence>
     </div>
+  );
+}
+
+function ProfilePanel({ id, titleId }: { id: string; titleId: string }) {
+  const closing = usePresenceClosing();
+  return (
+    <section id={id} aria-labelledby={titleId} inert={closing}
+      className={`profile-panel absolute right-0 top-full z-10 mt-2 max-h-[calc(100dvh-6.5rem)] w-96 max-w-[calc(100vw-2rem)] overflow-y-auto overscroll-contain rounded-card border border-line bg-surface shadow-[var(--shadow-pop)] ${closing ? 'profile-panel-out' : ''}`}>
+      <T as="h2" id={titleId} font="Subtitle/Subtitle 1" className="border-b border-line px-5 py-3.5">
+        Настройки профиля
+      </T>
+      <ProfileSettings />
+    </section>
   );
 }
