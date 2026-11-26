@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent } from 'react';
+import { useRef, useState, type ChangeEvent } from 'react';
 import { CheckboxField, T } from '@admiral-ds/react-ui';
 import { confirmPersonalPurchases, discardPersonalPurchases, previewPersonalPurchases, type PurchaseImport } from '../../api/client';
 import { useAsyncAction } from '../../hooks/useAsyncAction';
@@ -20,6 +20,8 @@ export function PersonalPurchases() {
   const [batch, setBatch] = useState<PurchaseImport | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [split, setSplit] = useState(true);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [fileName, setFileName] = useState('');
   const [fileError, setFileError] = useState('');
   const busy = preview.pending || confirm.pending;
 
@@ -36,6 +38,7 @@ export function PersonalPurchases() {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file || busy || batch) return;
+    setFileName(file.name);
     if (file.size > MAX_CSV_BYTES) {
       setFileError('Выберите CSV-файл размером до 1 МБ');
       return;
@@ -70,12 +73,18 @@ export function PersonalPurchases() {
         {!batch && (
           <>
             {demo && <Button variant="secondary" onClick={showDemoCard} loading={preview.pending}>Покупки демо-карты</Button>}
-            <label className="block text-sm font-medium">
-              Загрузить выписку CSV
-              <input type="file" accept=".csv,text/csv" disabled={busy}
-                className="mt-2 block w-full text-sm file:mr-3 file:rounded-control file:border-0 file:bg-accent-soft file:px-3 file:py-2 file:text-accent-ink"
-                onChange={readFile} />
-            </label>
+            <div className="text-sm">
+              <p className="font-medium">Загрузить выписку CSV</p>
+              <input ref={fileInput} id='file' type="file" accept=".csv,text/csv" disabled={busy} hidden onChange={readFile} />
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <Button size="sm" variant="secondary" disabled={busy} onClick={() => fileInput.current?.click()}>
+                  Выбрать файл
+                </Button>
+                <span role="status" className="min-w-0 wrap-anywhere text-ink-2">
+                  {fileName || 'Файл не выбран'}
+                </span>
+              </div>
+            </div>
           </>
         )}
         {batch && (
@@ -109,7 +118,7 @@ export function PersonalPurchases() {
           <div className="flex flex-wrap gap-2">
             <Button onClick={save} disabled={!selected.length} loading={confirm.pending}>Добавить выбранные ({selected.length})</Button>
             <Button variant="secondary" disabled={busy} onClick={() => {
-              void discardPersonalPurchases(batch.id).catch(() => {});
+              void discardPersonalPurchases(batch.id).catch(() => { });
               setBatch(null);
               setSelected([]);
             }}>Отменить выбор</Button>
