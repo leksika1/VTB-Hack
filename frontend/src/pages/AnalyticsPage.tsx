@@ -32,15 +32,15 @@ export function AnalyticsPage() {
         <MonthSwitcher />
       </PageHeader>
 
-      {isParent && <div key={monthKey} className={`grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-start ${monthIn}`}>
-        <div className="space-y-5 min-w-0">
+      {isParent && <div key={monthKey} className={`grid grid-cols-1 items-start gap-5 min-[54rem]:grid-cols-2 ${monthIn}`}>
+        <div className="min-w-0">
           <Card className="p-5">
             {summary.hasBudget ? (
               <>
                 <div className="mb-4 flex items-center justify-between gap-2">
                   <T as="h2" font="Header/H5" className="min-w-0 text-ink max-sm:!text-base">
-                    <span className="sm:hidden">Бюджет на месяц</span>
-                    <span className="hidden sm:inline">Бюджет на {formatMonthLower(monthKey)}</span>
+                    <span className="max-[359px]:text-sm sm:hidden min-[54rem]:max-[60rem]:inline">Бюджет на месяц</span>
+                    <span className="hidden sm:inline min-[54rem]:max-[60rem]:hidden">Бюджет на {formatMonthLower(monthKey)}</span>
                   </T>
                   <Button size="sm" variant="secondary" className="shrink-0 max-sm:!px-2" icon={<Edit size={15} />}
                     onClick={() => openModal({ type: 'budgetForm' })}>Изменить</Button>
@@ -70,13 +70,11 @@ export function AnalyticsPage() {
               />
             )}
           </Card>
-
-          <GoalsCard />
         </div>
 
         <div className="space-y-5 min-w-0">
           <PaymentsCard />
-
+          <GoalsCard />
         </div>
       </div>}
       <div className={isParent ? 'mt-5 space-y-5' : undefined}>
@@ -100,6 +98,7 @@ function PaymentsCard() {
   const prevCount = new Set(
     [...previous.upcomingPayments, ...previous.paidPayments].filter((p) => !p.seriesId && !titles.has(p.title)).map((p) => p.title)
   ).size;
+  const copyLabel = `Перенести платежи из прошлого месяца (${prevCount})`;
 
   const onCopy = async () => {
     const res = await copy.run(monthKey);
@@ -114,7 +113,7 @@ function PaymentsCard() {
   };
 
   return (
-    <Card className="p-5">
+    <Card className="p-5 pb-2">
       <SectionHeader
         title="Обязательные платежи"
         subtitle={
@@ -137,8 +136,9 @@ function PaymentsCard() {
           description="Аренда, коммуналка, сад, страховка — всё, что нужно оплатить обязательно. Их сумма вычитается из свободной."
           action={
             prevCount > 0 ? (
-              <Button variant="secondary" icon={<AddTemplate size={16} />} loading={copy.pending} onClick={onCopy}>
-                Перенести платежи из прошлого месяца ({prevCount})
+              <Button size="sm" variant="secondary" className="!px-2.5" icon={<AddTemplate size={16} />}
+                aria-label={copyLabel} loading={copy.pending} onClick={onCopy}>
+                Из прошлого месяца ({prevCount})
               </Button>
             ) : undefined
           }
@@ -157,8 +157,9 @@ function PaymentsCard() {
       )}
       {/* Copying payments is separate from copying the budget limits («Заполнить как …» in the budget form) */}
       {hasAny && prevCount > 0 && (
-        <Button size="sm" variant="ghost" className="mt-3" icon={<AddTemplate size={15} />} loading={copy.pending} onClick={onCopy}>
-          Перенести платежи из прошлого месяца ({prevCount})
+        <Button size="sm" variant="ghost" className="mt-3 !px-2.5" icon={<AddTemplate size={15} />}
+          aria-label={copyLabel} loading={copy.pending} onClick={onCopy}>
+          Из прошлого месяца ({prevCount})
         </Button>
       )}
     </Card>
