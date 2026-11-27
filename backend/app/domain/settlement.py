@@ -28,11 +28,23 @@ def split_evenly(total: int, member_ids: list[str]) -> dict[str, int]:
     return {m: base + (1 if i < remainder else 0) for i, m in enumerate(member_ids)}
 
 
+def split_by_percentages(total: int, percentages: dict[str, int]) -> dict[str, int]:
+    portions = {member_id: divmod(total * percent, 100) for member_id, percent in percentages.items()}
+    shares = {member_id: amount for member_id, (amount, _) in portions.items()}
+    missing = total - sum(shares.values())
+    ranked = sorted(portions, key=lambda member_id: portions[member_id][1], reverse=True)
+    for member_id in ranked[:missing]:
+        shares[member_id] += 1
+    return shares
+
+
 def compute_balances(
-    participants: list[str], paid: dict[str, int], recorded: list[tuple[str, str, int]]
+    participants: list[str], paid: dict[str, int], recorded: list[tuple[str, str, int]],
+    shares: dict[str, int] | None = None,
 ) -> list[Balance]:
     """participants — по порядку вступления; recorded — (from, to, amount) отмеченные переводы."""
-    shares = split_evenly(sum(paid.get(m, 0) for m in participants), participants)
+    if shares is None:
+        shares = split_evenly(sum(paid.get(m, 0) for m in participants), participants)
     sent = dict.fromkeys(participants, 0)
     received = dict.fromkeys(participants, 0)
     for from_id, to_id, amount in recorded:
@@ -40,7 +52,7 @@ def compute_balances(
             sent[from_id] += amount
         if to_id in received:
             received[to_id] += amount
-    return [Balance(m, paid.get(m, 0), shares[m], sent[m], received[m]) for m in participants]
+    return [Balance(m, paid.get(m, 0), shares.get(m, 0), sent[m], received[m]) for m in participants]
 
 
 def transfers(balances: list[Balance]) -> list[tuple[str, str, int]]:

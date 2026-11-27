@@ -9,7 +9,7 @@ from ..domain.budget import MonthSummary, compute_month_summary
 from ..config import get_settings
 from ..errors import Conflict, Forbidden, NotFound, ValidationFailed
 from ..receipts import parse_receipt
-from ..models import Budget, Expense, Member, Payment, now_ms
+from ..models import AccountContribution, Budget, Expense, Family, Member, Payment, now_ms
 from ..schemas import BudgetIn, ExpenseIn, PaymentIn
 from ..validation import (
     CATEGORIES,
@@ -129,6 +129,15 @@ def _check_account_mode(member: Member, mode: str | None) -> None:
         raise Forbidden("Семейным счётом управляют взрослые участники")
 
 
+def _validate_split_percentages(percentages: dict[str, int] | None, members: list[str] | None) -> None:
+    if percentages is None:
+        return
+    if not members or not percentages or not set(percentages).issubset(members):
+        raise ValidationFailed("Укажите доли взрослых участников семьи", "splitPercentages")
+    if any(not 0 <= value <= 100 for value in percentages.values()) or sum(percentages.values()) != 100:
+        raise ValidationFailed("Сумма долей должна быть 100%", "splitPercentages")
+
+
 async def create_expense(db: AsyncSession, member: Member, body: ExpenseIn) -> Expense:
     _check_account_mode(member, body.account_mode)
     await check_capacity(db, Expense, member.family_id)
@@ -141,6 +150,8 @@ async def create_expense(db: AsyncSession, member: Member, body: ExpenseIn) -> E
             raise Conflict("Этот чек уже добавлен", "receipt")
     if not member.is_parent:
         await allowance.check_child_spending(db, member, amount, on)
+    members = await split_members(db, member.family_id, body.account_mode)
+    _validate_split_percentages(body.split_percentages, members)
     expense = Expense(
         family_id=member.family_id,
         title=clean_title(body.title),
@@ -151,7 +162,8 @@ async def create_expense(db: AsyncSession, member: Member, body: ExpenseIn) -> E
         paid_by=await _payer(db, member, body.paid_by),
         receipt_key=receipt_key,
         account_mode=body.account_mode,
-        split_members=await split_members(db, member.family_id, body.account_mode),
+        split_members=members,
+        split_percentages=body.split_percentages,
     )
     db.add(expense)
     await db.flush()
@@ -179,11 +191,19 @@ async def update_expense(db: AsyncSession, member: Member, expense_id: str, body
     expense.amount_kop = amount
     expense.category = check_category(body.category)
     expense.date = on
-    if body.account_mode is not None and body.account_mode != expense.account_mode:
+    mode = body.account_mode if body.account_mode is not None else expense.account_mode
+    mode_changed = mode != expense.account_mode
+    percentages_provided = "split_percentages" in body.model_fields_set
+    percentages_changed = percentages_provided and body.split_percentages != expense.split_percentages
+    if mode_changed or percentages_changed:
         if expense.payment_id:
             raise ValidationFailed("Источник и доли задаются в связанном платеже", "accountMode")
-        expense.account_mode = body.account_mode
-        expense.split_members = await split_members(db, member.family_id, body.account_mode)
+        _check_account_mode(member, mode)
+        members = await split_members(db, member.family_id, mode)
+        _validate_split_percentages(body.split_percentages, members)
+        expense.account_mode = mode
+        expense.split_members = members
+        expense.split_percentages = body.split_percentages
     if body.paid_by is not None:
         expense.paid_by = await _payer(db, member, body.paid_by)
     await db.flush()
@@ -281,12 +301,18 @@ async def delete_payment(db: AsyncSession, member: Member, payment_id: str) -> N
 
 
 async def set_payment_paid(
-    db: AsyncSession, member: Member, payment_id: str, paid: bool
+    db: AsyncSession, member: Member, payment_id: str, paid: bool, *,
+    record_today: bool = False, from_shared_account: bool = False,
 ) -> tuple[Payment, Expense | None]:
     """
     Оплачен → платёж перестаёт быть резервом и становится фактическим расходом (учитывается один раз).
     Не оплачен → связанный расход удаляется, сумма снова резервируется.
     """
+    if from_shared_account:
+        if not paid:
+            raise ValidationFailed("Выберите оплату с общего счёта")
+        # Serialize balance checks for payments from the same family account.
+        await db.get(Family, member.family_id, with_for_update=True)
     payment = await _get_payment(db, member, payment_id, lock=True)
     if payment is None:
         raise NotFound("Платёж не найден")
@@ -296,13 +322,25 @@ async def set_payment_paid(
             return payment, None
         await check_capacity(db, Expense, payment.family_id)
         today = clock.today()
+        if from_shared_account:
+            if payment.account_mode not in {"shared_split", "shared_common"}:
+                raise ValidationFailed("Этот платёж запланирован с другого источника")
+            incoming = await db.scalar(select(func.coalesce(func.sum(AccountContribution.amount_kop), 0)).where(
+                AccountContribution.family_id == payment.family_id, AccountContribution.date <= today,
+            ))
+            spent = await db.scalar(select(func.coalesce(func.sum(Expense.amount_kop), 0)).where(
+                Expense.family_id == payment.family_id, Expense.date <= today,
+                Expense.account_mode.in_(("shared_split", "shared_common")),
+            ))
+            if incoming - spent < payment.amount_kop:
+                raise Conflict("На общем счёте недостаточно денег для оплаты")
         same_month = payment.due_date.strftime("%Y-%m") == today.strftime("%Y-%m")
         expense = Expense(
             family_id=payment.family_id,
             title=payment.title,
             amount_kop=payment.amount_kop,
             category=payment.category,
-            date=today if same_month else payment.due_date,
+            date=today if record_today or from_shared_account or same_month else payment.due_date,
             author_id=member.id,
             paid_by=member.id,
             payment_id=payment.id,

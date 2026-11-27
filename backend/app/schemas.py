@@ -4,7 +4,7 @@ DTO API. Поля в camelCase и форма объектов совпадают
 """
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictInt
 from pydantic.alias_generators import to_camel
 
 from . import models
@@ -65,6 +65,7 @@ class ExpenseIn(Schema):
     category: str
     date: str
     account_mode: AccountMode | None = None
+    split_percentages: dict[str, StrictInt] | None = None
     paid_by: str | None = None  # кто платил; по умолчанию автор (docs/FEATURES.md §7)
     receipt: str | None = Field(default=None, max_length=512)  # строка QR-кода чека (§8)
 
@@ -154,6 +155,8 @@ class SettlementIn(Schema):
 
 class PaymentPaidIn(Schema):
     paid: bool
+    record_today: bool = False
+    from_shared_account: bool = False
 
 
 class CopyPaymentsIn(Schema):
@@ -285,6 +288,7 @@ class ExpenseOut(Schema):
     paid_by: str | None
     account_mode: AccountMode | None
     split_members: list[str] | None
+    split_percentages: dict[str, int] | None = None
     request_id: str | None
     created_at: int
 
@@ -303,6 +307,7 @@ class ExpenseOut(Schema):
             paid_by=e.paid_by,
             account_mode=e.account_mode,
             split_members=e.split_members,
+            split_percentages=e.split_percentages,
             request_id=e.request_id,
             created_at=e.created_at,
         )
@@ -488,6 +493,7 @@ class ContributionOut(Schema):
 class ContributionResultOut(Schema):
     goal: GoalOut
     contribution: ContributionOut
+    account_contribution: AccountContributionOut | None = None
 
 
 class CategoryForecastOut(Schema):

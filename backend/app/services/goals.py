@@ -7,10 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import clock
 from ..errors import Conflict, Forbidden, NotFound, ValidationFailed
-from ..models import Goal, GoalContribution, Member, now_ms
+from ..models import AccountContribution, Goal, GoalContribution, Member, now_ms
 from ..schemas import ContributionIn, ContributionOut, GoalIn, GoalOut
 from ..validation import amount_to_kop, kop_to_amount, month_bounds, parse_date, shift_month
 from . import allowance, notifications
+from .finance import check_capacity
 
 MAX_ACTIVE_GOALS = 20
 ETA_WINDOW_MONTHS = 3
@@ -146,7 +147,9 @@ async def list_contributions(db: AsyncSession, member: Member, goal_id: str) -> 
     return [ContributionOut.of(c) for c in rows]
 
 
-async def contribute(db: AsyncSession, member: Member, goal_id: str, body: ContributionIn) -> tuple[Goal, GoalContribution, bool]:
+async def contribute(
+    db: AsyncSession, member: Member, goal_id: str, body: ContributionIn,
+) -> tuple[Goal, GoalContribution, AccountContribution]:
     # Блокировка цели: статус «достигнута» считается по сумме взносов, параллельные взносы — по очереди
     goal = await _goal(db, member, goal_id, lock=True)
     if goal.status == "archived":
@@ -161,13 +164,19 @@ async def contribute(db: AsyncSession, member: Member, goal_id: str, body: Contr
                                     amount_kop=amount, date=on)
     db.add(contribution)
     await db.flush()
+    await check_capacity(db, AccountContribution, goal.family_id)
+    account_contribution = AccountContribution(
+        family_id=goal.family_id, member_id=member.id, goal_contribution_id=contribution.id,
+        amount_kop=amount, date=on,
+    )
+    db.add(account_contribution)
     achieved = await _refresh_status(db, goal)
     await db.flush()
     if achieved:
         await notifications.notify(db, goal.family_id, await notifications.everyone(db, goal.family_id),
                                    "goal_achieved", f"Цель «{goal.title}» накоплена!", "Поздравляем всю семью",
                                    {"goalId": goal.id}, dedupe_key=f"goal_achieved:{goal.id}:{goal.achieved_at}")
-    return goal, contribution, achieved
+    return goal, contribution, account_contribution
 
 
 async def delete_contribution(db: AsyncSession, member: Member, goal_id: str, contribution_id: str) -> Goal:

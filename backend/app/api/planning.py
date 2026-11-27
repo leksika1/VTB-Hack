@@ -3,6 +3,7 @@ from fastapi import APIRouter, Response
 
 from ..deps import CurrentMember, Db, IdempotencyKey, ParentMember
 from ..schemas import (
+    AccountContributionOut,
     CategoryForecastOut,
     ContributionIn,
     ContributionOut,
@@ -71,8 +72,11 @@ async def list_contributions(goal_id: str, member: CurrentMember, db: Db):
              summary="Внести в цель (ребёнок — из карманных денег)")
 async def contribute(goal_id: str, body: ContributionIn, member: CurrentMember, db: Db, idem: IdempotencyKey = None):
     async def action():
-        goal, contribution, _ = await goals.contribute(db, member, goal_id, body)
-        return _dump(ContributionResultOut(goal=await goals.to_out(db, goal), contribution=ContributionOut.of(contribution)))
+        goal, contribution, account_contribution = await goals.contribute(db, member, goal_id, body)
+        return _dump(ContributionResultOut(
+            goal=await goals.to_out(db, goal), contribution=ContributionOut.of(contribution),
+            account_contribution=AccountContributionOut.of(account_contribution) if member.is_parent else None,
+        ))
 
     fp = idempotency.fingerprint("POST contribution", goal_id, _dump(body))
     return await idempotency.run(db, member.id, idem, fp, action)

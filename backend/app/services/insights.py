@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import clock
 from ..domain.forecast import Forecast, compute_forecast
-from ..domain.settlement import compute_balances, transfers
+from ..domain.settlement import compute_balances, split_by_percentages, split_evenly, transfers
 from ..errors import Forbidden, NotFound, ValidationFailed
 from ..models import Budget, Expense, Member, Settlement
 from ..schemas import (
@@ -29,24 +29,38 @@ async def forecast(db: AsyncSession, family_id: str, month_key: str) -> Forecast
 async def _participants(db: AsyncSession, family_id: str, expenses: list[Expense]) -> list[Member]:
     """Текущие взрослые + вышедшие взрослые, если они платили в этом месяце; по порядку вступления."""
     family = await families.load_family(db, family_id)
-    payers = {e.paid_by for e in expenses}
-    return [m for m in family.members if m.is_parent and (m.active or m.id in payers)]
+    participants = {e.paid_by for e in expenses}
+    for expense in expenses:
+        participants.update(expense.split_members or [])
+    return [m for m in family.members if m.is_parent and (m.active or m.id in participants)]
 
 
 async def settlement(db: AsyncSession, family_id: str, month_key: str) -> SettlementOut:
     check_month_key(month_key, "month")
-    expenses = await finance.list_expenses(db, family_id, month_key)
+    expenses = [expense for expense in await finance.list_expenses(db, family_id, month_key)
+                if expense.account_mode in {None, "personal_split"}]
     people = await _participants(db, family_id, expenses)
     ids = [m.id for m in people]
     paid: dict[str, int] = {}
+    shares: dict[str, int] = {}
+    legacy_total = 0
     for e in expenses:
         if e.paid_by in ids:  # траты ребёнка из карманных не делятся
             paid[e.paid_by] = paid.get(e.paid_by, 0) + e.amount_kop
+            if e.account_mode is None or not e.split_members:
+                legacy_total += e.amount_kop
+                continue
+            allocation = (split_by_percentages(e.amount_kop, e.split_percentages) if e.split_percentages
+                          else split_evenly(e.amount_kop, e.split_members))
+            for member_id, amount in allocation.items():
+                shares[member_id] = shares.get(member_id, 0) + amount
+    for member_id, amount in split_evenly(legacy_total, ids).items():
+        shares[member_id] = shares.get(member_id, 0) + amount
     recorded = list(await db.scalars(
         select(Settlement).where(Settlement.family_id == family_id, Settlement.month_key == month_key)
         .order_by(Settlement.created_at)
     ))
-    balances = compute_balances(ids, paid, [(s.from_id, s.to_id, s.amount_kop) for s in recorded])
+    balances = compute_balances(ids, paid, [(s.from_id, s.to_id, s.amount_kop) for s in recorded], shares)
     names = {m.id: m.name for m in people}
     return SettlementOut(
         month_key=month_key,

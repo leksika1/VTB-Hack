@@ -109,14 +109,14 @@ async def build_sample_family(
     )
     await db.flush()
 
-    def expense(title, amount, category, on, author, age_hours, paid_from=None) -> Expense:
-        mode = None
-        if on.strftime("%Y-%m") == month:
+    def expense(title, amount, category, on, author, age_hours, paid_from=None, *, mode=None, percentages=None) -> Expense:
+        if mode is None and (paid_from or on.strftime("%Y-%m") == month):
             mode = paid_from.account_mode if paid_from else "shared_common"
         return Expense(family_id=family.id, title=title, amount_kop=_kop(amount), category=category, date=on,
                        author_id=author.id, paid_by=author.id, payment_id=paid_from.id if paid_from else None,
                        created_at=now - age_hours * HOUR_MS, account_mode=mode,
-                       split_members=[petya.id, masha.id] if mode == "shared_split" else None)
+                       split_members=[petya.id, masha.id] if mode in {"shared_split", "personal_split"} else None,
+                       split_percentages=percentages)
 
     db.add_all(
         [
@@ -125,18 +125,19 @@ async def build_sample_family(
             expense("Секция плавания, абонемент", 8500, "kids", day(-12), masha, 290),
             expense("Учебники и канцтовары", 4200, "kids", day(-10), masha, 240),
             expense("Заправка", 3400, "transport", day(-8), petya, 190),
-            expense("Продукты на неделю", 6850.4, "food", day(-6), petya, 140),
-            expense("Фрукты и сыр на рынке", 2150, "food", day(-3), masha, 70),
+            expense("Продукты на неделю", 6850.4, "food", day(-6), petya, 140,
+                    mode="shared_split", percentages={petya.id: 60, masha.id: 40}),
+            expense("Фрукты и сыр на рынке", 2150, "food", day(-3), masha, 70, mode="personal_split"),
             expense("Аптека", 1270.5, "other", day(-1), masha, 20),
             expense("Супермаркет у дома", 3120, "food", day(0), petya, 2),
             # прошлый месяц — для «как в прошлом месяце» в форме бюджета
-            expense("Продукты на месяц", 39800, "food", d(prev, 10), petya, 900),
+            expense("Продукты на месяц", 39800, "food", d(prev, 10), petya, 900, mode="outside"),
             expense("Аренда квартиры", 38000, "housing", d(prev, 1), petya, 1100, pay_prev_rent),
             expense("Коммунальные услуги", 6400, "housing", d(prev, 25), masha, 700, pay_prev_util),
         ]
     )
     db.add_all([
-        AccountContribution(family_id=family.id, member_id=masha.id, amount_kop=_kop(68789.9), date=d(prev, 1)),
+        AccountContribution(family_id=family.id, member_id=masha.id, amount_kop=_kop(120000), date=d(prev, 1)),
         AccountContribution(family_id=family.id, member_id=masha.id, amount_kop=_kop(30000), date=d(month, 1)),
         AccountContribution(family_id=family.id, member_id=petya.id, amount_kop=_kop(10600), date=d(month, 1)),
     ])

@@ -195,6 +195,7 @@ class Expense(Base):
     paid_by: Mapped[str | None] = mapped_column(ForeignKey("members.id", ondelete="SET NULL"), default=None)
     account_mode: Mapped[str | None] = mapped_column(String(16), default=None)
     split_members: Mapped[list[str] | None] = mapped_column(JSON, default=None)
+    split_percentages: Mapped[dict[str, int] | None] = mapped_column(JSON, default=None)
     # Расход создан одобрением запроса на покупку (§3) — не уменьшает карманные деньги
     request_id: Mapped[str | None] = mapped_column(
         ForeignKey("purchase_requests.id", ondelete="SET NULL"), unique=True, default=None
@@ -215,6 +216,9 @@ class AccountContribution(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     family_id: Mapped[str] = mapped_column(ForeignKey("families.id", ondelete="CASCADE"), index=True)
     member_id: Mapped[str | None] = mapped_column(ForeignKey("members.id", ondelete="SET NULL"))
+    goal_contribution_id: Mapped[str | None] = mapped_column(
+        ForeignKey("goal_contributions.id", ondelete="CASCADE"), unique=True, default=None
+    )
     amount_kop: Mapped[int] = mapped_column(BigInteger)
     date: Mapped[date] = mapped_column(Date)
     created_at: Mapped[int] = mapped_column(BigInteger, default=now_ms)

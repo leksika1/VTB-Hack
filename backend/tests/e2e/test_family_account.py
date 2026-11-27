@@ -1,4 +1,57 @@
-from .helpers import TODAY, add_child, assert_error, create_family, join, key
+from .helpers import MONTH, TODAY, add_child, assert_error, create_family, join, key
+
+
+def test_custom_purchase_shares_persist_and_common_spending_is_not_split(api, new_client):
+    petya = create_family(api, user="Петя")
+    masha = join(new_client(), petya, user="Маша")
+    purchase = {"title": "Покупка", "amount": 100.01, "category": "other", "date": TODAY}
+    split = {"accountMode": "personal_split", "splitPercentages": {petya.id: 60, masha.id: 40}}
+    created = petya.post("/api/expenses", {**purchase, **split})
+    assert created.status_code == 201, created.text
+    edit_path = f"/api/expenses/{created.json()['id']}"
+    assert masha.put(edit_path, purchase).json()["splitPercentages"] == split["splitPercentages"]
+    assert_error(petya.put(edit_path, {**purchase, **split, "splitPercentages": {petya.id: 99}}), 422)
+    assert_error(petya.put(edit_path, {**purchase, **split, "splitPercentages": {"another-family": 100}}), 422)
+    assert petya.post("/api/expenses", {**purchase, "accountMode": "shared_common"}).status_code == 201
+
+    settlement = masha.get(f"/api/months/{MONTH}/settlement").json()
+    assert settlement["sharedTotal"] == 100.01
+    assert {row["memberId"]: row["share"] for row in settlement["members"]} == {petya.id: 60.01, masha.id: 40}
+    assert petya.put(edit_path, {**purchase, **split, "splitPercentages": None}).json()["splitPercentages"] is None
+
+
+def test_goal_savings_fund_a_manual_payment_once(api, new_client):
+    petya = create_family(api, user="Петя")
+    masha = join(new_client(), petya, user="Маша")
+    goal = petya.post("/api/goals", {"title": "Поездка", "target": 2000}).json()
+    goal_path = f"/api/goals/{goal['id']}/contributions"
+    payment = petya.post("/api/payments", {
+        "title": "Свет", "dueDate": "2090-12-01", "amount": 500, "category": "housing",
+        "accountMode": "shared_common",
+    })
+    assert payment.status_code == 201, payment.text
+    pay_path = f"/api/payments/{payment.json()['id']}/paid"
+    pay = {"paid": True, "fromSharedAccount": True}
+    assert_error(masha.post(pay_path, pay), 409)
+
+    idem = key()
+    saved = petya.post(goal_path, {"amount": 700}, idem=idem)
+    assert saved.status_code == 201, saved.text
+    assert petya.post(goal_path, {"amount": 700}, idem=idem).json() == saved.json()
+    contribution = saved.json()["accountContribution"]
+    assert contribution["amount"] == 700
+    assert masha.get("/api/state").json()["accountContributions"] == [contribution]
+
+    paid = masha.post(pay_path, pay)
+    assert paid.status_code == 200, paid.text
+    expense = paid.json()["expense"]
+    assert (expense["date"], expense["paidBy"], expense["amount"]) == (TODAY, masha.id, 500)
+    assert masha.post(pay_path, pay).json()["expense"] is None
+    assert [row["id"] for row in petya.get("/api/state").json()["expenses"]] == [expense["id"]]
+
+    contribution_id = saved.json()["contribution"]["id"]
+    assert petya.delete(f"{goal_path}/{contribution_id}").status_code == 200
+    assert masha.get("/api/state").json()["accountContributions"] == []
 
 
 def test_account_top_up_and_split_payment(api, new_client):

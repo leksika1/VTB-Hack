@@ -30,6 +30,13 @@ def _dump(model) -> dict:
     return model.model_dump(mode="json", by_alias=True)
 
 
+def _expense_fingerprint_body(body: ExpenseIn) -> dict:
+    values = _dump(body)
+    if "split_percentages" not in body.model_fields_set:
+        values.pop("splitPercentages")
+    return values
+
+
 # ── Бюджет ──
 
 
@@ -70,7 +77,8 @@ async def create_expense(body: ExpenseIn, member: CurrentMember, db: Db, idem: I
     async def action():
         return _dump(ExpenseOut.of(await finance.create_expense(db, member, body)))
 
-    return await idempotency.run(db, member.id, idem, idempotency.fingerprint("POST expense", _dump(body)), action)
+    fp = idempotency.fingerprint("POST expense", _expense_fingerprint_body(body))
+    return await idempotency.run(db, member.id, idem, fp, action)
 
 
 @router.put("/expenses/{expense_id}", response_model=ExpenseOut, tags=["expenses"])
@@ -78,7 +86,7 @@ async def update_expense(expense_id: str, body: ExpenseIn, member: CurrentMember
     async def action():
         return _dump(ExpenseOut.of(await finance.update_expense(db, member, expense_id, body)))
 
-    fp = idempotency.fingerprint("PUT expense", expense_id, _dump(body))
+    fp = idempotency.fingerprint("PUT expense", expense_id, _expense_fingerprint_body(body))
     return await idempotency.run(db, member.id, idem, fp, action)
 
 
@@ -124,7 +132,10 @@ async def delete_payment(payment_id: str, member: ParentMember, db: Db):
 @router.post("/payments/{payment_id}/paid", response_model=PaymentPaidOut, tags=["payments"],
              summary="Отметить оплаченным (paid=true) или вернуть в предстоящие (paid=false)")
 async def set_payment_paid(payment_id: str, body: PaymentPaidIn, member: ParentMember, db: Db):
-    payment, expense = await finance.set_payment_paid(db, member, payment_id, body.paid)
+    payment, expense = await finance.set_payment_paid(
+        db, member, payment_id, body.paid, record_today=body.record_today,
+        from_shared_account=body.from_shared_account,
+    )
     out = PaymentPaidOut(payment=PaymentOut.of(payment), expense=ExpenseOut.of(expense) if expense else None)
     await db.commit()
     return out
