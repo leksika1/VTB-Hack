@@ -35,6 +35,10 @@ function pad(n: number): string {
   return String(n).padStart(2, "0");
 }
 
+export function formatMonthName(month: number): string {
+  return capitalize(MONTHS[month - 1]);
+}
+
 /** Returns 'YYYY-MM' for a Date */
 export function toMonthKey(d: Date = new Date()): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;

@@ -13,6 +13,7 @@ import { Button } from '../components/ui/Button';
 import { EmptyState } from '../components/ui/Feedback';
 import { CategoryList } from '../components/budget/CategoryList';
 import { AccountHistory } from '../components/account/AccountHistory';
+import { FamilyAccountBreakdown } from '../components/account/FamilyAccountCard';
 import { OperationsHistory } from '../components/expenses/OperationsHistory';
 import { useIsParent } from '../store/familyStore';
 import { PaymentList } from '../components/payments/PaymentList';
@@ -79,6 +80,7 @@ export function AnalyticsPage() {
       </div>}
       <div className={isParent ? 'mt-5 space-y-5' : undefined}>
         {isParent && <AccountHistory month={monthKey} />}
+        {isParent && <FamilyAccountBreakdown month={monthKey} />}
         <OperationsHistory key={monthKey} />
       </div>
     </>

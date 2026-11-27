@@ -65,8 +65,7 @@ export function ExpenseFormModal({ expenseId, prefill }: ExpenseFormModalProps) 
   const payerIsAdult = adults.some((m) => m.id === initialPayer);
   const editableMode = isParent && !existing?.paymentId && (!existing || payerIsAdult);
   const choosePayer = editableMode && source === 'personal' && adults.length > 1;
-  const demo = family?.isDemo ?? false;
-  const custom = editableMode && demo && division === 'custom';
+  const custom = editableMode && division === 'custom';
   const entries = adults.map((member) => [member.id, percentages[member.id] ?? '0'] as const);
   const percentTotal = entries.reduce((sum, [, value]) => sum + Number(value || 0), 0);
   const percentsValid = percentTotal === 100 && entries.every(([, value]) => /^\d{0,3}$/.test(value) && Number(value) <= 100);
@@ -91,7 +90,7 @@ export function ExpenseFormModal({ expenseId, prefill }: ExpenseFormModalProps) 
 
     const payer = choosePayer && paidBy && paidBy !== initialPayer ? paidBy : undefined;
     const splitPercentages = custom ? Object.fromEntries(entries.filter(([, percent]) => Number(percent) > 0)
-      .map(([id, percent]) => [id, Number(percent)])) : null;
+      .map(([id, percent]) => [id, Number(percent)])) : editableMode ? null : undefined;
     const mode = editableMode && (!existing || existing.accountMode || accountMode !== 'outside') ? accountMode : undefined;
     const res = await save.run({ id: expenseId, title, amount: value, category, date, paidBy: payer, accountMode: mode, splitPercentages }, requestId);
     if (!res.ok) return;
@@ -170,16 +169,14 @@ export function ExpenseFormModal({ expenseId, prefill }: ExpenseFormModalProps) 
               <RadioButton name="purchase-division" value="equal" checked={division === 'equal'} onChange={() => setDivision('equal')}>
                 Поровну
               </RadioButton>
-              {demo && (
-                <RadioButton name="purchase-division" value="custom" checked={division === 'custom'} onChange={() => {
-                  setDivision('custom');
-                  if (!Object.keys(percentages).length) {
-                    const share = Math.floor(100 / adults.length);
-                    setPercentages(Object.fromEntries(adults.map((member, index) =>
-                      [member.id, String(share + (index < 100 % adults.length ? 1 : 0))])));
-                  }
-                }}>В долях</RadioButton>
-              )}
+              <RadioButton name="purchase-division" value="custom" checked={division === 'custom'} onChange={() => {
+                setDivision('custom');
+                if (!Object.keys(percentages).length) {
+                  const share = Math.floor(100 / adults.length);
+                  setPercentages(Object.fromEntries(adults.map((member, index) =>
+                    [member.id, String(share + (index < 100 % adults.length ? 1 : 0))])));
+                }
+              }}>В долях</RadioButton>
             </div>
             {custom && (
               <div className="space-y-2">
@@ -190,7 +187,7 @@ export function ExpenseFormModal({ expenseId, prefill }: ExpenseFormModalProps) 
                       onChange={(event) => setPercentages((previous) => ({ ...previous, [member.id]: event.target.value }))} />
                   ))}
                 </div>
-                {splitError ? <FieldError>{splitError}</FieldError> : (
+                {splitError || save.errorField === 'splitPercentages' ? <FieldError>{splitError ?? save.error}</FieldError> : (
                   <p className="text-sm text-ink-2" aria-live="polite">Всего {Number.isFinite(percentTotal) ? percentTotal : '—'} из 100%</p>
                 )}
               </div>

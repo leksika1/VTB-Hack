@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { RadioButton, T, Toggle } from '@admiral-ds/react-ui';
+import { RadioButton, T } from '@admiral-ds/react-ui';
 import type { Me } from '../../types';
-import { errorMessage, getMe, getOidcConfig, leaveFamily, startDemo, startOidc, switchDemoUser, unlinkOidc, type OidcConfig } from '../../api/client';
+import { errorMessage, getMe, getOidcConfig, leaveFamily, startOidc, switchDemoUser, unlinkOidc, type OidcConfig } from '../../api/client';
 import { useAsyncAction } from '../../hooks/useAsyncAction';
 import { useFamilyStore } from '../../store/familyStore';
 import { useUIStore, type Theme } from '../../store/uiStore';
@@ -20,7 +20,7 @@ export function ProfileSettings() {
     <div className="divide-y divide-line">
       {!demo && <VtbIdCard />}
       <AppearanceCard />
-      <DemoCard />
+      {demo && <DemoCard />}
       <LeaveCard />
     </div>
   );
@@ -143,13 +143,8 @@ function AppearanceCard() {
 function DemoCard() {
   const family = useFamilyStore((s) => s.family);
   const currentUserId = useFamilyStore((s) => s.currentUserId);
-  const simulateErrors = useUIStore((s) => s.simulateErrors);
-  const setSimulateErrors = useUIStore((s) => s.setSimulateErrors);
   const addToast = useUIStore((s) => s.addToast);
-  const setTab = useUIStore((s) => s.setTab);
   const switchUser = useAsyncAction(switchDemoUser);
-  const demo = useAsyncAction(startDemo);
-  const [confirmDemo, setConfirmDemo] = useState(false);
   if (!family) return null;
 
   const onSwitch = async (id: string, name: string) => {
@@ -165,63 +160,26 @@ function DemoCard() {
         action={<Badge tone="warning" icon={<Star size={12} aria-hidden />}>Демо</Badge>}
       />
 
-      {family.isDemo && (
-        <div className="mb-5">
-          <T as="h3" font="Subtitle/Subtitle 2" className="mb-2">Действовать от имени</T>
-          <div className="flex flex-wrap gap-2">
-            {family.members.map((m) => (
-              <ChoiceChip
-                key={m.id}
-                dimension="m"
-                selected={m.id === currentUserId}
-                disabled={switchUser.pending}
-                onClick={() => m.id !== currentUserId && onSwitch(m.id, m.name)}
-              >
-                {m.name}
-              </ChoiceChip>
-            ))}
-          </div>
-          <p className="text-[13px] text-ink-3 mt-2">
-            Два участника в одном браузере — только для показа. Совместную работу нужно проверять в разных сессиях.
-          </p>
-          {switchUser.error && <p role="alert" className="text-sm text-danger mt-2">{switchUser.error}</p>}
+      <div>
+        <T as="h3" font="Subtitle/Subtitle 2" className="mb-2">Действовать от имени</T>
+        <div className="flex flex-wrap gap-2">
+          {family.members.map((m) => (
+            <ChoiceChip
+              key={m.id}
+              dimension="m"
+              selected={m.id === currentUserId}
+              disabled={switchUser.pending}
+              onClick={() => m.id !== currentUserId && onSwitch(m.id, m.name)}
+            >
+              {m.name}
+            </ChoiceChip>
+          ))}
         </div>
-      )}
-
-      <Toggle
-        checked={simulateErrors}
-        onChange={(e) => setSimulateErrors(e.target.checked)}
-        extraText="Показывает, как приложение обрабатывает сбои при запросах."
-      >
-        Имитировать ошибки сервера
-      </Toggle>
-
-      <Button className="mt-5" variant="secondary" icon={<Star size={16} />} onClick={() => setConfirmDemo(true)}>
-        Загрузить демо-семью
-      </Button>
-
-      <Presence show={confirmDemo}>
-        <ConfirmDialog
-          title="Заменить данные демо-семьёй?"
-          confirmLabel="Загрузить"
-          tone="primary"
-          pending={demo.pending}
-          error={demo.error}
-          onCancel={() => setConfirmDemo(false)}
-          onConfirm={async () => {
-            const res = await demo.run();
-            if (!res.ok) return;
-            setConfirmDemo(false);
-            setTab('overview');
-            addToast('Загружена демо-семья Смирновых');
-          }}
-        >
-          <p>
-            Откроется пример «Семья Смирновых» — песочница: изменения в ней не затрагивают вашу семью. Вернуться
-            в свою семью — кнопкой «Выйти из демо».
-          </p>
-        </ConfirmDialog>
-      </Presence>
+        <p className="text-[13px] text-ink-3 mt-2">
+          Два участника в одном браузере — только для показа. Совместную работу нужно проверять в разных сессиях.
+        </p>
+        {switchUser.error && <p role="alert" className="text-sm text-danger mt-2">{switchUser.error}</p>}
+      </div>
     </Card>
   );
 }

@@ -389,9 +389,12 @@ input[type='number']::-webkit-inner-spin-button {
 }
 
 .account-hero {
+  border-radius: var(--radius-card) var(--radius-card) 0 0;
+}
+
+.account-hero-content {
   padding: clamp(18px, 3vw, 30px);
   padding-bottom: clamp(34px, 4vw, 48px);
-  border-radius: var(--radius-card) var(--radius-card) 0 0;
 }
 
 .account-tag {
@@ -420,6 +423,26 @@ input[type='number']::-webkit-inner-spin-button {
   --admiral-color-Primary_Primary70: #e7eeff;
   --admiral-color-Primary_Primary80: #d8e4ff;
   --admiral-color-Special_StaticWhite: #10234d;
+}
+
+.account-top-up-motion {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity var(--dur-month) var(--ease-in-out), transform var(--dur-month) var(--ease-in-out);
+}
+
+.account-top-up-motion[data-visible='false'] {
+  position: absolute;
+  inset: 0 0 auto;
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+@starting-style {
+  .account-top-up-motion[data-visible='true'] {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
 }
 
 .account-metrics {

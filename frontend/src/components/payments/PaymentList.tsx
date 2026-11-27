@@ -1,16 +1,19 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useDataStore } from '../../store/dataStore';
 import { T } from '@admiral-ds/react-ui';
 import { Check, Update, Undo } from '../ui/icons';
 import type { Payment } from '../../types';
 import { formatCurrency } from '../../utils/currency';
-import { formatDateShort, formatDueIn, todayISO } from '../../utils/date';
+import { formatDateShort, formatDueIn } from '../../utils/date';
 import { isOverdue } from '../../domain/budget';
+import { usesFamilyAccount } from '../../domain/familyAccount';
 import { setPaymentPaid } from '../../api/client';
 import { useAsyncAction } from '../../hooks/useAsyncAction';
 import { useUIStore } from '../../store/uiStore';
 import { Badge, CategoryIcon } from '../ui/Misc';
 import { Button } from '../ui/Button';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
+import { Presence } from '../ui/Presence';
 
 export function PaymentStatusBadge({ payment }: { payment: Payment }) {
   if (payment.status === 'paid') return <Badge tone="success" icon={<Check size={12} aria-hidden />}>Оплачено</Badge>;
@@ -22,20 +25,24 @@ function PaymentRow({ payment, editable = true, paidDate }: { payment: Payment; 
   const openModal = useUIStore((s) => s.openModal);
   const addToast = useUIStore((s) => s.addToast);
   const toggle = useAsyncAction(setPaymentPaid);
+  const pay = useAsyncAction(setPaymentPaid);
+  const [confirmPayment, setConfirmPayment] = useState(false);
   const paid = payment.status === 'paid';
+  const canPay = !paid && usesFamilyAccount(payment.accountMode);
 
   const onToggle = async () => {
     const res = await toggle.run(payment.id, !paid);
     if (!res.ok) return;
     if (paid) addToast(`«${payment.title}» снова в запланированных`);
-    else if (res.value?.date === todayISO()) addToast(`Оплата «${payment.title}» записана на сегодня`);
-    else if (res.value) {
-      const { id, date } = res.value;
-      addToast(`Оплата записана на ${formatDateShort(date)}. Дату не удалось изменить.`, 'info', {
-        label: 'Изменить дату', onClick: () => openModal({ type: 'expenseForm', expenseId: id }),
-      });
-    }
+    else if (res.value) addToast(`Оплата «${payment.title}» записана на сегодня`);
     else addToast(`«${payment.title}» уже отмечен оплаченным`, 'info');
+  };
+  const onPay = async () => {
+    const res = await pay.run(payment.id, true, true);
+    if (!res.ok) return;
+    setConfirmPayment(false);
+    addToast(res.value ? `«${payment.title}» оплачен с общего счёта` : `«${payment.title}» уже оплачен`,
+      res.value ? 'success' : 'info');
   };
   const canEdit = editable && !paid;
 
@@ -70,10 +77,16 @@ function PaymentRow({ payment, editable = true, paidDate }: { payment: Payment; 
           )}
           {payment.recurring && <Badge icon={<Update size={12} aria-hidden />}>Каждый месяц</Badge>}
         </div>
-        <div className="mt-2 flex">
+        <div className="mt-2 flex flex-wrap gap-2">
+          {canPay && (
+            <Button size="sm" icon={<Check size={16} />} disabled={toggle.pending} onClick={() => setConfirmPayment(true)}
+              aria-label={`Оплатить сейчас «${payment.title}»`}>
+              Оплатить сейчас
+            </Button>
+          )}
           <Button
             size="sm"
-            variant={paid ? 'ghost' : 'primary'}
+            variant={paid ? 'ghost' : canPay ? 'secondary' : 'primary'}
             icon={paid ? <Undo size={16} /> : <Check size={16} />}
             loading={toggle.pending}
             onClick={onToggle}
@@ -84,6 +97,16 @@ function PaymentRow({ payment, editable = true, paidDate }: { payment: Payment; 
         </div>
         {toggle.error && <p role="alert" className="text-[13px] text-danger text-right mt-1">{toggle.error}</p>}
       </div>
+      <Presence show={confirmPayment}>
+        <ConfirmDialog title={`Оплатить «${payment.title}»?`} confirmLabel="Оплатить" tone="primary"
+          pending={pay.pending} error={pay.error} onCancel={() => {
+            if (pay.pending) return;
+            pay.reset();
+            setConfirmPayment(false);
+          }} onConfirm={onPay}>
+          <p>В прототипе {formatCurrency(payment.amount)} будут списаны с общего счёта в семейном бюджете.</p>
+        </ConfirmDialog>
+      </Presence>
     </li>
   );
 }

@@ -38,8 +38,6 @@ interface UIState {
   modal: ModalState;
   toasts: Toast[];
   theme: Theme;
-  /** Demo switch: make every request to the mock server fail */
-  simulateErrors: boolean;
   dataStatus: DataStatus;
   /** Invite links created in this tab: the server shows a code only once. Key: `${familyId}:${role}` */
   inviteLinks: Record<string, { url: string; expiresAt: number }>;
@@ -51,7 +49,6 @@ interface UIState {
   addToast: (message: string, type?: Toast['type'], action?: Toast['action']) => void;
   removeToast: (id: string) => void;
   setTheme: (theme: Theme) => void;
-  setSimulateErrors: (value: boolean) => void;
   setDataStatus: (status: DataStatus) => void;
   rememberInviteLink: (familyId: string, role: Role, link: { url: string; expiresAt: number }) => void;
 }
@@ -66,7 +63,6 @@ export const useUIStore = create<UIState>()(
       modal: null,
       toasts: [],
       theme: 'light',
-      simulateErrors: false,
       dataStatus: 'loading',
       inviteLinks: {},
 
@@ -89,14 +85,13 @@ export const useUIStore = create<UIState>()(
       },
 
       setTheme: (theme) => set({ theme }),
-      setSimulateErrors: (simulateErrors) => set({ simulateErrors }),
       setDataStatus: (dataStatus) => set({ dataStatus }),
       rememberInviteLink: (familyId, role, link) =>
         set((state) => ({ inviteLinks: { ...state.inviteLinks, [`${familyId}:${role}`]: link } })),
     }),
     {
       name: 'fb-ui-v2',
-      partialize: (s) => ({ theme: s.theme, simulateErrors: s.simulateErrors }),
+      partialize: (s) => ({ theme: s.theme }),
     }
   )
 );

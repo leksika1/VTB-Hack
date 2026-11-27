@@ -1,4 +1,3 @@
-import { TextButton } from '@admiral-ds/react-ui';
 import { useCallback, useEffect, useState } from 'react';
 import { errorMessage, loadInitialData, OIDC_CALLBACK_PATH, refreshData, subscribeToChanges, takeOidcIntent, takeReturnInvite } from './api/client';
 import { useFamilyStore, useIsParent } from './store/familyStore';
@@ -49,8 +48,6 @@ export default function App() {
   const tab = storedTab === 'calendar' && !isParent ? 'overview' : storedTab;
   const dataStatus = useUIStore((s) => s.dataStatus);
   const setDataStatus = useUIStore((s) => s.setDataStatus);
-  const simulateErrors = useUIStore((s) => s.simulateErrors);
-  const setSimulateErrors = useUIStore((s) => s.setSimulateErrors);
   const [loadError, setLoadError] = useState('');
   // An invite link opened by someone who already has a family still shows the invite screen
   const [invite, setInvite] = useState(readInviteFromUrl);
@@ -138,17 +135,7 @@ export default function App() {
     <>
       <AppShell>
         {dataStatus === 'loading' && <PageSkeleton />}
-        {dataStatus === 'error' && (
-          <>
-            <ErrorState message={loadError} onRetry={retry} />
-            {simulateErrors && (
-              <p className="text-center text-sm text-ink-3">
-                Включена имитация ошибок.{' '}
-                <TextButton type="button" dimension="s" text="Выключить" onClick={() => setSimulateErrors(false)} />
-              </p>
-            )}
-          </>
-        )}
+        {dataStatus === 'error' && <ErrorState message={loadError} onRetry={retry} />}
         {dataStatus === 'ready' && (
           <div key={tab} className="animate-tab-in">
             {tab === 'overview' && <OverviewPage />}

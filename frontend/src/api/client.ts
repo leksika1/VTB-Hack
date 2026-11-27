@@ -3,11 +3,8 @@
  * Every write goes to the server; the answer is applied to the local stores so screens update at once.
  * The server owns permissions, validation and idempotency (Idempotency-Key = the form's requestId).
  */
-import { applyDemoAccount, clearDemoAccount, patchDemoExpense } from './demoAccount';
-import { todayISO } from '../utils/date';
 import { budgetKey, useDataStore } from '../store/dataStore';
 import { useFamilyStore } from '../store/familyStore';
-import { useUIStore } from '../store/uiStore';
 import type {
   AccountContribution, AccountMode,
   Allowance,
@@ -50,8 +47,6 @@ interface RequestOptions {
 }
 
 async function request<T>(path: string, { method = 'GET', body, requestId, anonymous }: RequestOptions = {}): Promise<T> {
-  if (useUIStore.getState().simulateErrors) throw new ApiError(NETWORK_ERROR);
-
   const headers: Record<string, string> = {};
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (requestId) headers['Idempotency-Key'] = requestId;
@@ -104,7 +99,6 @@ interface StateResponse {
 
 function clearSession() {
   const { family, savedSession } = useFamilyStore.getState();
-  if (family?.isDemo) clearDemoAccount(family.id);
   useDataStore.setState({ budgets: {}, expenses: [], payments: [], allowances: [], goals: [], unreadNotifications: 0, accountContributions: [] });
   // The demo copy was left or has expired: back to the real account that was open before it
   if (family?.isDemo && savedSession) {
@@ -116,17 +110,14 @@ function clearSession() {
 }
 
 function applyState(state: StateResponse, unread: number) {
-  const { expenses, contributions } = applyDemoAccount(
-    state.family, state.currentUserId, state.expenses, state.payments, state.accountContributions ?? [],
-  );
   useFamilyStore.setState({ family: state.family, currentUserId: state.currentUserId });
   useDataStore.setState({
     budgets: Object.fromEntries(state.budgets.map((b) => [budgetKey(b.familyId, b.monthKey), b])),
-    expenses,
+    expenses: state.expenses,
     payments: state.payments,
     allowances: state.allowances ?? [],
     unreadNotifications: unread,
-    accountContributions: contributions,
+    accountContributions: state.accountContributions ?? [],
   });
 }
 
@@ -170,7 +161,7 @@ export async function loadInitialData(): Promise<void> {
 
 /** Silent refresh to pick up changes made by other family members */
 export async function refreshData(): Promise<void> {
-  if (!useFamilyStore.getState().token || useUIStore.getState().simulateErrors) return;
+  if (!useFamilyStore.getState().token) return;
   await loadState();
 }
 
@@ -277,7 +268,6 @@ export async function joinFamily(code: string, userName: string, requestId: stri
 export async function startDemo(): Promise<Family> {
   const session = await request<SessionResponse>('/demo', { method: 'POST', anonymous: true });
   const { token, family, currentUserId } = useFamilyStore.getState();
-  if (family?.isDemo) clearDemoAccount(family.id);
   if (token && family && !family.isDemo) useFamilyStore.setState({ savedSession: { token, family, currentUserId } });
   return startSession(session);
 }
@@ -585,16 +575,13 @@ export interface ExpenseInput {
 }
 
 export async function saveExpense(input: ExpenseInput, requestId: string): Promise<Expense> {
-  const body = { title: input.title, amount: input.amount, category: input.category, date: input.date, paidBy: input.paidBy, accountMode: input.accountMode };
-  const { family } = useFamilyStore.getState();
-  const saved = await request<Expense>(input.id ? `/expenses/${input.id}` : '/expenses', {
-    method: input.id ? 'PUT' : 'POST', body, requestId,
+  const { id, ...body } = input;
+  const expense = await request<Expense>(id ? `/expenses/${id}` : '/expenses', {
+    method: id ? 'PUT' : 'POST', body, requestId,
   });
-  if (useFamilyStore.getState().family?.id !== saved.familyId) return saved;
-  const expense = family?.isDemo && family.id === saved.familyId
-    ? patchDemoExpense(saved, input.splitPercentages ? { splitPercentages: input.splitPercentages } : null)
-    : saved;
-  useDataStore.setState((state) => ({ expenses: [expense, ...state.expenses.filter((item) => item.id !== expense.id)] }));
+  if (useFamilyStore.getState().family?.id === expense.familyId) {
+    useDataStore.setState((state) => ({ expenses: [expense, ...state.expenses.filter((item) => item.id !== expense.id)] }));
+  }
   return expense;
 }
 
@@ -650,38 +637,21 @@ export async function deletePayment(id: string): Promise<void> {
  * Paid → the payment stops being a reserve and becomes an actual expense (counted once).
  * Unpaid → the linked expense is removed and the amount is reserved again.
  */
-export async function setPaymentPaid(id: string, paid: boolean): Promise<Expense | null> {
-  const linkedBefore = useDataStore.getState().payments.find((p) => p.id === id)?.expenseId;
-  const { family } = useFamilyStore.getState();
+export async function setPaymentPaid(id: string, paid: boolean, fromSharedAccount = false): Promise<Expense | null> {
   const result = await request<{ payment: Payment; expense: Expense | null }>(`/payments/${id}/paid`, {
     method: 'POST',
-    body: { paid },
+    body: { paid, recordToday: paid, fromSharedAccount },
   });
   if (useFamilyStore.getState().family?.id !== result.payment.familyId) return result.expense;
-  const today = todayISO();
-  let expense = result.expense;
-  if (expense && expense.date !== today) {
-    if (family?.isDemo) {
-      expense = patchDemoExpense(expense, { date: today });
-    } else {
-      // The payment endpoint can use the scheduled date for a different month. Correct the linked record
-      // through the existing expense API. If it fails, keep the already confirmed payment and its date.
-      const { id: expenseId, title, amount, category } = expense;
-      try {
-        expense = await request<Expense>(`/expenses/${expenseId}`, {
-          method: 'PUT', body: { title, amount, category, date: today }, requestId: crypto.randomUUID(),
-        });
-      } catch { /* The payment stays recorded on the original date. */ }
-    }
-  }
-  if (useFamilyStore.getState().family?.id !== result.payment.familyId) return expense;
   useDataStore.setState((s) => {
     let expenses = s.expenses;
-    if (!paid && linkedBefore) expenses = expenses.filter((item) => item.id !== linkedBefore);
-    if (expense) expenses = [expense, ...expenses.filter((item) => item.id !== expense.id)];
+    if (!paid) expenses = expenses.filter((item) => item.paymentId !== id);
+    if (result.expense && !expenses.some((item) => item.id === result.expense?.id)) {
+      expenses = [result.expense, ...expenses];
+    }
     return { expenses, payments: s.payments.map((p) => (p.id === id ? result.payment : p)) };
   });
-  return expense;
+  return result.expense;
 }
 
 /** Copy all payments of the previous month into this one as upcoming. Returns how many were added. */
@@ -749,9 +719,18 @@ export async function deleteGoal(id: string): Promise<void> {
 
 /** A child contributes from pocket money, so the allowance changes too — the state is reloaded */
 export async function contributeToGoal(id: string, amount: number, requestId: string): Promise<Goal> {
-  const { goal } = await request<{ goal: Goal }>(`/goals/${id}/contributions`, { method: 'POST', body: { amount }, requestId });
+  const { goal, accountContribution } = await request<{ goal: Goal; accountContribution?: AccountContribution | null }>(
+    `/goals/${id}/contributions`, { method: 'POST', body: { amount }, requestId },
+  );
+  if (useFamilyStore.getState().family?.id !== goal.familyId) return goal;
   putGoal(goal);
-  await refreshData().catch(() => {});
+  if (accountContribution) {
+    useDataStore.setState((s) => ({
+      accountContributions: [accountContribution, ...s.accountContributions.filter((item) => item.id !== accountContribution.id)],
+    }));
+  } else {
+    await refreshData().catch(() => {});
+  }
   return goal;
 }
 

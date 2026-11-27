@@ -14,7 +14,7 @@ import { ProgressBar } from '../ui/ProgressBar';
 
 /**
  * Family savings goals. Adults create and change them, anyone contributes.
- * Contributions are money put aside, not spending, so they never touch the month's free amount.
+ * A contribution increases the savings progress and the shared account balance.
  */
 export function GoalsCard() {
   const isParent = useIsParent();
@@ -30,7 +30,7 @@ export function GoalsCard() {
     <Card className="p-5">
       <SectionHeader
         title="Цели"
-        subtitle="Копим вместе. Отложенное не уменьшает бюджет месяца"
+        subtitle="Взносы в цели пополняют общий счёт"
         action={
           isParent && (
             <Button size="sm" variant="secondary" icon={<Plus size={16} />} onClick={() => openModal({ type: 'goalForm' })}>
