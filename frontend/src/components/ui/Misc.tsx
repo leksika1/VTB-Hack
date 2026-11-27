@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight } from './icons';
-import { Avatar as AdmiralAvatar, Tag, TextButton, type TagKind } from '@admiral-ds/react-ui';
+import { ChevronLeft, ChevronRight } from './icons';
+import { Avatar as AdmiralAvatar, Option, Select, Tag, TextButton, type TagKind } from '@admiral-ds/react-ui';
 import type { ExpenseCategory, User } from '../../types';
 import { CATEGORIES } from '../../utils/categories';
 import { formatMonthName, shiftMonth, toMonthKey } from '../../utils/date';
@@ -40,56 +40,44 @@ export function CategoryIcon({ category, size = 'md' }: { category: ExpenseCateg
 export function MonthSwitcher() {
   const monthKey = useUIStore((s) => s.monthKey);
   const setMonthKey = useUIStore((s) => s.setMonthKey);
-  const isCurrent = monthKey === toMonthKey();
+  const currentMonthKey = toMonthKey();
+  const isCurrent = monthKey === currentMonthKey;
   const [year, month] = monthKey.split('-');
   const firstYear = Math.min(1900, Number(year));
-  const lastYear = Math.max(2100, Number(year));
+  const currentYear = Number(currentMonthKey.slice(0, 4));
 
   return (
-    <div className="inline-flex h-12 select-none items-center gap-1 rounded-full bg-surface px-1">
+    <div className="inline-flex h-14 select-none items-center rounded-full bg-surface px-1">
       <IconButton label="Предыдущий месяц" onClick={() => setMonthKey(shiftMonth(monthKey, -1))}
-        disabled={monthKey === '1900-01'} className="!size-10 !rounded-full shrink-0">
+        disabled={monthKey === `${firstYear}-01`} className="!size-8 sm:!size-10 !rounded-full shrink-0">
         <ChevronLeft size={20} />
       </IconButton>
-      <div className="flex h-11 flex-col items-center justify-center">
+      <div className="flex flex-col items-center justify-center">
         <div className="flex items-center gap-1">
-          <PeriodSelect label="Месяц" value={month} onChange={(value) => setMonthKey(`${year}-${value}`)}>
-            {Array.from({ length: 12 }, (_, index) => (
-              <option key={index} value={String(index + 1).padStart(2, '0')}>{formatMonthName(index + 1)}</option>
-            ))}
-          </PeriodSelect>
-          <PeriodSelect label="Год" value={year} onChange={(value) => setMonthKey(`${value}-${month}`)}>
-            {Array.from({ length: lastYear - firstYear + 1 }, (_, index) => (
-              <option key={index} value={lastYear - index}>{lastYear - index}</option>
-            ))}
-          </PeriodSelect>
+          <Select aria-label="Месяц" dimension="s" className="w-30" value={month}
+            onChange={(event) => setMonthKey(`${year}-${event.target.value}`)}>
+            {Array.from({ length: 12 }, (_, index) => {
+              const value = String(index + 1).padStart(2, '0');
+              return <Option key={value} value={value}>{formatMonthName(index + 1)}</Option>;
+            })}
+          </Select>
+          <Select aria-label="Год" dimension="s" className="w-21" value={year}
+            onChange={(event) => setMonthKey(`${event.target.value}-${month}`)}>
+            {Array.from({ length: currentYear - firstYear + 1 }, (_, index) => {
+              const value = String(currentYear - index);
+              return <Option key={value} value={value}>{value}</Option>;
+            })}
+          </Select>
         </div>
         {!isCurrent && (
-          <TextButton dimension="s" className="shrink-0" text="К текущему месяцу" onClick={() => setMonthKey(toMonthKey())} />
+          <TextButton dimension="s" className="shrink-0" text="К текущему месяцу" onClick={() => setMonthKey(currentMonthKey)} />
         )}
       </div>
       <IconButton label="Следующий месяц" onClick={() => setMonthKey(shiftMonth(monthKey, 1))}
-        disabled={monthKey === '2100-12'} className="!size-10 !rounded-full shrink-0">
+        disabled={monthKey >= `${currentYear}-12`} className="!size-8 sm:!size-10 !rounded-full shrink-0">
         <ChevronRight size={20} />
       </IconButton>
     </div>
-  );
-}
-
-function PeriodSelect({ label, value, onChange, children }: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  children: ReactNode;
-}) {
-  return (
-    <label className="relative inline-flex items-center">
-      <select aria-label={label} value={value} onChange={(event) => onChange(event.target.value)}
-        className="cursor-pointer appearance-none rounded-md bg-surface py-1 pl-1 pr-4 text-sm font-semibold text-ink hover:bg-surface-muted">
-        {children}
-      </select>
-      <ChevronDown size={12} aria-hidden className="pointer-events-none absolute right-0.5 text-ink-2" />
-    </label>
   );
 }
 
