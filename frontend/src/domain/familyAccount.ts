@@ -3,31 +3,41 @@ import { shiftMonth, todayISO } from '../utils/date';
 
 const kopecks = (amount: number) => Math.round(amount * 100);
 
-export function usesFamilyAccount(mode: AccountMode | null | undefined) {
+function usesLegacyFamilyAccount(mode: AccountMode | null | undefined) {
   return mode === 'shared_split' || mode === 'shared_common';
+}
+
+export function usesSharedAccount(record: Pick<Expense | Payment, 'source' | 'accountMode'>): boolean {
+  return record.source === 'shared' || (!record.source && usesLegacyFamilyAccount(record.accountMode));
 }
 
 export function computeAccountAtDate(date: string, expenses: Expense[], contributions: AccountContribution[]): number {
   const incoming = contributions.reduce((sum, item) => item.date <= date ? sum + kopecks(item.amount) : sum, 0);
   const outgoing = expenses.reduce((sum, item) =>
-    item.date <= date && usesFamilyAccount(item.accountMode) ? sum + kopecks(item.amount) : sum, 0);
+    item.date <= date && usesSharedAccount(item) ? sum + kopecks(item.amount) : sum, 0);
   return (incoming - outgoing) / 100;
 }
 
 export function plannedSharedExpensesThrough(date: string, payments: Payment[]): number {
-  return payments.reduce((sum, item) => item.status === 'upcoming' && item.dueDate <= date && usesFamilyAccount(item.accountMode)
+  return payments.reduce((sum, item) => item.status === 'upcoming' && item.dueDate <= date && usesSharedAccount(item)
     ? sum + kopecks(item.amount) : sum, 0) / 100;
 }
 
 export function expenseShares(expense: Expense): { id: string; amount: number }[] {
-  if (expense.accountMode !== 'shared_split' && expense.accountMode !== 'personal_split') return [];
+  const mode = expense.splitMode ?? (
+    expense.splitPercentages ? 'shares' : expense.accountMode?.endsWith('_split') ? 'equal' : 'none'
+  );
+  if (mode === 'none') return [];
   const total = kopecks(expense.amount);
-  const percentages = expense.splitPercentages;
-  const ids = percentages ? Object.keys(percentages) : expense.splitMembers ?? [];
+  const weights = expense.splitShares ?? (expense.splitPercentages
+    ? Object.fromEntries(Object.entries(expense.splitPercentages).map(([id, percent]) => [id, percent * 100]))
+    : null);
+  const ids = expense.splitMembers ?? (weights ? Object.keys(weights) : []);
   if (!ids.length) return [];
-  const denominator = percentages ? 100 : ids.length;
+  const denominator = mode === 'equal' ? ids.length : Object.values(weights ?? {}).reduce((sum, value) => sum + value, 0);
+  if (!denominator) return [];
   const shares = ids.map((id) => {
-    const numerator = total * (percentages?.[id] ?? 1);
+    const numerator = total * (mode === 'equal' ? 1 : weights?.[id] ?? 0);
     return { id, amount: Math.floor(numerator / denominator), remainder: numerator % denominator };
   });
   const remaining = total - shares.reduce((sum, share) => sum + share.amount, 0);
@@ -39,9 +49,10 @@ export function expenseShares(expense: Expense): { id: string; amount: number }[
 export function computeFamilyAccount(
   month: string, expenses: Expense[], payments: Payment[], contributions: AccountContribution[], today = todayISO(),
 ) {
-  const cutoff = month === today.slice(0, 7) ? today : `${month}-31`;
+  const currentMonth = today.slice(0, 7);
+  const cutoff = month < currentMonth ? `${month}-31` : today;
   const balance = computeAccountAtDate(cutoff, expenses, contributions);
-  const relevantPayments = month < today.slice(0, 7) ? payments.filter((item) => item.dueDate.startsWith(month)) : payments;
+  const relevantPayments = payments.filter((item) => item.dueDate.startsWith(month));
   const reserved = plannedSharedExpensesThrough(`${month}-31`, relevantPayments);
   const members = new Map<string, { contributed: number; share: number; paidPersonally: number }>();
   const memberBalance = (id: string) => {
@@ -59,7 +70,7 @@ export function computeFamilyAccount(
     if (!expense.date.startsWith(month) || expense.date > cutoff) continue;
     const shares = expenseShares(expense);
     for (const { id, amount } of shares) memberBalance(id).share += amount;
-    if (shares.length && expense.accountMode === 'personal_split' && expense.paidBy) {
+    if (shares.length && (expense.source === 'personal' || expense.accountMode === 'personal_split') && expense.paidBy) {
       memberBalance(expense.paidBy).paidPersonally += kopecks(expense.amount);
     }
   }
@@ -90,7 +101,7 @@ export function computeAccountHistory(month: string, expenses: Expense[], contri
     const totals = { shared: 0, personal: 0, legacy: 0 };
     for (const expense of expenses) {
       if (!expense.date.startsWith(key) || expense.date > cutoff) continue;
-      const account = usesFamilyAccount(expense.accountMode) ? 'shared' : expense.accountMode ? 'personal' : 'legacy';
+      const account = usesSharedAccount(expense) ? 'shared' : expense.source === 'personal' || expense.accountMode ? 'personal' : 'legacy';
       totals[account] += kopecks(expense.amount);
     }
     return {

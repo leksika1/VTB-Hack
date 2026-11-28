@@ -11,7 +11,6 @@ interface DataState {
   payments: Payment[];
   /** Savings goals: active and achieved first, then archived */
   goals: Goal[];
-  unreadNotifications: number;
   accountContributions: AccountContribution[];
 }
 
@@ -25,7 +24,6 @@ export const useDataStore = create<DataState>()(
     expenses: [],
     payments: [],
     goals: [],
-    unreadNotifications: 0,
     accountContributions: [],
   })
 );

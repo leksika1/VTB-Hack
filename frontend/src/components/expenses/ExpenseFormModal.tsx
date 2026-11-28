@@ -1,10 +1,10 @@
 import { useState, type FormEvent } from 'react';
 import { CalendarUpdate } from '../ui/icons';
-import type { AccountMode, ExpenseCategory } from '../../types';
+import type { ExpenseCategory, SplitMode } from '../../types';
 import { saveExpense } from '../../api/client';
 import { useAsyncAction, useRequestId } from '../../hooks/useAsyncAction';
 import { useDataStore } from '../../store/dataStore';
-import { useCurrentUser, useFamilyStore, useIsParent } from '../../store/familyStore';
+import { useCurrentUser, useFamilyStore } from '../../store/familyStore';
 import { useUIStore } from '../../store/uiStore';
 import { amountToInput, parseAmount, validateAmount } from '../../utils/currency';
 import { daysFromToday, formatMonthIn, todayISO, toMonthKey } from '../../utils/date';
@@ -36,7 +36,6 @@ export function ExpenseFormModal({ expenseId, prefill }: ExpenseFormModalProps) 
   const setTab = useUIStore((s) => s.setTab);
   const user = useCurrentUser();
   const family = useFamilyStore((s) => s.family);
-  const isParent = useIsParent();
   const existing = useDataStore((s) => (expenseId ? s.expenses.find((e) => e.id === expenseId) : undefined));
   const requestId = useRequestId();
   const save = useAsyncAction(saveExpense);
@@ -48,31 +47,32 @@ export function ExpenseFormModal({ expenseId, prefill }: ExpenseFormModalProps) 
   const initialPayer = existing ? existing.paidBy ?? existing.authorId : user?.id ?? null;
   const [paidBy, setPaidBy] = useState(initialPayer);
   const source: 'shared' | 'personal' = existing
-    ? existing.accountMode?.startsWith('shared') ? 'shared' : 'personal'
+    ? existing.source ?? (existing.accountMode?.startsWith('shared') ? 'shared' : 'personal')
     : 'shared';
-  const [division, setDivision] = useState<'none' | 'equal' | 'custom'>(existing?.splitPercentages
-    ? 'custom'
-    : existing?.accountMode?.endsWith('_split') ? 'equal' : 'none');
+  const [division, setDivision] = useState<'none' | 'equal' | 'custom'>(
+    existing?.splitMode === 'shares' || existing?.splitPercentages
+      ? 'custom'
+      : existing?.splitMode === 'equal' || existing?.accountMode?.endsWith('_split') ? 'equal' : 'none',
+  );
   const [percentages, setPercentages] = useState<Record<string, string>>(() =>
-    Object.fromEntries(Object.entries(existing?.splitPercentages ?? {}).map(([id, value]) => [id, String(value)])));
-  const accountMode: AccountMode = source === 'shared'
-    ? division === 'none' ? 'shared_common' : 'shared_split'
-    : division === 'none' ? 'outside' : 'personal_split';
+    Object.fromEntries(Object.entries(existing?.splitShares ?? existing?.splitPercentages ?? {}).map(([id, value]) =>
+      [id, String(existing?.splitShares ? value / 100 : value)])));
   const [submitted, setSubmitted] = useState(false);
 
   const participants = family?.members ?? [];
   const payerIsActive = participants.some((m) => m.id === initialPayer);
-  const editableMode = isParent && !existing?.paymentId && (!existing || payerIsActive);
+  const editableMode = !existing?.paymentId && (!existing || payerIsActive);
   const choosePayer = editableMode && source === 'personal' && participants.length > 1;
   const custom = editableMode && division === 'custom';
   const entries = participants.map((member) => [member.id, percentages[member.id] ?? '0'] as const);
-  const percentTotal = entries.reduce((sum, [, value]) => sum + Number(value || 0), 0);
-  const percentsValid = percentTotal === 100 && entries.every(([, value]) => /^\d{0,3}$/.test(value) && Number(value) <= 100);
-  const splitError = custom && submitted && !percentsValid ? 'Укажите целые проценты от 0 до 100. Сумма долей должна быть 100%.' : null;
+  const percentTotal = entries.reduce((sum, [, value]) => sum + Number(value.replace(',', '.') || 0), 0);
+  const percentsValid = Math.abs(percentTotal - 100) < 0.001
+    && entries.every(([, value]) => /^\d{1,3}([.,]\d{1,2})?$/.test(value) && Number(value.replace(',', '.')) <= 100);
+  const splitError = custom && submitted && !percentsValid ? 'Укажите проценты от 0 до 100. Сумма долей должна быть 100%.' : null;
   // A purchase that has not happened yet belongs in the plan, not in expenses.
   const futureMonth = viewedMonth > toMonthKey();
   const futureDate = !!date && daysFromToday(date) > 0;
-  const offerPlan = !expenseId && isParent && (futureMonth || futureDate);
+  const offerPlan = !expenseId && (futureMonth || futureDate);
 
   const titleError = submitted && !title.trim() ? 'Укажите, что купили' : save.errorField === 'title' ? save.error : null;
   const amountError = submitted ? validateAmount(amount) : null;
@@ -88,10 +88,25 @@ export function ExpenseFormModal({ expenseId, prefill }: ExpenseFormModalProps) 
     if (!title.trim() || validateAmount(amount) || !category || !date || value === null || (custom && !percentsValid)) return;
 
     const payer = choosePayer && paidBy && paidBy !== initialPayer ? paidBy : undefined;
-    const splitPercentages = custom ? Object.fromEntries(entries.filter(([, percent]) => Number(percent) > 0)
-      .map(([id, percent]) => [id, Number(percent)])) : editableMode ? null : undefined;
-    const mode = editableMode && (!existing || existing.accountMode || accountMode !== 'outside') ? accountMode : undefined;
-    const res = await save.run({ id: expenseId, title, amount: value, category, date, paidBy: payer, accountMode: mode, splitPercentages }, requestId);
+    const splitMode: SplitMode | undefined = editableMode ? (division === 'custom' ? 'shares' : division) : undefined;
+    const splitMembers = editableMode && division !== 'none'
+      ? entries.filter(([, percent]) => !custom || Number(percent.replace(',', '.')) > 0).map(([id]) => id)
+      : editableMode ? null : undefined;
+    const splitShares = custom ? Object.fromEntries(entries
+      .filter(([, percent]) => Number(percent.replace(',', '.')) > 0)
+      .map(([id, percent]) => [id, Math.round(Number(percent.replace(',', '.')) * 100)])) : editableMode ? null : undefined;
+    const res = await save.run({
+      id: expenseId,
+      title,
+      amount: value,
+      category,
+      date,
+      paidBy: payer,
+      source: editableMode ? source : undefined,
+      splitMode,
+      splitMembers,
+      splitShares,
+    }, requestId);
     if (!res.ok) return;
 
     const savedMonth = date.slice(0, 7);
@@ -174,12 +189,12 @@ export function ExpenseFormModal({ expenseId, prefill }: ExpenseFormModalProps) 
               <div className="space-y-2">
                 <div className="grid gap-2 sm:grid-cols-2">
                   {participants.map((member) => (
-                    <Field key={member.id} label={`Доля: ${member.name}`} suffix="%" inputMode="numeric" maxLength={3}
+                    <Field key={member.id} label={`Доля: ${member.name}`} suffix="%" inputMode="decimal" maxLength={6}
                       value={percentages[member.id] ?? ''}
                       onChange={(event) => setPercentages((previous) => ({ ...previous, [member.id]: event.target.value }))} />
                   ))}
                 </div>
-                {splitError || save.errorField === 'splitPercentages' ? <FieldError>{splitError ?? save.error}</FieldError> : (
+                {splitError || save.errorField === 'splitShares' ? <FieldError>{splitError ?? save.error}</FieldError> : (
                   <p className="text-sm text-ink-2" aria-live="polite">Всего {Number.isFinite(percentTotal) ? percentTotal : '—'} из 100%</p>
                 )}
               </div>

@@ -6,8 +6,8 @@ import type { Payment } from '../../types';
 import { formatCurrency } from '../../utils/currency';
 import { formatDateShort, formatDueIn } from '../../utils/date';
 import { isOverdue } from '../../domain/budget';
-import { usesFamilyAccount } from '../../domain/familyAccount';
-import { setPaymentPaid } from '../../api/client';
+import { usesSharedAccount } from '../../domain/familyAccount';
+import { payPayment, setPaymentPaid } from '../../api/client';
 import { useAsyncAction } from '../../hooks/useAsyncAction';
 import { useUIStore } from '../../store/uiStore';
 import { Badge, CategoryIcon } from '../ui/Misc';
@@ -25,10 +25,10 @@ function PaymentRow({ payment, editable = true, paidDate }: { payment: Payment; 
   const openModal = useUIStore((s) => s.openModal);
   const addToast = useUIStore((s) => s.addToast);
   const toggle = useAsyncAction(setPaymentPaid);
-  const pay = useAsyncAction(setPaymentPaid);
+  const pay = useAsyncAction(payPayment);
   const [confirmPayment, setConfirmPayment] = useState(false);
   const paid = payment.status === 'paid';
-  const canPay = !paid && usesFamilyAccount(payment.accountMode);
+  const canPay = !paid && usesSharedAccount(payment);
 
   const onToggle = async () => {
     const res = await toggle.run(payment.id, !paid);
@@ -38,7 +38,7 @@ function PaymentRow({ payment, editable = true, paidDate }: { payment: Payment; 
     else addToast(`«${payment.title}» уже отмечен оплаченным`, 'info');
   };
   const onPay = async () => {
-    const res = await pay.run(payment.id, true, true);
+    const res = await pay.run(payment.id);
     if (!res.ok) return;
     setConfirmPayment(false);
     addToast(res.value ? `«${payment.title}» оплачен с общего счёта` : `«${payment.title}» уже оплачен`,
@@ -70,12 +70,12 @@ function PaymentRow({ payment, editable = true, paidDate }: { payment: Payment; 
           {paid ? <PaymentStatusBadge payment={payment} /> : (
             <Badge tone={isOverdue(payment) ? 'danger' : 'neutral'}>{formatDueIn(payment.dueDate)}</Badge>
           )}
-          {(payment.accountMode === 'shared_split' || payment.accountMode === 'shared_common') && (
+          {payment.source === 'shared' && (
             <T font="Body/Body 2 Short" color="Neutral/Neutral 70">
-              {payment.accountMode === 'shared_split' ? 'С общего счёта, поровну' : 'С общего счёта'}
+              {payment.splitMode === 'equal' ? 'С общего счёта, поровну' : 'С общего счёта'}
             </T>
           )}
-          {payment.recurring && <Badge icon={<Update size={12} aria-hidden />}>Каждый месяц</Badge>}
+          {payment.recurrence !== 'once' && <Badge icon={<Update size={12} aria-hidden />}>Каждый месяц</Badge>}
         </div>
         <div className="mt-2 flex flex-wrap gap-2">
           {canPay && (

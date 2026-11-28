@@ -1,6 +1,7 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { T } from '@admiral-ds/react-ui';
 import { useMonthChanged } from '../../hooks/useMonthChanged';
+import { useAccountSummary } from '../../hooks/useServerData';
 import { computeFamilyAccount } from '../../domain/familyAccount';
 import { useDataStore } from '../../store/dataStore';
 import { useFamilyStore } from '../../store/familyStore';
@@ -21,6 +22,7 @@ export function FamilyAccountCard() {
   const openModal = useUIStore((s) => s.openModal);
   const currentUserId = useFamilyStore((s) => s.currentUserId);
   const account = useFamilyAccount(month);
+  const serverSummary = useAccountSummary(month);
   const [amountsVisible, setAmountsVisible] = useState(true);
   const own = currentUserId ? account.members.get(currentUserId) : undefined;
   const due = own?.due ?? 0;
@@ -29,6 +31,34 @@ export function FamilyAccountCard() {
   const contentRef = useRef<HTMLDivElement>(null);
   const naturalHeight = useRef(0);
   const resizeAnimation = useRef<Animation | null>(null);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV || !serverSummary.data) return;
+    // Realtime параллельно обновляет /state и v2-сводку — сравниваем после завершения обоих запросов.
+    const timer = window.setTimeout(() => {
+      const backend = serverSummary.data;
+      if (!backend) return;
+      const frontend = {
+        balance: account.balance,
+        planned: account.reserved,
+        afterPlanned: account.available,
+        members: Object.fromEntries([...account.members].map(([id, value]) => [id, value])),
+      };
+      const differs = (left: number, right: number) => Math.abs(left - right) >= 0.01;
+      const mismatch = differs(frontend.balance, backend.balance)
+        || differs(frontend.planned, backend.planned)
+        || differs(frontend.afterPlanned, backend.afterPlanned)
+        || backend.members.some((member) => {
+          const local = account.members.get(member.memberId);
+          return differs(local?.share ?? 0, member.share)
+            || differs(local?.contributed ?? 0, member.contributed)
+            || differs(local?.paidPersonally ?? 0, member.paidPersonally)
+            || differs(local?.due ?? 0, member.due);
+        });
+      if (mismatch) console.warn('Расчёт общего счёта на фронте расходится с ответом сервера', { frontend, backend });
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [account, serverSummary.data]);
 
   useLayoutEffect(() => {
     const content = contentRef.current;

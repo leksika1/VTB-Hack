@@ -136,45 +136,6 @@ export function categoryShortages(summary: MonthSummary): CategorySummary[] {
   return summary.categories.filter((c) => c.status === 'over').sort((a, b) => a.left - b.left);
 }
 
-/* ── «Проверить покупку» ── */
-
-export type PurchaseVerdict = 'ok' | 'tight' | 'category-over' | 'not-enough';
-
-export interface PurchaseCheck {
-  verdict: PurchaseVerdict;
-  amount: number;
-  freeBefore: number;
-  freeAfter: number;
-  category: CategorySummary | null;
-  categoryLeftAfter: number | null;
-  /** Payments that were taken into account */
-  reservedPayments: Payment[];
-}
-
-/** Share of the plan below which the remaining cushion is considered small */
-export const TIGHT_CUSHION_SHARE = 0.05;
-
-export function checkPurchase(summary: MonthSummary, amount: number, category: ExpenseCategory | null): PurchaseCheck {
-  const freeAfter = round(summary.freeByPlan - amount);
-  const cat = category ? summary.categories.find((c) => c.key === category) ?? null : null;
-  const categoryLeftAfter = cat && cat.plan > 0 ? round(cat.left - amount) : null;
-
-  let verdict: PurchaseVerdict = 'ok';
-  if (freeAfter < 0) verdict = 'not-enough';
-  else if (categoryLeftAfter !== null && categoryLeftAfter < 0) verdict = 'category-over';
-  else if (freeAfter < summary.plan * TIGHT_CUSHION_SHARE) verdict = 'tight';
-
-  return {
-    verdict,
-    amount,
-    freeBefore: summary.freeByPlan,
-    freeAfter,
-    category: cat,
-    categoryLeftAfter,
-    reservedPayments: summary.upcomingPayments,
-  };
-}
-
 function round(n: number): number {
   return Math.round(n * 100) / 100;
 }

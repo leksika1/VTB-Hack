@@ -6,7 +6,7 @@ import { useAsyncAction } from '../../hooks/useAsyncAction';
 import { useFamilyStore } from '../../store/familyStore';
 import { useUIStore, type Theme } from '../../store/uiStore';
 import { switchTheme } from '../../utils/theme';
-import { Bank, LogOut, Star, Verified } from '../ui/icons';
+import { Bank, LogOut, Verified } from '../ui/icons';
 import { Card, SectionHeader } from '../ui/Card';
 import { Badge } from '../ui/Misc';
 import { Button } from '../ui/Button';
@@ -189,7 +189,6 @@ function DemoCard() {
       <SectionHeader
         title="Режим демонстрации"
         subtitle="Инструменты для показа прототипа. В настоящем приложении их не будет."
-        action={<Badge tone="warning" icon={<Star size={12} aria-hidden />}>Демо</Badge>}
       />
 
       <div>

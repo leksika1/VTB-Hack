@@ -15,7 +15,6 @@ import { CategoryList } from '../components/budget/CategoryList';
 import { AccountHistory } from '../components/account/AccountHistory';
 import { FamilyAccountBreakdown } from '../components/account/FamilyAccountCard';
 import { OperationsHistory } from '../components/expenses/OperationsHistory';
-import { useIsParent } from '../store/familyStore';
 import { PaymentList } from '../components/payments/PaymentList';
 import { GoalsCard } from '../components/goals/GoalsCard';
 
@@ -25,15 +24,13 @@ export function AnalyticsPage() {
   const summary = useMonthSummary();
   const monthIn = useMonthChanged() ? 'animate-month-in' : '';
 
-  const isParent = useIsParent();
-
   return (
     <>
       <PageHeader title="Аналитика">
         <MonthSwitcher />
       </PageHeader>
 
-      {isParent && <div key={monthKey} className={`grid grid-cols-1 items-start gap-5 min-[54rem]:grid-cols-2 ${monthIn}`}>
+      <div key={monthKey} className={`grid grid-cols-1 items-start gap-5 min-[54rem]:grid-cols-2 ${monthIn}`}>
         <div className="min-w-0">
           <Card className="p-5">
             {summary.hasBudget ? (
@@ -77,10 +74,10 @@ export function AnalyticsPage() {
           <PaymentsCard />
           <GoalsCard />
         </div>
-      </div>}
-      <div className={isParent ? 'mt-5 space-y-5' : undefined}>
-        {isParent && <AccountHistory month={monthKey} />}
-        {isParent && <FamilyAccountBreakdown month={monthKey} />}
+      </div>
+      <div className="mt-5 space-y-5">
+        <AccountHistory month={monthKey} />
+        <FamilyAccountBreakdown month={monthKey} />
         <OperationsHistory key={monthKey} />
       </div>
     </>

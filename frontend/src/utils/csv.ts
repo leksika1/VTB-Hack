@@ -1,5 +1,5 @@
 import type { Expense, Family } from '../types';
-import { usesFamilyAccount } from '../domain/familyAccount';
+import { usesSharedAccount } from '../domain/familyAccount';
 import { resolveAuthorName } from '../store/familyStore';
 import { CATEGORIES } from './categories';
 
@@ -20,7 +20,7 @@ export function expensesToCsv(expenses: Expense[], family: Family | null): strin
     cell(e.title),
     cell(CATEGORIES[e.category].label),
     e.amount.toFixed(2).replace('.', ','),
-    cell(usesFamilyAccount(e.accountMode) ? 'Общий счёт' : e.paidBy ? resolveAuthorName(family, e.paidBy) : '—'),
+    cell(usesSharedAccount(e) ? 'Общий счёт' : e.paidBy ? resolveAuthorName(family, e.paidBy) : '—'),
   ]);
   return '﻿' + [header.map(cell), ...rows].map((r) => r.join(';')).join('\r\n');
 }

@@ -4,7 +4,7 @@ import { problemCategories } from '../domain/budget';
 import { useMonthSummary } from '../hooks/useMonthSummary';
 import { useMonthChanged } from '../hooks/useMonthChanged';
 import { useUIStore } from '../store/uiStore';
-import { useFamilyStore, useIsParent } from '../store/familyStore';
+import { useFamilyStore } from '../store/familyStore';
 import { formatMonthLower } from '../utils/date';
 import { Card, PageHeader, SectionHeader } from '../components/ui/Card';
 import { Avatar, MonthSwitcher } from '../components/ui/Misc';
@@ -152,7 +152,6 @@ function FamilyStatusCard() {
   const family = useFamilyStore((s) => s.family);
   const currentUserId = useFamilyStore((s) => s.currentUserId);
   const openModal = useUIStore((s) => s.openModal);
-  const isParent = useIsParent();
   if (!family) return null;
   const alone = family.members.length === 1;
 
@@ -169,7 +168,7 @@ function FamilyStatusCard() {
           </li>
         ))}
       </ul>
-      {alone && isParent && (
+      {alone && (
         <div className="mt-4 p-4 rounded-xl bg-accent-soft">
           <p className="text-[15px] text-ink">Пока вы ведёте бюджет один. Пригласите партнёра, чтобы планировать вместе.</p>
           <Button className="mt-3" size="sm" icon={<PersonAdd size={16} />} onClick={() => openModal({ type: 'invite' })}>

@@ -1,12 +1,11 @@
 import { useEffect, type ReactNode } from 'react';
-import { Badge as AdmiralBadge, HorizontalTab, HorizontalTabs, T } from '@admiral-ds/react-ui';
+import { HorizontalTab, HorizontalTabs, T } from '@admiral-ds/react-ui';
 import styled from 'styled-components';
 import { Dashboard, Receipt, BarChart, Users, Calendar, Settings, ArrowLeft } from '../ui/icons';
 import { ProfileDropdown } from './ProfileDropdown';
 import type { Tab } from '../../types';
 import { useUIStore } from '../../store/uiStore';
-import { useCurrentUser, useFamilyStore, useIsParent } from '../../store/familyStore';
-import { useDataStore } from '../../store/dataStore';
+import { useCurrentUser, useFamilyStore } from '../../store/familyStore';
 import { Avatar, Badge } from '../ui/Misc';
 import { Button, IconButton } from '../ui/Button';
 import { Card, PageHeader } from '../ui/Card';
@@ -42,13 +41,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const setProfileOpen = useUIStore((s) => s.setProfileOpen);
   const mobile = useMediaQuery('(max-width: 1023px)');
   const profilePage = mobile && profileOpen;
-  // Compatibility flag: in v2 every active participant has access to the plan.
-  const isParent = useIsParent();
-  const tab = !isParent && storedTab === 'calendar' ? 'overview' : storedTab;
-  const nav = isParent ? NAV : NAV.filter((n) => n.tab !== 'calendar');
-  // Unread family events live on the «Семья» page; the tab carries their count
-  const unread = useDataStore((s) => s.unreadNotifications);
-  const unreadLabel = (t: Tab) => (t === 'family' && unread > 0 ? `, непрочитанных событий: ${unread}` : '');
+  const tab = storedTab;
 
   // Each section opens from its top instead of inheriting the previous scroll position
   useEffect(() => {
@@ -69,7 +62,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
           </div>
 
-          <SectionNavigation nav={nav} tab={tab} profilePage={profilePage} onSelect={setTab} unread={unread} unreadLabel={unreadLabel} />
+          <SectionNavigation nav={NAV} tab={tab} profilePage={profilePage} onSelect={setTab} />
           <div className="flex min-w-0 items-center justify-end gap-2">
             {/* Demo data looks real, so the mark stays on every screen size */}
             {family?.isDemo && <span className="shrink-0"><Badge tone="warning">Демо</Badge></span>}
@@ -148,11 +141,9 @@ interface SectionNavigationProps {
   tab: Tab;
   profilePage: boolean;
   onSelect: (tab: Tab) => void;
-  unread: number;
-  unreadLabel: (tab: Tab) => string;
 }
 
-function SectionNavigation({ nav, tab, profilePage, onSelect, unread, unreadLabel }: SectionNavigationProps) {
+function SectionNavigation({ nav, tab, profilePage, onSelect }: SectionNavigationProps) {
   return (
     <nav aria-label="Разделы" className="section-navigation">
       <HorizontalTabs
@@ -168,27 +159,15 @@ function SectionNavigation({ nav, tab, profilePage, onSelect, unread, unreadLabe
           const item = nav.find((entry) => entry.tab === id);
           if (!item) return null;
           const Icon = item.icon;
-          const count = id === 'family' && unread > 0 ? (unread > 99 ? '99+' : unread) : null;
           const active = selected && !profilePage;
           return (
             <SectionTab key={id} id={`section-${id}`} tabId={id} dimension="m" adaptive="fill"
               selected={active} onSelectTab={chooseTab} aria-selected={active}
-              aria-controls="section-content" aria-label={item.label + unreadLabel(item.tab)}>
+              aria-controls="section-content" aria-label={item.label}>
               <span className="flex items-center gap-2 max-lg:flex-col max-lg:gap-0.5 max-lg:text-[10px]">
-                <span className="relative shrink-0">
-                  <Icon size={20} aria-hidden />
-                  {count !== null && (
-                    <AdmiralBadge data-nav-count="" className="!absolute -top-1 left-full ml-0.5 !h-3.5 !min-w-3.5 !px-0.5 !text-[9px] lg:!hidden"
-                      appearance="info" dimension="s" aria-hidden>{count}</AdmiralBadge>
-                  )}
-                </span>
+                <Icon size={20} aria-hidden />
                 {item.label}
               </span>
-              {count !== null && (
-                <AdmiralBadge data-nav-count="" className="max-lg:!hidden" appearance="info" dimension="s" aria-hidden>
-                  {count}
-                </AdmiralBadge>
-              )}
             </SectionTab>
           );
         }}

@@ -72,7 +72,7 @@ export function PersonalPurchases() {
       <div className="space-y-4">
         {!batch && (
           <>
-            {demo && <Button variant="secondary" onClick={showDemoCard} loading={preview.pending}>Покупки демо-карты</Button>}
+            {demo && <Button variant="secondary" onClick={showDemoCard} loading={preview.pending}>Мои покупки по карте</Button>}
             <div className="text-sm">
               <p className="font-medium">Загрузить выписку CSV</p>
               <input ref={fileInput} id='file' type="file" accept=".csv,text/csv" disabled={busy} hidden onChange={readFile} />

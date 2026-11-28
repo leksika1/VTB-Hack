@@ -39,8 +39,3 @@ export function resolveAuthorName(family: Family | null, authorId: string | null
   const member = authorId ? family?.members.find((m) => m.id === authorId) : undefined;
   return member?.name ?? fallback ?? 'Автор не указан';
 }
-
-/** Kept as a compatibility name: every active member has family-finance access in v2. */
-export function useIsParent(): boolean {
-  return useFamilyStore((s) => !!s.family?.members.find((m) => m.id === s.currentUserId));
-}

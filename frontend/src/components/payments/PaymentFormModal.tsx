@@ -1,10 +1,11 @@
 import { useState, type FormEvent } from 'react';
 import { DeleteIcon } from '../ui/icons';
-import type { AccountMode, ExpenseCategory } from '../../types';
+import type { ExpenseCategory } from '../../types';
 import { deletePayment, savePayment } from '../../api/client';
 import { useAsyncAction, useRequestId } from '../../hooks/useAsyncAction';
 import { useDataStore } from '../../store/dataStore';
-import { useUIStore, type PurchaseDraft } from '../../store/uiStore';
+import { useUIStore, type PaymentPrefill } from '../../store/uiStore';
+import { useFamilyStore } from '../../store/familyStore';
 import { amountToInput, formatCurrency, parseAmount, validateAmount } from '../../utils/currency';
 import { formatMonthIn, todayISO, toMonthKey } from '../../utils/date';
 import { Modal } from '../ui/Modal';
@@ -12,12 +13,12 @@ import { AmountField, Field, FieldError, FormError } from '../ui/Field';
 import { Button } from '../ui/Button';
 import { CheckboxField } from '@admiral-ds/react-ui';
 import { CategoryPicker } from '../ui/CategoryPicker';
-import { AccountModeField } from '../account/AccountModeField';
+import { PaymentSourceField, type PaymentSourceOption } from '../account/PaymentSourceField';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 
 interface PaymentFormModalProps {
   paymentId?: string;
-  prefill?: PurchaseDraft & { title?: string; dueDate?: string };
+  prefill?: PaymentPrefill;
   /** A future purchase: reserved exactly like a payment until it is marked paid and becomes an expense */
   planned?: boolean;
 }
@@ -27,6 +28,7 @@ export function PaymentFormModal({ paymentId, prefill, planned }: PaymentFormMod
   const addToast = useUIStore((s) => s.addToast);
   const viewedMonth = useUIStore((s) => s.monthKey);
   const setMonthKey = useUIStore((s) => s.setMonthKey);
+  const family = useFamilyStore((s) => s.family);
   const existing = useDataStore((s) => (paymentId ? s.payments.find((p) => p.id === paymentId) : undefined));
   const requestId = useRequestId();
   const save = useAsyncAction(savePayment);
@@ -39,10 +41,12 @@ export function PaymentFormModal({ paymentId, prefill, planned }: PaymentFormMod
   const [dueDate, setDueDate] = useState(
     existing?.dueDate ?? prefill?.dueDate ?? (planned ? '' : viewedMonth === toMonthKey() ? todayISO() : `${viewedMonth}-01`)
   );
-  const [recurring, setRecurring] = useState(existing?.recurring ?? false);
-  const [accountMode, setAccountMode] = useState<Exclude<AccountMode, 'personal_split'>>(
-    existing ? existing.accountMode ?? 'outside' : 'shared_split',
-  );
+  const [recurring, setRecurring] = useState(existing ? (existing.recurrence ? existing.recurrence !== 'once' : existing.recurring) : false);
+  const [sourceOption, setSourceOption] = useState<PaymentSourceOption>(() => {
+    if (!existing) return 'shared_equal';
+    if (existing.accountMode === 'outside') return 'outside';
+    return existing.splitMode === 'none' ? 'shared_common' : 'shared_equal';
+  });
   const [submitted, setSubmitted] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -55,7 +59,34 @@ export function PaymentFormModal({ paymentId, prefill, planned }: PaymentFormMod
     setSubmitted(true);
     const value = parseAmount(amount);
     if (!title.trim() || validateAmount(amount) || !category || !dueDate || value === null) return;
-    const res = await save.run({ id: paymentId, title, amount: value, category, dueDate, recurring, accountMode }, requestId);
+    const preserveMethod = existing && (existing.paymentMethod === 'autopay' || existing.paymentDetails)
+      ? existing.paymentMethod
+      : undefined;
+    const rule = existing?.recurrenceRule;
+    const res = await save.run({
+      id: paymentId,
+      title,
+      amount: value,
+      category,
+      dueDate,
+      amountMode: existing?.amountMode ?? 'fixed',
+      recurrence: recurring ? (existing && existing.recurrence !== 'once' ? existing.recurrence : 'monthly') : 'once',
+      interval: rule?.interval ?? 1,
+      intervalUnit: rule?.unit,
+      endMode: rule?.endMode ?? 'never',
+      endDate: rule?.endDate,
+      occurrences: rule?.occurrences,
+      splitMode: sourceOption === 'shared_equal' ? 'equal' : 'none',
+      splitMembers: sourceOption === 'shared_equal' ? family?.members.map((member) => member.id) ?? null : null,
+      splitShares: null,
+      paymentMethod: preserveMethod,
+      autopayType: preserveMethod === 'autopay' ? existing?.autopayType : undefined,
+      providerCategory: preserveMethod === 'autopay' ? existing?.providerCategory : undefined,
+      providerName: preserveMethod === 'autopay' ? existing?.providerName : undefined,
+      providerIdentifier: preserveMethod === 'autopay' ? existing?.providerIdentifier : undefined,
+      limitAmount: preserveMethod === 'autopay' ? existing?.limitAmount : undefined,
+      paymentDetails: preserveMethod === 'manual' ? existing?.paymentDetails : undefined,
+    }, requestId);
     if (!res.ok) return;
     closeModal();
     const month = dueDate.slice(0, 7);
@@ -158,15 +189,14 @@ export function PaymentFormModal({ paymentId, prefill, planned }: PaymentFormMod
           <CategoryPicker value={category} onChange={setCategory} label="Категория бюджета" />
           {categoryError && <FieldError>{categoryError}</FieldError>}
         </div>
-        <AccountModeField value={accountMode} onChange={setAccountMode}
-          options={['shared_split', 'shared_common', 'outside']} />
+        <PaymentSourceField value={sourceOption} onChange={setSourceOption} />
         {!planned && (
           <div className="p-3.5 rounded-xl bg-surface-muted">
             <CheckboxField
               checked={recurring}
               onChange={(e) => setRecurring(e.target.checked)}
               extraText={
-                existing?.recurring && !recurring
+                existing && existing.recurrence !== 'once' && !recurring
                   ? 'Новые платежи перестанут появляться. Уже созданные останутся — их можно удалить отдельно.'
                   : 'В следующем месяце появится такой же запланированный платёж. Оплату нужно записать вручную.'
               }

@@ -75,12 +75,16 @@ export interface MonthlyBudget {
 
 export type AccountMode = 'shared_split' | 'shared_common' | 'personal_split' | 'outside';
 
+export type ExpenseSource = 'shared' | 'personal';
+export type SplitMode = 'none' | 'equal' | 'shares';
+
 export interface AccountContribution {
   id: string;
   memberId: string | null;
   amount: number;
   date: string;
   createdAt: number;
+  topUpSuggestion?: number | null;
 }
 
 /** An actual spending that already happened. */
@@ -96,9 +100,14 @@ export interface Expense {
   authorName?: string | null;
   /** Set when the expense was created by marking a mandatory payment as paid */
   paymentId?: string | null;
+  source: ExpenseSource;
+  splitMode: SplitMode;
+  splitMembers: string[] | null;
+  /** Доли в базисных пунктах; в сумме дают 10 000. */
+  splitShares: Record<string, number> | null;
+  /** @deprecated Поле совместимости, которое пока возвращает бэкенд. */
   accountMode?: AccountMode | null;
-  splitMembers?: string[] | null;
-  /** Custom allocation of this demo purchase, keyed by member ID. */
+  /** @deprecated Поле совместимости, которое пока возвращает бэкенд. */
   splitPercentages?: Record<string, number> | null;
   /** Who paid; by default the author */
   paidBy?: string | null;
@@ -106,6 +115,34 @@ export interface Expense {
 }
 
 export type PaymentStatus = 'upcoming' | 'paid';
+export type AmountMode = 'fixed' | 'invoice';
+export type RecurrenceFrequency = 'once' | 'weekly' | 'monthly' | 'quarterly' | 'yearly' | 'custom';
+export type RecurrenceUnit = 'days' | 'weeks' | 'months';
+export type RecurrenceEndMode = 'never' | 'date' | 'count';
+export type PaymentMethod = 'autopay' | 'manual';
+export type AutopayType = 'by_invoice' | 'by_date' | 'by_balance';
+export type ProviderCategory = 'housing' | 'mobile' | 'internet' | 'traffic_fines';
+export type ManualPaymentMethod = 'sbp_phone' | 'card' | 'bank_account' | 'uin';
+
+export interface RecurrenceRule {
+  frequency: Exclude<RecurrenceFrequency, 'once'>;
+  interval: number;
+  unit: RecurrenceUnit | null;
+  endMode: RecurrenceEndMode;
+  endDate: string | null;
+  occurrences: number | null;
+}
+
+export interface PaymentDetails {
+  recipient: string;
+  method: ManualPaymentMethod;
+  purpose: string;
+  phone?: string;
+  cardNumber?: string;
+  account?: string;
+  bic?: string;
+  uin?: string;
+}
 
 /** A future mandatory payment. While upcoming it is reserved; once paid it becomes an expense. */
 export interface Payment {
@@ -119,21 +156,99 @@ export interface Payment {
   expenseId?: string | null;
   authorId: string | null;
   createdAt: number;
-  /** Monthly series: the server keeps a payment in this and the next month (docs/FEATURES.md §6) */
-  recurring?: boolean;
+  source: ExpenseSource;
+  splitMode: SplitMode;
+  splitMembers: string[] | null;
+  splitShares: Record<string, number> | null;
+  amountMode: AmountMode;
+  recurrence: RecurrenceFrequency;
+  recurrenceRule: RecurrenceRule | null;
+  paymentMethod: PaymentMethod;
+  autopayType: AutopayType | null;
+  providerCategory: ProviderCategory | null;
+  providerName: string | null;
+  providerIdentifier: string | null;
+  limitAmount: number | null;
+  paymentDetails: PaymentDetails | null;
+  /** @deprecated Поле совместимости, которое пока возвращает бэкенд. */
+  recurring: boolean;
   seriesId?: string | null;
+  /** @deprecated Поле совместимости, которое пока возвращает бэкенд. */
   accountMode?: Exclude<AccountMode, 'personal_split'> | null;
 }
 
-/** Result of «Можем ли купить?» computed by the server for the current month */
-export type PurchaseVerdict = 'ok' | 'tight' | 'category-over' | 'not-enough';
+export interface AccountMemberSummary {
+  memberId: string;
+  name: string;
+  share: number;
+  contributed: number;
+  paidPersonally: number;
+  due: number;
+  topUpSuggestion: number;
+  overpaid: number;
+  sharePercent: number;
+  contributionPercent: number;
+  status: 'owes' | 'overpaid' | 'even';
+}
 
-export interface ServerPurchaseCheck {
-  verdict: PurchaseVerdict;
+export interface AccountSummary {
+  monthKey: string;
+  balance: number;
+  planned: number;
+  afterPlanned: number;
+  members: AccountMemberSummary[];
+  contributions: AccountContribution[];
+}
+
+export interface AnalyticsMonth {
+  month: string;
+  expenses: number;
+  accountBalance: number;
+  expenseChangePercent: number | null;
+}
+
+export interface AnalyticsCategory {
+  category: ExpenseCategory;
   amount: number;
-  freeBefore: number;
-  freeAfter: number;
-  categoryLeftAfter: number | null;
+  percent: number;
+}
+
+export interface Analytics {
+  month: string;
+  series: AnalyticsMonth[];
+  categories: AnalyticsCategory[];
+  topCategories: AnalyticsCategory[];
+  account: AccountSummary;
+  payments: Payment[];
+}
+
+export interface CalendarDay {
+  date: string;
+  expenses: Expense[];
+  expenseTotal: number;
+  payments: Payment[];
+  accountBalance: number;
+}
+
+export interface CalendarData {
+  month: string;
+  days: CalendarDay[];
+  upcomingPayments: Payment[];
+}
+
+export interface AutopayCatalogCategory {
+  key: ProviderCategory;
+  name: string;
+  autopayTypes: AutopayType[];
+  identifier: {
+    field: 'providerIdentifier';
+    label: string;
+  };
+  requiredFields: Array<'providerName' | 'providerIdentifier'>;
+}
+
+export interface AutopayCatalog {
+  categories: AutopayCatalogCategory[];
 }
 
 /** Family savings goal. Contributions are set aside money, not spending: they do not enter the budget (§4) */
@@ -163,6 +278,7 @@ export interface AppNotification {
   kind: string;
   title: string;
   body: string;
+  data: Record<string, unknown>;
   createdAt: number;
   readAt: number | null;
 }
