@@ -25,13 +25,15 @@ def test_openapi_and_docs(api):
     paths = set(spec["paths"])
     for expected in (
         "/api/families", "/api/invites/{code}", "/api/invites/{code}/join", "/api/demo", "/api/family",
-        "/api/family/leave", "/api/family/switch-user", "/api/family/invite-code", "/api/family/child-invite-code",
-        "/api/family/members/{member_id}/approve", "/api/family/invite-links",
+        "/api/family/leave", "/api/family/switch-user", "/api/family/invite-code",
+        "/api/family/members/{member_id}/approve", "/api/family/members/{member_id}/reject",
+        "/api/family/members/{member_id}/make-owner", "/api/family/invite-links",
         "/api/family/invite-links/{link_id}", "/api/state", "/api/events", "/api/ready",
         "/api/budgets", "/api/budgets/{month_key}", "/api/expenses", "/api/expenses/{expense_id}",
-        "/api/payments", "/api/payments/{payment_id}", "/api/payments/{payment_id}/paid",
+        "/api/payments", "/api/payments/autopay-catalog", "/api/payments/{payment_id}",
+        "/api/payments/{payment_id}/paid", "/api/payments/{payment_id}/pay", "/api/payments/{payment_id}/invoice",
         "/api/payments/copy-previous-month", "/api/months/{month_key}/summary",
-        "/api/months/{month_key}/purchase-check",
+        "/api/months/{month_key}/purchase-check", "/api/account/summary", "/api/analytics", "/api/calendar",
     ):
         assert expected in paths, expected
     assert api.get("/api/docs").status_code == 200

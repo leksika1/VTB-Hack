@@ -14,7 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..errors import DemoOnly, TooManyRequests, ValidationFailed
 from ..models import Member, now_ms
 from ..ratelimit import hit
-from ..schemas import MeOut
+from ..schemas import MeOut, PreferencesIn, PreferencesOut
+from ..validation import amount_to_kop, kop_to_amount
 from .notifications import queue_email
 
 CODE_TTL_MS = 15 * 60_000
@@ -25,10 +26,31 @@ _EMAIL_RE = re.compile(r"^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]{1,64}@[A-Za-z0-9](?:[A
 
 def to_out(m: Member) -> MeOut:
     return MeOut(
-        id=m.id, name=m.name, role=m.role, status=m.status, email=m.email, email_verified=m.email_verified_at is not None,
+        id=m.id, name=m.name, role="member", status=m.status, email=m.email, email_verified=m.email_verified_at is not None,
         notify_by_email=m.notify_by_email, pending_email=m.pending_email,
         vtb_linked=m.oidc_sub is not None,
+        login_id=m.login_id, is_owner=m.family.owner_id == m.id,
+        debt_reminder_threshold=kop_to_amount(m.debt_reminder_threshold_kop),
+        default_split=m.default_split, calendar_enabled=m.calendar_enabled,
     )
+
+
+def preferences_out(member: Member) -> PreferencesOut:
+    return PreferencesOut(debt_reminder_threshold=kop_to_amount(member.debt_reminder_threshold_kop),
+                          default_split=member.default_split, calendar_enabled=member.calendar_enabled)
+
+
+async def set_preferences(db: AsyncSession, member: Member, body: PreferencesIn) -> PreferencesOut:
+    if body.debt_reminder_threshold is not None:
+        member.debt_reminder_threshold_kop = amount_to_kop(
+            body.debt_reminder_threshold, "debtReminderThreshold", allow_zero=True
+        )
+    if body.default_split is not None:
+        member.default_split = body.default_split
+    if body.calendar_enabled is not None:
+        member.calendar_enabled = body.calendar_enabled
+    await db.commit()
+    return preferences_out(member)
 
 
 def clean_email(value: str) -> str:

@@ -73,7 +73,10 @@ export function FamilyAccountCard() {
           </p>
           <div className="mt-1 flex items-center gap-2">
             <p key={month} className={`balance-number account-balance ${monthIn}`}>
-              {amountsVisible ? formatBalance(account.balance) : 'Сумма скрыта'}
+              <span className={amountsVisible ? undefined : 'amount-concealed'} aria-hidden={!amountsVisible || undefined}>
+                {formatBalance(account.balance)}
+              </span>
+              {!amountsVisible && <span className="sr-only">Сумма скрыта</span>}
             </p>
             <IconButton
               label={amountsVisible ? 'Скрыть суммы счёта' : 'Показать суммы счёта'}
@@ -86,15 +89,15 @@ export function FamilyAccountCard() {
           <dl key={month} className={`account-metrics ${monthIn}`}>
             <div>
               <dt>После запланированных</dt>
-              <dd>{amountsVisible ? formatBalance(account.available) : 'Скрыто'}</dd>
+              <dd><ConcealedAmount visible={amountsVisible}>{formatBalance(account.available)}</ConcealedAmount></dd>
             </div>
             <div>
               <dt>Запланировано</dt>
-              <dd>{amountsVisible ? formatCurrency(account.reserved) : 'Скрыто'}</dd>
+              <dd><ConcealedAmount visible={amountsVisible}>{formatCurrency(account.reserved)}</ConcealedAmount></dd>
             </div>
             <div>
               <dt>Вам осталось внести</dt>
-              <dd>{amountsVisible ? formatCurrency(due) : 'Скрыто'}</dd>
+              <dd><ConcealedAmount visible={amountsVisible}>{formatCurrency(due)}</ConcealedAmount></dd>
             </div>
           </dl>
           <div className="relative">
@@ -125,6 +128,13 @@ export function FamilyAccountCard() {
   );
 }
 
+function ConcealedAmount({ visible, children }: { visible: boolean; children: string }) {
+  return <>
+    <span className={visible ? undefined : 'amount-concealed'} aria-hidden={!visible || undefined}>{children}</span>
+    {!visible && <span className="sr-only">Сумма скрыта</span>}
+  </>;
+}
+
 function useFamilyAccount(month: string) {
   const contributions = useDataStore((s) => s.accountContributions);
   const expenses = useDataStore((s) => s.expenses);
@@ -151,13 +161,11 @@ export function FamilyAccountBreakdown({ month }: { month: string }) {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap justify-between gap-2">
                     <p className="font-medium wrap-anywhere">{member.name}</p>
-                    {member.role !== 'child' && <p className="font-medium tabular">{`К внесению ${formatCurrency(info?.due ?? 0)}`}</p>}
+                    <p className="font-medium tabular">{`К внесению ${formatCurrency(info?.due ?? 0)}`}</p>
                   </div>
-                  {member.role === 'child' ? <p className="text-sm text-ink-2">Не участвует в делении</p> : (
-                    <p className="text-sm text-ink-2">Доля {formatCurrency(info?.share ?? 0)} ({formatPercent(info?.percent ?? 0)}), внесено {formatCurrency(info?.contributed ?? 0)} ({formatPercent(info?.contributedPercent ?? 0)})
-                      {!!info?.paidPersonally && `, оплачено лично ${formatCurrency(info.paidPersonally)}`}
-                    </p>
-                  )}
+                  <p className="text-sm text-ink-2">Доля {formatCurrency(info?.share ?? 0)} ({formatPercent(info?.percent ?? 0)}), внесено {formatCurrency(info?.contributed ?? 0)} ({formatPercent(info?.contributedPercent ?? 0)})
+                    {!!info?.paidPersonally && `, оплачено лично ${formatCurrency(info.paidPersonally)}`}
+                  </p>
                 </div>
               </li>
             );

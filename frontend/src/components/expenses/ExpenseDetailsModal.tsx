@@ -5,7 +5,7 @@ import { expenseShares, usesFamilyAccount } from '../../domain/familyAccount';
 import { deleteExpense } from '../../api/client';
 import { useAsyncAction } from '../../hooks/useAsyncAction';
 import { useDataStore } from '../../store/dataStore';
-import { resolveAuthorName, useFamilyStore, useIsParent } from '../../store/familyStore';
+import { resolveAuthorName, useFamilyStore } from '../../store/familyStore';
 import { useUIStore } from '../../store/uiStore';
 import { CATEGORIES } from '../../utils/categories';
 import { formatCurrency } from '../../utils/currency';
@@ -15,14 +15,13 @@ import { Button } from '../ui/Button';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { CategoryIcon } from '../ui/Misc';
 
-/** Operation details. Edit is a regular action, delete is separated and confirmed. Any adult may fix any record. */
+/** Operation details. Edit is a regular action, delete is separated and confirmed. */
 export function ExpenseDetailsModal({ expenseId }: { expenseId: string }) {
   const closeModal = useUIStore((s) => s.closeModal);
   const openModal = useUIStore((s) => s.openModal);
   const addToast = useUIStore((s) => s.addToast);
   const family = useFamilyStore((s) => s.family);
   const currentUserId = useFamilyStore((s) => s.currentUserId);
-  const isParent = useIsParent();
   const expense = useDataStore((s) => s.expenses.find((e) => e.id === expenseId));
   const remove = useAsyncAction(deleteExpense);
   const [confirming, setConfirming] = useState(false);
@@ -35,9 +34,8 @@ export function ExpenseDetailsModal({ expenseId }: { expenseId: string }) {
     );
   }
 
-  const own = expense.authorId === currentUserId;
-  // Same rule as the server: an adult changes any expense; a child — only own, and not one bought by an approved request
-  const canManage = isParent || (own && !expense.requestId);
+  // Same rule as the server: every active participant may edit family expenses.
+  const canManage = true;
   const shares = expenseShares(expense);
   const payerId = expense.paidBy ?? expense.authorId;
   const payerName = resolveAuthorName(family, payerId, expense.authorName);
@@ -97,14 +95,14 @@ export function ExpenseDetailsModal({ expenseId }: { expenseId: string }) {
       <dl className="divide-y divide-line text-[15px]">
         <DetailRow label="Категория" value={CATEGORIES[expense.category].label} />
         <DetailRow label="Дата покупки" value={`${formatDateShort(expense.date)} ${parseISODate(expense.date).getFullYear()}`} />
-        {isParent && expense.accountMode && (
+        {expense.accountMode && (
           <DetailRow label="Источник" value={usesFamilyAccount(expense.accountMode) ? 'Общий счёт' : 'Личная карта'} />
         )}
-        {isParent && expense.accountMode && !usesFamilyAccount(expense.accountMode) && payerId && (
+        {expense.accountMode && !usesFamilyAccount(expense.accountMode) && payerId && (
           <DetailRow label="Кто платил" value={payerId === currentUserId ? `${payerName} (вы)` : payerName} />
         )}
-        {isParent && expense.accountMode && <DetailRow label="Деление" value={expense.splitPercentages ? 'В долях' : shares.length ? 'Поровну' : 'Без деления'} />}
-        {isParent && expense.splitPercentages && shares.map(({ id, amount }) => (
+        {expense.accountMode && <DetailRow label="Деление" value={expense.splitPercentages ? 'В долях' : shares.length ? 'Поровну' : 'Без деления'} />}
+        {expense.splitPercentages && shares.map(({ id, amount }) => (
           <DetailRow key={id} label={`${resolveAuthorName(family, id)} · ${expense.splitPercentages?.[id]}%`}
             value={formatCurrency(amount / 100)} />
         ))}
@@ -113,11 +111,6 @@ export function ExpenseDetailsModal({ expenseId }: { expenseId: string }) {
         <p className="mt-4 flex gap-2 text-sm text-ink-2 bg-surface-muted rounded-xl p-3">
           <Calendar size={17} className="shrink-0 text-ink-3" aria-hidden />
           Создано из обязательного платежа. Он учтён в расходах и больше не резервируется.
-        </p>
-      )}
-      {!canManage && (
-        <p className="mt-4 text-sm text-ink-3">
-          Изменить эту покупку может взрослый участник семьи.
         </p>
       )}
     </Modal>

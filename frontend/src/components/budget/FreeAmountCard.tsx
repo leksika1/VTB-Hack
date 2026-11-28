@@ -9,7 +9,7 @@ import { useUIStore } from '../../store/uiStore';
 import { Button } from '../ui/Button';
 import { ProgressBar } from '../ui/ProgressBar';
 
-/** Monthly budget allowance and category limits. */
+/** Monthly available budget and category limits. */
 export function FreeAmountCard({ summary, monthKey }: { summary: MonthSummary; monthKey: string }) {
   const openModal = useUIStore((s) => s.openModal);
   const [explained, setExplained] = useState(false);

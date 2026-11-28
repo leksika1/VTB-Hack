@@ -5,12 +5,14 @@ from .helpers import MONTH, TODAY, add_expense, assert_error, create_family, joi
 def test_create_expense(api):
     anna = create_family(api)
     e = add_expense(anna, 1250.5, "food", "  Продукты  ")
-    assert set(e) == {"id", "familyId", "title", "amount", "category", "date", "authorId", "authorName",
-                      "paymentId", "paidBy", "requestId", "createdAt", "accountMode", "splitMembers", "splitPercentages"}
+    assert {"id", "familyId", "title", "amount", "category", "date", "authorId", "authorName",
+            "paymentId", "paidBy", "createdAt", "accountMode", "source", "splitMode",
+            "splitMembers", "splitShares"}.issubset(e)
     assert (e["title"], e["amount"], e["category"], e["date"]) == ("Продукты", 1250.5, "food", TODAY)
     assert (e["authorId"], e["authorName"], e["paymentId"]) == (anna.id, "Анна", None)
     assert e["familyId"] == anna.family_id
-    assert e["accountMode"] is None and e["splitMembers"] is None and e["splitPercentages"] is None
+    assert e["accountMode"] == "shared_common" and e["source"] == "shared"
+    assert e["splitMode"] == "none" and e["splitMembers"] is None and e["splitShares"] is None
 
 
 def test_expense_validation(api):

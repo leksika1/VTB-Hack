@@ -11,7 +11,7 @@ import { FormError } from '../components/ui/Field';
 import { Presence } from '../components/ui/Presence';
 
 /**
- * Joined by a family or child code: until an adult approves, the family data is hidden (family.pending).
+ * Joined by a family code or link: until the owner approves, the family data is hidden (family.pending).
  * The event stream tells us about the approval, and the app opens by itself.
  */
 export function WaitingApprovalPage() {
@@ -35,7 +35,7 @@ export function WaitingApprovalPage() {
         </div>
         <h1 className="text-[28px] font-bold text-ink leading-tight break-words">Ждём подтверждения</h1>
         <p className="text-ink-2 mt-2">
-          {user ? `${user.name}, вы` : 'Вы'} отправили заявку в «{family.name}». Взрослый участник семьи увидит её на вкладке
+          {user ? `${user.name}, вы` : 'Вы'} отправили заявку в «{family.name}». Владелец семьи увидит её на вкладке
           «Семья». Как только он подтвердит вход, здесь откроются бюджет и расходы — обновлять страницу не нужно.
         </p>
         <p className="text-sm text-ink-3 mt-3">Пока заявка не подтверждена, данные семьи не видны — так код не даст доступа постороннему.</p>

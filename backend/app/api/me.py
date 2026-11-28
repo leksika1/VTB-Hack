@@ -2,7 +2,8 @@
 from fastapi import APIRouter, Query, Response
 
 from ..deps import AnyMember, CurrentMember, Db
-from ..schemas import CodeIn, EmailIn, MeOut, NotificationOut, NotificationSettingsIn
+from ..schemas import (CodeIn, EmailIn, MeOut, NotificationOut, NotificationSettingsIn,
+                       PreferencesIn, PreferencesOut)
 from ..services import me, notifications
 
 router = APIRouter(tags=["me"])
@@ -11,6 +12,16 @@ router = APIRouter(tags=["me"])
 @router.get("/me", response_model=MeOut, summary="Мой профиль")
 async def get_me(member: AnyMember):
     return me.to_out(member)
+
+
+@router.get("/me/preferences", response_model=PreferencesOut, summary="Мои настройки общего плана")
+async def get_preferences(member: CurrentMember):
+    return me.preferences_out(member)
+
+
+@router.patch("/me/preferences", response_model=PreferencesOut, summary="Изменить настройки общего плана")
+async def patch_preferences(body: PreferencesIn, member: CurrentMember, db: Db):
+    return await me.set_preferences(db, member, body)
 
 
 @router.put("/me/email", status_code=202, summary="Указать e-mail — придёт письмо с кодом")
@@ -38,18 +49,18 @@ async def notification_settings(body: NotificationSettingsIn, member: CurrentMem
 
 @router.get("/notifications", response_model=list[NotificationOut], tags=["notifications"],
             summary="Мои уведомления, до 50, новые сверху")
-async def list_notifications(member: CurrentMember, db: Db, unread_only: bool = Query(False, alias="unreadOnly"),
+async def list_notifications(member: AnyMember, db: Db, unread_only: bool = Query(False, alias="unreadOnly"),
                              before: int | None = Query(None, description="createdAt для следующей страницы")):
     return [NotificationOut.of(n) for n in await notifications.list_for(db, member, unread_only, before)]
 
 
 @router.post("/notifications/read-all", status_code=204, tags=["notifications"])
-async def read_all(member: CurrentMember, db: Db):
+async def read_all(member: AnyMember, db: Db):
     await notifications.mark_read(db, member)
     return Response(status_code=204)
 
 
 @router.post("/notifications/{notification_id}/read", status_code=204, tags=["notifications"])
-async def read_one(notification_id: str, member: CurrentMember, db: Db):
+async def read_one(notification_id: str, member: AnyMember, db: Db):
     await notifications.mark_read(db, member, notification_id)
     return Response(status_code=204)

@@ -8,7 +8,7 @@ from ..models import CategoryRule, Expense, ImportRow, Member, StatementImport, 
 from ..schemas import ImportConfirmIn, ImportIn
 from ..statement import StatementError, clean_text, fingerprints, normalize, parse_statement, suggest_category
 from ..validation import CATEGORIES
-from . import finance
+from . import finance, notifications
 
 MAX_PENDING_IMPORTS = 5
 PENDING_TTL_MS = 7 * 86_400_000
@@ -21,7 +21,8 @@ async def _rules(db: AsyncSession, family_id: str) -> dict[str, str]:
 
 async def create(db: AsyncSession, member: Member, body: ImportIn) -> StatementImport:
     pending = await db.scalar(select(func.count()).select_from(StatementImport).where(
-        StatementImport.family_id == member.family_id, StatementImport.status == "pending"))
+        StatementImport.family_id == member.family_id, StatementImport.created_by == member.id,
+        StatementImport.status == "pending"))
     if pending >= MAX_PENDING_IMPORTS:
         raise Conflict(f"Уже {MAX_PENDING_IMPORTS} неподтверждённых импортов. Подтвердите или удалите их.")
     try:
@@ -101,6 +102,7 @@ async def confirm(db: AsyncSession, member: Member, import_id: str, body: Import
             family_id=member.family_id, title=row.description or "Операция по карте", amount_kop=row.amount_kop,
             category=category, date=row.date, author_id=member.id, paid_by=member.id,
             import_fingerprint=row.fingerprint, account_mode=mode,
+            source="personal", split_mode="equal" if mode == "personal_split" else "none",
             split_members=split_members if mode == "personal_split" else None,
         )
         db.add(expense)
@@ -118,6 +120,7 @@ async def confirm(db: AsyncSession, member: Member, import_id: str, body: Import
     batch.status = "confirmed"
     batch.imported = len(to_import)
     await db.flush()
+    await notifications.debt_reminders(db, member.family_id)
     return batch
 
 

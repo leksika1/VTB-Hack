@@ -10,7 +10,7 @@ from ..errors import Conflict, Forbidden, NotFound, ValidationFailed
 from ..models import AccountContribution, Goal, GoalContribution, Member, now_ms
 from ..schemas import ContributionIn, ContributionOut, GoalIn, GoalOut
 from ..validation import amount_to_kop, kop_to_amount, month_bounds, parse_date, shift_month
-from . import allowance, notifications
+from . import notifications
 from .finance import check_capacity
 
 MAX_ACTIVE_GOALS = 20
@@ -158,8 +158,6 @@ async def contribute(
     on = parse_date(body.date) if body.date else clock.today()
     if on > clock.today():
         raise ValidationFailed("Дата взноса не может быть в будущем", "date")
-    if not member.is_parent:
-        await allowance.check_child_spending(db, member, amount, on)
     contribution = GoalContribution(goal_id=goal.id, family_id=goal.family_id, member_id=member.id,
                                     amount_kop=amount, date=on)
     db.add(contribution)
@@ -184,8 +182,7 @@ async def delete_contribution(db: AsyncSession, member: Member, goal_id: str, co
     contribution = await db.get(GoalContribution, contribution_id)
     if contribution is None or contribution.goal_id != goal.id:
         raise NotFound("Взнос не найден")
-    if contribution.member_id != member.id:
-        raise Forbidden("Удалить можно только свой взнос")
+    # Все участники равноправно исправляют записи семьи.
     await db.delete(contribution)
     await db.flush()
     await _refresh_status(db, goal)

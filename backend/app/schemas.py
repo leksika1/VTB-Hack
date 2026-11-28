@@ -29,6 +29,10 @@ class JoinFamilyIn(Schema):
     oidc_link_token: str | None = Field(default=None, max_length=100)
 
 
+class LoginIdIn(Schema):
+    login_id: str = Field(min_length=5, max_length=32)
+
+
 class OidcStartIn(Schema):
     intent: str  # login | link
     redirect_uri: str = Field(max_length=500)
@@ -41,10 +45,6 @@ class OidcCallbackIn(Schema):
 
 class SwitchUserIn(Schema):
     user_id: str
-
-
-class RoleIn(Schema):
-    role: str
 
 
 class BudgetIn(Schema):
@@ -65,25 +65,13 @@ class ExpenseIn(Schema):
     category: str
     date: str
     account_mode: AccountMode | None = None
+    source: Literal["shared", "personal"] | None = None
+    split_mode: Literal["none", "equal", "shares"] | None = None
+    split_members: list[str] | None = Field(default=None, max_length=50)
+    split_shares: dict[str, StrictInt] | None = None  # базисные пункты, сумма 10 000
     split_percentages: dict[str, StrictInt] | None = None
     paid_by: str | None = None  # кто платил; по умолчанию автор (docs/FEATURES.md §7)
     receipt: str | None = Field(default=None, max_length=512)  # строка QR-кода чека (§8)
-
-
-class AllowanceIn(Schema):
-    amount: float
-    period: str  # week | month
-
-
-class PurchaseRequestIn(Schema):
-    title: str = Field(max_length=500)
-    amount: float
-    category: str
-    comment: str | None = Field(default=None, max_length=1000)
-
-
-class DecisionIn(Schema):
-    comment: str | None = Field(default=None, max_length=1000)
 
 
 class ReceiptIn(Schema):
@@ -100,12 +88,39 @@ class ReceiptOut(Schema):
 
 class PaymentIn(Schema):
     title: str = Field(max_length=500)
-    amount: float
+    amount: float = 0
     category: str
     due_date: str
     # true — начать серию, false — остановить; не указано — не менять (docs/FEATURES.md §6)
     recurring: bool | None = None
     account_mode: Literal["shared_split", "shared_common", "outside"] | None = None
+    amount_mode: Literal["fixed", "invoice"] = "fixed"
+    recurrence: Literal["once", "weekly", "monthly", "quarterly", "yearly", "custom"] | None = None
+    interval: int = Field(default=1, ge=1, le=365)
+    interval_unit: Literal["days", "weeks", "months"] | None = None
+    end_mode: Literal["never", "date", "count"] = "never"
+    end_date: str | None = None
+    occurrences: int | None = Field(default=None, ge=1, le=1000)
+    split_mode: Literal["none", "equal", "shares"] = "none"
+    split_members: list[str] | None = Field(default=None, max_length=50)
+    split_shares: dict[str, StrictInt] | None = None
+    payment_method: Literal["autopay", "manual"] = "manual"
+    autopay_type: Literal["by_invoice", "by_date", "by_balance"] | None = None
+    provider_category: Literal["housing", "mobile", "internet", "traffic_fines"] | None = None
+    provider_name: str | None = Field(default=None, max_length=120)
+    provider_identifier: str | None = Field(default=None, max_length=120)
+    limit_amount: float | None = None
+    payment_details: dict | None = None
+
+
+class InvoiceIn(Schema):
+    amount: float
+
+
+class PreferencesIn(Schema):
+    debt_reminder_threshold: float | None = None
+    default_split: Literal["equal", "none", "ask"] | None = None
+    calendar_enabled: bool | None = None
 
 
 class GoalIn(Schema):
@@ -175,22 +190,28 @@ class UserOut(Schema):
     id: str
     name: str
     color: str
-    role: str  # parent | child
+    role: str  # всегда member
+    is_owner: bool = False
+    status: str = "active"
+    requested_at: int | None = None
 
     @classmethod
     def of(cls, m: models.Member) -> "UserOut":
-        return cls(id=m.id, name=m.name, color=m.color, role=m.role)
+        return cls(id=m.id, name=m.name, color=m.color, role="member", is_owner=m.family.owner_id == m.id,
+                   status=m.status, requested_at=m.joined_at if m.pending else None)
 
 
 class FamilyOut(Schema):
     id: str
     name: str
-    # Код семьи даёт вход с правами взрослого — ребёнку он не отдаётся (null)
+    owner_id: str | None
+    is_owner: bool
+    # Код семьи видят все подтверждённые участники.
     invite_code: str | None
-    # Постоянный детский код: вошедший по нему — ребёнок. Только взрослым
-    child_invite_code: str | None
+    # Устарело: в v2 детских приглашений нет.
+    child_invite_code: str | None = None
     members: list[UserOut]
-    # Ждут подтверждения входа (docs/FEATURES.md §1). Только взрослым
+    # Ждут подтверждения входа. Видят все, решает только владелец.
     pending_members: list[UserOut]
     # true — сам зритель ждёт подтверждения: видит только название семьи и себя
     pending: bool
@@ -198,17 +219,17 @@ class FamilyOut(Schema):
 
     @classmethod
     def of(cls, f: models.Family, viewer: models.Member) -> "FamilyOut":
-        if viewer.pending:
-            return cls(id=f.id, name=f.name, invite_code=None, child_invite_code=None, members=[UserOut.of(viewer)],
+        if not viewer.active:
+            return cls(id=f.id, name=f.name, owner_id=f.owner_id, is_owner=False, invite_code=None,
+                       child_invite_code=None, members=[UserOut.of(viewer)],
                        pending_members=[], pending=True, is_demo=f.is_demo)
-        adult = viewer.is_parent
         return cls(
-            id=f.id,
+            id=f.id, owner_id=f.owner_id, is_owner=f.owner_id == viewer.id,
             name=f.name,
-            invite_code=f.invite_code if adult else None,
-            child_invite_code=f.child_invite_code if adult else None,
+            invite_code=f.invite_code,
+            child_invite_code=None,
             members=[UserOut.of(m) for m in f.members if m.active],
-            pending_members=[UserOut.of(m) for m in f.members if m.pending] if adult else [],
+            pending_members=[UserOut.of(m) for m in f.members if m.pending],
             pending=False,
             is_demo=f.is_demo,
         )
@@ -220,19 +241,22 @@ class SessionOut(Schema):
     token: str
     current_user_id: str
     family: FamilyOut
+    # При создании участника показывается сразу; затем доступен только самому участнику через GET /me.
+    login_id: str | None = None
 
 
 class InvitePreviewOut(Schema):
     code: str
     family_name: str
     members_count: int
-    role: str  # с какой ролью войдёт приглашённый: parent (код семьи) или child (детский код)
-    # false — ссылка-приглашение: вход сразу, без подтверждения взрослым
+    role: str  # member
+    # Код и ссылка всегда требуют решения владельца.
     needs_approval: bool
 
 
 class InviteLinkIn(Schema):
-    role: str = "parent"
+    # Поле оставлено для старого клиента, но сервер всегда создаёт ссылку для member.
+    role: str = "member"
 
 
 class InviteLinkOut(Schema):
@@ -250,11 +274,6 @@ class InviteLinkOut(Schema):
     def of(cls, link: models.InviteLink, code: str | None = None) -> "InviteLinkOut":
         return cls(id=link.id, code=code, role=link.role, created_by=link.created_by, created_at=link.created_at,
                    expires_at=link.expires_at, uses=link.uses, last_used_at=link.last_used_at)
-
-
-class ChildInviteOut(Schema):
-    code: str
-    expires_at: int | None  # постоянный детский код — null
 
 
 class BudgetOut(Schema):
@@ -287,9 +306,11 @@ class ExpenseOut(Schema):
     payment_id: str | None
     paid_by: str | None
     account_mode: AccountMode | None
+    source: str
+    split_mode: str
     split_members: list[str] | None
     split_percentages: dict[str, int] | None = None
-    request_id: str | None
+    split_shares: dict[str, int] | None = None
     created_at: int
 
     @classmethod
@@ -306,9 +327,11 @@ class ExpenseOut(Schema):
             payment_id=e.payment_id,
             paid_by=e.paid_by,
             account_mode=e.account_mode,
+            source=e.source,
+            split_mode=e.split_mode,
             split_members=e.split_members,
             split_percentages=e.split_percentages,
-            request_id=e.request_id,
+            split_shares=e.split_shares,
             created_at=e.created_at,
         )
 
@@ -327,9 +350,28 @@ class PaymentOut(Schema):
     account_mode: AccountMode | None
     recurring: bool
     series_id: str | None
+    amount_mode: str
+    recurrence: str
+    recurrence_rule: dict | None
+    source: str
+    split_mode: str
+    split_members: list[str] | None
+    split_shares: dict[str, int] | None
+    payment_method: str
+    autopay_type: str | None
+    provider_category: str | None
+    provider_name: str | None
+    provider_identifier: str | None
+    limit_amount: float | None
+    payment_details: dict | None
 
     @classmethod
-    def of(cls, p: models.Payment) -> "PaymentOut":
+    def of(cls, p: models.Payment, *, detailed: bool = False) -> "PaymentOut":
+        details = dict(p.payment_details or {}) or None
+        if details and details.get("method") == "card" and not detailed and details.get("cardNumber"):
+            digits = "".join(ch for ch in str(details["cardNumber"]) if ch.isdigit())
+            details["cardNumber"] = ("•••• " + digits[-4:]) if digits else "••••"
+        rule = p.recurrence_rule or None
         return cls(
             id=p.id,
             family_id=p.family_id,
@@ -344,6 +386,20 @@ class PaymentOut(Schema):
             recurring=p.recurring,
             account_mode=p.account_mode,
             series_id=p.series_id,
+            amount_mode=p.amount_mode,
+            recurrence=(rule or {}).get("frequency", "monthly" if p.recurring else "once"),
+            recurrence_rule=rule,
+            source=p.source,
+            split_mode=p.split_mode,
+            split_members=p.split_members,
+            split_shares=p.split_shares,
+            payment_method=p.payment_method,
+            autopay_type=p.autopay_type,
+            provider_category=p.provider_category,
+            provider_name=p.provider_name,
+            provider_identifier=p.provider_identifier,
+            limit_amount=kop_to_amount(p.limit_amount_kop) if p.limit_amount_kop is not None else None,
+            payment_details=details,
         )
 
 
@@ -364,6 +420,7 @@ class AccountContributionOut(Schema):
     amount: float
     date: str
     created_at: int
+    top_up_suggestion: float | None = None
 
     @classmethod
     def of(cls, contribution: models.AccountContribution) -> "AccountContributionOut":
@@ -380,9 +437,67 @@ class StateOut(Schema):
     budgets: list[BudgetOut]
     expenses: list[ExpenseOut]
     payments: list[PaymentOut]
-    allowances: list["AllowanceOut"] = []
     unread_notifications: int = 0
     account_contributions: list[AccountContributionOut] = Field(default_factory=list)
+
+
+class AccountMemberOut(Schema):
+    member_id: str
+    name: str
+    share: float
+    contributed: float
+    paid_personally: float
+    due: float
+    top_up_suggestion: float
+    overpaid: float
+    share_percent: float
+    contribution_percent: float
+    status: str
+
+
+class AccountSummaryOut(Schema):
+    month_key: str
+    balance: float
+    planned: float
+    after_planned: float
+    members: list[AccountMemberOut]
+    contributions: list[AccountContributionOut]
+
+
+class AnalyticsMonthOut(Schema):
+    month: str
+    expenses: float
+    account_balance: float
+    expense_change_percent: float | None
+
+
+class AnalyticsCategoryOut(Schema):
+    category: str
+    amount: float
+    percent: float
+
+
+class AnalyticsOut(Schema):
+    month: str
+    series: list[AnalyticsMonthOut]
+    categories: list[AnalyticsCategoryOut]
+    top_categories: list[AnalyticsCategoryOut]
+    account: AccountSummaryOut
+    payments: list[PaymentOut]
+
+
+class CalendarDayOut(Schema):
+    date: str
+    expenses: list[ExpenseOut]
+    expense_total: float
+    payments: list[PaymentOut]
+    account_balance: float
+
+
+class CalendarOut(Schema):
+    month: str
+    days: list[CalendarDayOut]
+    upcoming_payments: list[PaymentOut]
 
 
 class CategorySummaryOut(Schema):
@@ -420,43 +535,6 @@ class PurchaseCheckOut(Schema):
     category: CategorySummaryOut | None
     category_left_after: float | None
     reserved_payments: list[PaymentOut]
-
-
-class AllowanceOut(Schema):
-    member_id: str
-    amount: float
-    period: str
-    period_start: str
-    period_end: str
-    spent: float
-    left: float
-    updated_at: int
-
-
-class PurchaseRequestOut(Schema):
-    id: str
-    family_id: str
-    author_id: str | None
-    title: str
-    amount: float
-    category: str
-    comment: str | None
-    status: str
-    decided_by: str | None
-    decided_at: int | None
-    decision_comment: str | None
-    expense_id: str | None
-    created_at: int
-    check: PurchaseCheckOut | None = None  # только взрослым и только для pending
-
-    @classmethod
-    def of(cls, r: models.PurchaseRequest, check: "PurchaseCheckOut | None" = None) -> "PurchaseRequestOut":
-        return cls(
-            id=r.id, family_id=r.family_id, author_id=r.author_id, title=r.title,
-            amount=kop_to_amount(r.amount_kop), category=r.category, comment=r.comment, status=r.status,
-            decided_by=r.decided_by, decided_at=r.decided_at, decision_comment=r.decision_comment,
-            expense_id=r.expense.id if r.expense else None, created_at=r.created_at, check=check,
-        )
 
 
 class GoalOut(Schema):
@@ -557,12 +635,23 @@ class MeOut(Schema):
     id: str
     name: str
     role: str
-    status: str  # active | pending (ждёт подтверждения входа)
+    status: str  # active | pending | rejected
     email: str | None
     email_verified: bool
     notify_by_email: bool
     pending_email: str | None
     vtb_linked: bool
+    login_id: str | None
+    is_owner: bool
+    debt_reminder_threshold: float
+    default_split: str
+    calendar_enabled: bool
+
+
+class PreferencesOut(Schema):
+    debt_reminder_threshold: float
+    default_split: str
+    calendar_enabled: bool
 
 
 class NotificationOut(Schema):

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Bell, Check, Deposit, Users, CloseIcon } from '../components/ui/icons';
+import { Bell, Check, Users, CloseIcon } from '../components/ui/icons';
 import { T } from '@admiral-ds/react-ui';
 import type { AppNotification, User } from '../types';
 import {
@@ -7,13 +7,12 @@ import {
   errorMessage,
   listNotifications,
   markNotificationsRead,
-  removeMember,
+  rejectMember,
 } from '../api/client';
 import { useAsyncAction } from '../hooks/useAsyncAction';
 import { useDataStore } from '../store/dataStore';
-import { useFamilyStore, useIsParent } from '../store/familyStore';
+import { useFamilyStore } from '../store/familyStore';
 import { useUIStore } from '../store/uiStore';
-import { formatCurrency } from '../utils/currency';
 import { plural } from '../utils/date';
 import { InvitePanel } from '../components/family/InvitePanel';
 import { Card, PageHeader, SectionHeader } from '../components/ui/Card';
@@ -25,9 +24,7 @@ import { Disclosure } from '../components/ui/Disclosure';
 export function FamilyPage() {
   const family = useFamilyStore((s) => s.family);
   const currentUserId = useFamilyStore((s) => s.currentUserId);
-  const isParent = useIsParent();
   if (!family) return null;
-  const children = family.members.filter((m) => m.role === 'child');
 
   return (
     <>
@@ -52,7 +49,7 @@ export function FamilyPage() {
                 <li key={m.id} className="flex min-w-0 items-center gap-2 family-member-tile">
                   <Avatar user={m} />
                   <span className="flex-1 min-w-0 font-medium text-ink truncate">{m.name}</span>
-                  {m.role === 'child' && <span className="account-tag shrink-0">Ребёнок</span>}
+                  {m.isOwner && <span className="account-tag shrink-0">Владелец</span>}
                   {m.id === currentUserId && <Badge tone="accent">Вы</Badge>}
                 </li>
               ))}
@@ -62,9 +59,8 @@ export function FamilyPage() {
             )}
           </Card>
 
-          {isParent && children.length > 0 && <AllowancesCard members={children} />}
-          {isParent && !family.isDemo && <JoinRequestsCard />}
-          {isParent && (
+          {!family.isDemo && <JoinRequestsCard canDecide={!!family.isOwner} />}
+          {(
             <Card className="p-5">
               <SectionHeader title="Приглашение" subtitle="Отправьте ссылку — по ней увидят название семьи и смогут присоединиться" />
               <InvitePanel />
@@ -88,11 +84,10 @@ const FAQ = [
   ['Где посмотреть взносы семьи?', 'Откройте «Аналитика» → «Взносы и доли». Там видны доли участников, суммы к внесению и последние пополнения за выбранный месяц.'],
   ['Как разделить покупку?', 'При записи покупки выберите источник и способ деления: поровну, в долях или без деления. Если задать доли вручную, их сумма должна быть 100%.'],
   ['Как оплатить обязательный платёж?', 'Для платежей с общего счёта доступна кнопка «Оплатить сейчас». Она фиксирует списание в семейном бюджете. Если вы уже рассчитались с поставщиком, нажмите «Записать оплату».'],
-  ['Что происходит со взносом в цель?', 'Общий счёт и накопления по выбранной цели увеличиваются на сумму взноса. Взнос ребёнка также уменьшает остаток его карманных денег.'],
-  ['Как пригласить участника?', 'Отправьте ссылку из раздела «Семья» для быстрого входа. При входе по коду доступ к бюджету появится после подтверждения взрослым.'],
-  ['Кто видит данные бюджета?', 'Взрослые участники видят общий бюджет, запланированные платежи и покупки, добавленные в приложение. Личные счета и покупки вне приложения остаются приватными. Доступ проверяется на сервере.'],
-  ['Кто может изменить записи?', 'Любой взрослый участник может изменить бюджет месяца, обязательные платежи и покупки, в том числе исправить, кто платил. Ребёнок может изменить только свои покупки.'],
-  ['Что видит ребёнок?', 'Ребёнок видит свои карманные деньги, свои покупки и семейные цели. Взрослые задают лимит карманных денег.'],
+  ['Что происходит со взносом в цель?', 'Общий счёт и накопления по выбранной цели увеличиваются на сумму взноса.'],
+  ['Как пригласить участника?', 'Отправьте ссылку или код. Новый участник получит доступ к бюджету после подтверждения владельцем.'],
+  ['Кто видит данные бюджета?', 'Все подтверждённые участники видят общий бюджет, платежи и покупки. Доступ проверяется на сервере.'],
+  ['Кто может изменить записи?', 'Любой подтверждённый участник может изменить бюджет, обязательные платежи и покупки. Составом семьи управляет владелец.'],
 ] as const;
 
 function FamilyFaq() {
@@ -106,39 +101,6 @@ function FamilyFaq() {
           </Disclosure>
         ))}
       </div>
-    </Card>
-  );
-}
-
-/** Adults set each child's pocket money; spent and left come from the server */
-function AllowancesCard({ members }: { members: User[] }) {
-  const allowances = useDataStore((s) => s.allowances);
-  const openModal = useUIStore((s) => s.openModal);
-
-  return (
-    <Card className="p-5">
-      <SectionHeader title="Карманные деньги" subtitle="Лимит трат ребёнка на неделю или месяц. Сумму можно изменить в любой момент." />
-      <ul className="divide-y divide-line">
-        {members.map((child) => {
-          const a = allowances.find((x) => x.memberId === child.id);
-          return (
-            <li key={child.id} className="py-3 first:pt-1 last:pb-1 flex items-center gap-3">
-              <Avatar user={child} />
-              <span className="flex-1 min-w-0">
-                <span className="block font-medium text-ink truncate">{child.name}</span>
-                <span className="block text-sm text-ink-2">
-                  {a
-                    ? `${formatCurrency(a.amount)} ${a.period === 'week' ? 'в неделю' : 'в месяц'}, осталось ${formatCurrency(a.left)}`
-                    : 'Не назначены'}
-                </span>
-              </span>
-              <Button size="sm" variant="secondary" icon={<Deposit size={15} />} onClick={() => openModal({ type: 'allowanceForm', memberId: child.id })}>
-                {a ? 'Изменить' : 'Назначить'}
-              </Button>
-            </li>
-          );
-        })}
-      </ul>
     </Card>
   );
 }
@@ -235,8 +197,8 @@ function EventsCard() {
   );
 }
 
-/** People who joined by code: they see nothing of the family until an adult lets them in */
-function JoinRequestsCard() {
+/** People who joined by code: all members see requests, only the owner sees decision buttons. */
+function JoinRequestsCard({ canDecide }: { canDecide: boolean }) {
   const pending = useFamilyStore((s) => s.family?.pendingMembers ?? []);
   if (pending.length === 0) return null;
 
@@ -244,21 +206,21 @@ function JoinRequestsCard() {
     <Card className="p-5">
       <SectionHeader
         title="Заявки на вход"
-        subtitle="Вошли по коду семьи и ждут подтверждения. Пока вы не подтвердите вход, они не видят данных семьи."
+        subtitle="Ожидающие не видят бюджет до решения владельца семьи."
       />
       <ul className="divide-y divide-line">
         {pending.map((m) => (
-          <JoinRequestRow key={m.id} member={m} />
+          <JoinRequestRow key={m.id} member={m} canDecide={canDecide} />
         ))}
       </ul>
     </Card>
   );
 }
 
-function JoinRequestRow({ member }: { member: User }) {
+function JoinRequestRow({ member, canDecide }: { member: User; canDecide: boolean }) {
   const addToast = useUIStore((s) => s.addToast);
   const approve = useAsyncAction(approveMember);
-  const decline = useAsyncAction(removeMember);
+  const decline = useAsyncAction(rejectMember);
   const busy = approve.pending || decline.pending;
   const error = approve.error ?? decline.error;
 
@@ -268,8 +230,9 @@ function JoinRequestRow({ member }: { member: User }) {
         <Avatar user={member} />
         <span className="flex-1 min-w-0">
           <span className="block font-medium text-ink truncate">{member.name}</span>
-          <span className="block text-sm text-ink-2">{member.role === 'child' ? 'Ребёнок' : 'Взрослый'}</span>
+          <span className="block text-sm text-ink-2">Ожидает подтверждения</span>
         </span>
+        {canDecide && <>
         <Button
           size="sm"
           icon={<Check size={15} />}
@@ -296,6 +259,7 @@ function JoinRequestRow({ member }: { member: User }) {
         >
           <span className="hidden sm:inline">Отклонить</span>
         </Button>
+        </>}
       </div>
       {error && <p role="alert" className="text-sm text-danger mt-2">{error}</p>}
     </li>

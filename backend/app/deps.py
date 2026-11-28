@@ -60,24 +60,29 @@ AnyMember = Annotated[Member, Depends(any_member)]
 
 
 async def current_member(member: AnyMember) -> Member:
-    if member.pending:
+    if member.status != "active":
         raise PendingApproval()
     return member
 
 
 CurrentMember = Annotated[Member, Depends(current_member)]
 
-PARENT_ONLY = "Это доступно только взрослым участникам семьи"
-
-
 async def parent_member(member: CurrentMember) -> Member:
-    if not member.is_parent:
-        raise Forbidden(PARENT_ONLY)
+    """Устаревшее имя зависимости: в v2 права есть у любого активного участника."""
     return member
 
 
-# Взрослый участник: бюджет, платежи, сводки, приглашения, управление семьёй (docs/FEATURES.md §1)
+# Сохранено как псевдоним для совместимости внутренних маршрутов.
 ParentMember = Annotated[Member, Depends(parent_member)]
+
+
+async def owner_member(member: CurrentMember) -> Member:
+    if member.family.owner_id != member.id:
+        raise Forbidden("Это действие доступно только владельцу семьи")
+    return member
+
+
+OwnerMember = Annotated[Member, Depends(owner_member)]
 
 
 def mark_silent(request: Request) -> None:

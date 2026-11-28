@@ -1,21 +1,94 @@
-"""Прогноз месяца и расчёты между взрослыми (docs/FEATURES.md §5, §7)."""
-from sqlalchemy import select
+"""Аналитика, календарь и совместимые расчёты месяца."""
+import calendar as month_calendar
+from datetime import date
+
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import clock
 from ..domain.forecast import Forecast, compute_forecast
-from ..domain.settlement import compute_balances, split_by_percentages, split_evenly, transfers
-from ..errors import Forbidden, NotFound, ValidationFailed
-from ..models import Budget, Expense, Member, Settlement
+from ..domain.settlement import compute_balances, split_evenly, transfers
+from ..errors import NotFound, ValidationFailed
+from ..models import Budget, Expense, Member, Payment, Settlement
 from ..schemas import (
+    AnalyticsCategoryOut,
+    AnalyticsMonthOut,
+    AnalyticsOut,
+    CalendarDayOut,
+    CalendarOut,
+    ExpenseOut,
+    PaymentOut,
     RecordedSettlementOut,
     SettlementIn,
     SettlementMemberOut,
     SettlementOut,
     TransferOut,
 )
-from ..validation import amount_to_kop, check_month_key, kop_to_amount
-from . import families, finance
+from ..validation import amount_to_kop, check_month_key, kop_to_amount, month_bounds, shift_month
+from . import account, families, finance
+
+
+async def analytics(db: AsyncSession, family_id: str, month_key: str, months: int) -> AnalyticsOut:
+    check_month_key(month_key, "month")
+    keys = [shift_month(month_key, offset) for offset in range(-(months - 1), 1)]
+    series: list[AnalyticsMonthOut] = []
+    previous = None
+    today = clock.today()
+    for key in keys:
+        start, end = month_bounds(key)
+        total = int(await db.scalar(select(func.coalesce(func.sum(Expense.amount_kop), 0)).where(
+            Expense.family_id == family_id, Expense.date >= start, Expense.date < end)))
+        cutoff = min(today, date.fromordinal(end.toordinal() - 1))
+        balance = await account.balance_at(db, family_id, cutoff)
+        change = None if previous in (None, 0) else (total - previous) * 100 / previous
+        series.append(AnalyticsMonthOut(month=key, expenses=kop_to_amount(total),
+                                        account_balance=kop_to_amount(balance), expense_change_percent=change))
+        previous = total
+
+    start, end = month_bounds(month_key)
+    rows = (await db.execute(select(Expense.category, func.sum(Expense.amount_kop)).where(
+        Expense.family_id == family_id, Expense.date >= start, Expense.date < end
+    ).group_by(Expense.category))).all()
+    total = sum(value for _, value in rows)
+    categories = sorted([
+        AnalyticsCategoryOut(category=category, amount=kop_to_amount(value),
+                             percent=value * 100 / total if total else 0)
+        for category, value in rows
+    ], key=lambda item: item.amount, reverse=True)
+    return AnalyticsOut(month=month_key, series=series, categories=categories,
+                        top_categories=categories[:5], account=await account.summary(db, family_id, month_key),
+                        payments=[PaymentOut.of(p) for p in await finance.list_payments(db, family_id, month_key)])
+
+
+async def calendar(db: AsyncSession, family_id: str, month_key: str) -> CalendarOut:
+    check_month_key(month_key, "month")
+    start, end = month_bounds(month_key)
+    today = clock.today()
+    expenses = await finance.list_expenses(db, family_id, month_key)
+    month_payments = await finance.list_payments(db, family_id, month_key)
+    projected = list(await db.scalars(select(Payment).where(
+        Payment.family_id == family_id, Payment.status == "upcoming", Payment.source == "shared",
+        Payment.due_date < end,
+    ).order_by(Payment.due_date)))
+    current_balance = await account.balance_at(db, family_id, today)
+    days = []
+    for day_number in range(1, month_calendar.monthrange(start.year, start.month)[1] + 1):
+        on = date(start.year, start.month, day_number)
+        day_expenses = [row for row in expenses if row.date == on]
+        day_payments = [row for row in month_payments if row.due_date == on]
+        if on < today:
+            balance = await account.balance_at(db, family_id, on)
+        else:
+            planned = sum(row.amount_kop for row in projected if max(row.due_date, today) <= on)
+            balance = current_balance - planned
+        days.append(CalendarDayOut(
+            date=on.isoformat(), expenses=[ExpenseOut.of(row) for row in day_expenses],
+            expense_total=kop_to_amount(sum(row.amount_kop for row in day_expenses)),
+            payments=[PaymentOut.of(row) for row in day_payments], account_balance=kop_to_amount(balance),
+        ))
+    upcoming = [row for row in projected if row.status == "upcoming"
+                and start <= max(row.due_date, today) < end]
+    return CalendarOut(month=month_key, days=days, upcoming_payments=[PaymentOut.of(row) for row in upcoming])
 
 
 async def forecast(db: AsyncSession, family_id: str, month_key: str) -> Forecast:
@@ -27,12 +100,12 @@ async def forecast(db: AsyncSession, family_id: str, month_key: str) -> Forecast
 
 
 async def _participants(db: AsyncSession, family_id: str, expenses: list[Expense]) -> list[Member]:
-    """Текущие взрослые + вышедшие взрослые, если они платили в этом месяце; по порядку вступления."""
+    """Текущие участники + вышедшие, если они платили в этом месяце."""
     family = await families.load_family(db, family_id)
     participants = {e.paid_by for e in expenses}
     for expense in expenses:
         participants.update(expense.split_members or [])
-    return [m for m in family.members if m.is_parent and (m.active or m.id in participants)]
+    return [m for m in family.members if m.active or m.id in participants]
 
 
 async def settlement(db: AsyncSession, family_id: str, month_key: str) -> SettlementOut:
@@ -45,13 +118,12 @@ async def settlement(db: AsyncSession, family_id: str, month_key: str) -> Settle
     shares: dict[str, int] = {}
     legacy_total = 0
     for e in expenses:
-        if e.paid_by in ids:  # траты ребёнка из карманных не делятся
+        if e.paid_by in ids:
             paid[e.paid_by] = paid.get(e.paid_by, 0) + e.amount_kop
             if e.account_mode is None or not e.split_members:
                 legacy_total += e.amount_kop
                 continue
-            allocation = (split_by_percentages(e.amount_kop, e.split_percentages) if e.split_percentages
-                          else split_evenly(e.amount_kop, e.split_members))
+            allocation = account.expense_shares(e)
             for member_id, amount in allocation.items():
                 shares[member_id] = shares.get(member_id, 0) + amount
     for member_id, amount in split_evenly(legacy_total, ids).items():
@@ -85,10 +157,10 @@ async def settlement(db: AsyncSession, family_id: str, month_key: str) -> Settle
 async def record_settlement(db: AsyncSession, member: Member, month_key: str, body: SettlementIn) -> None:
     check_month_key(month_key, "month")
     family = await families.load_family(db, member.family_id)
-    adults = {m.id for m in family.members if m.active and m.is_parent}
-    if body.from_id not in adults:
+    participants = {m.id for m in family.members if m.active}
+    if body.from_id not in participants:
         raise ValidationFailed("Участник не найден", "fromId")
-    if body.to_id not in adults:
+    if body.to_id not in participants:
         raise ValidationFailed("Участник не найден", "toId")
     if body.from_id == body.to_id:
         raise ValidationFailed("Нельзя перевести самому себе", "toId")
@@ -101,7 +173,5 @@ async def delete_settlement(db: AsyncSession, member: Member, month_key: str, se
     record = await db.get(Settlement, settlement_id)
     if record is None or record.family_id != member.family_id or record.month_key != month_key:
         raise NotFound("Отметка не найдена")
-    if record.created_by != member.id:
-        raise Forbidden("Удалить отметку может только тот, кто её сделал")
     await db.delete(record)
     await db.flush()

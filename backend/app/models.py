@@ -6,7 +6,7 @@ import time
 import uuid
 from datetime import date
 
-from sqlalchemy import JSON, BigInteger, Date, ForeignKey, Index, String, UniqueConstraint, text
+from sqlalchemy import JSON, BigInteger, Date, ForeignKey, Index, Integer, String, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
@@ -26,13 +26,15 @@ class Family(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     name: Mapped[str] = mapped_column(String(80))
     invite_code: Mapped[str] = mapped_column(String(6), unique=True)
-    # Постоянный детский код: вошедший по нему — ребёнок (после подтверждения взрослым)
-    child_invite_code: Mapped[str | None] = mapped_column(String(6), unique=True, default=None)
+    # Владелец подтверждает заявки и управляет составом семьи. При создании заполняется после INSERT участника.
+    owner_id: Mapped[str | None] = mapped_column(
+        ForeignKey("members.id", ondelete="SET NULL", use_alter=True), index=True, default=None
+    )
     is_demo: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[int] = mapped_column(BigInteger, default=now_ms)
 
     members: Mapped[list["Member"]] = relationship(
-        back_populates="family", order_by="Member.joined_at", lazy="selectin"
+        back_populates="family", order_by="Member.joined_at", lazy="selectin", foreign_keys="Member.family_id"
     )
 
 
@@ -47,10 +49,18 @@ class Member(Base):
     color: Mapped[str] = mapped_column(String(7))
     joined_at: Mapped[int] = mapped_column(BigInteger, default=now_ms)
     left_at: Mapped[int | None] = mapped_column(BigInteger, default=None)
-    # parent — взрослый, управляет деньгами семьи; child — ребёнок, видит только свои карманные деньги
-    role: Mapped[str] = mapped_column(String(8), default="parent", server_default="parent")
-    # pending — вошёл по коду и ждёт подтверждения взрослого: данных семьи не видит; active — участник
+    # Оставлено для совместимости ответов старого фронта; в v2 у всех роль member.
+    role: Mapped[str] = mapped_column(String(8), default="member", server_default="member")
+    # pending — вошёл по приглашению и ждёт подтверждения владельца; active — участник
     status: Mapped[str] = mapped_column(String(8), default="active", server_default="active")
+    # Прототип входа до ВТБ ID. Открытое значение доступно только самому участнику, хеш используется для поиска.
+    login_id: Mapped[str | None] = mapped_column(String(11), default=None)
+    login_id_hash: Mapped[str | None] = mapped_column(String(64), unique=True, index=True, default=None)
+    debt_reminder_threshold_kop: Mapped[int] = mapped_column(
+        BigInteger, default=100_000, server_default=text("100000")
+    )
+    default_split: Mapped[str] = mapped_column(String(8), default="ask", server_default="ask")
+    calendar_enabled: Mapped[bool] = mapped_column(default=True, server_default=text("true"))
     # E-mail для уведомлений (docs/FEATURES.md §9): только подтверждённый получает письма.
     # Код подтверждения хранится хешем; при выходе из семьи всё стирается
     email: Mapped[str | None] = mapped_column(String(254), default=None)
@@ -63,7 +73,7 @@ class Member(Base):
     # Учётная запись ВТБ ID (sub из id_token); одна учётная запись — один участник
     oidc_sub: Mapped[str | None] = mapped_column(String(255), unique=True, default=None)
 
-    family: Mapped[Family] = relationship(back_populates="members", lazy="joined")
+    family: Mapped[Family] = relationship(back_populates="members", lazy="joined", foreign_keys=[family_id])
 
     @property
     def present(self) -> bool:
@@ -81,25 +91,16 @@ class Member(Base):
 
     @property
     def is_parent(self) -> bool:
-        return self.role == "parent"
+        """Устаревший псевдоним: все активные участники v2 равноправны."""
+        return True
 
-
-class ChildInvite(Base):
-    """Одноразовое приглашение ребёнка: кто войдёт по нему, получит роль child."""
-
-    __tablename__ = "child_invites"
-
-    code: Mapped[str] = mapped_column(String(6), primary_key=True)
-    family_id: Mapped[str] = mapped_column(ForeignKey("families.id", ondelete="CASCADE"), index=True)
-    created_by: Mapped[str | None] = mapped_column(ForeignKey("members.id", ondelete="SET NULL"))
-    created_at: Mapped[int] = mapped_column(BigInteger, default=now_ms)
-    expires_at: Mapped[int] = mapped_column(BigInteger)
-    used_at: Mapped[int | None] = mapped_column(BigInteger, default=None)
-    used_by: Mapped[str | None] = mapped_column(ForeignKey("members.id", ondelete="SET NULL"), default=None)
+    @property
+    def is_owner(self) -> bool:
+        return self.family.owner_id == self.id
 
 
 class InviteLink(Base):
-    """Многоразовая ссылка-приглашение: вошедшие по ней сразу в семье, без подтверждения (docs/FEATURES.md §1).
+    """Многоразовая ссылка-приглашение: вошедшие по ней ждут подтверждения владельца.
     Действует до отзыва или срока. Хранится только SHA-256 кода — как у токенов сессий."""
 
     __tablename__ = "invite_links"
@@ -107,7 +108,7 @@ class InviteLink(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     family_id: Mapped[str] = mapped_column(ForeignKey("families.id", ondelete="CASCADE"), index=True)
     code_hash: Mapped[str] = mapped_column(String(64), unique=True)
-    role: Mapped[str] = mapped_column(String(8))
+    role: Mapped[str] = mapped_column(String(8), default="member", server_default="member")
     created_by: Mapped[str | None] = mapped_column(ForeignKey("members.id", ondelete="SET NULL"))
     created_at: Mapped[int] = mapped_column(BigInteger, default=now_ms)
     expires_at: Mapped[int] = mapped_column(BigInteger)
@@ -146,8 +147,8 @@ class Payment(Base):
     __tablename__ = "payments"
     __table_args__ = (
         Index("ix_payments_family_due", "family_id", "due_date"),
-        # Один платёж серии на месяц: несколько копий backend не создадут дубль
-        UniqueConstraint("series_id", "series_month", name="uq_payments_series_month"),
+        # Один экземпляр серии на дату: несколько реплик backend не создадут дубль.
+        UniqueConstraint("series_id", "due_date", name="uq_payments_series_due"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
@@ -159,12 +160,27 @@ class Payment(Base):
     status: Mapped[str] = mapped_column(String(16), default="upcoming")  # upcoming | paid
     author_id: Mapped[str | None] = mapped_column(ForeignKey("members.id", ondelete="SET NULL"))
     created_at: Mapped[int] = mapped_column(BigInteger, default=now_ms)
-    # Повторяющийся платёж (docs/FEATURES.md §6): серия — платежи с одним series_id, по одному на месяц
+    # Повторяющийся платёж: серия — вхождения с одним series_id и уникальной датой.
     recurring: Mapped[bool] = mapped_column(default=False, server_default=text("false"))
     series_id: Mapped[str | None] = mapped_column(String(36), default=None)
     series_month: Mapped[str | None] = mapped_column(String(7), default=None)
+    series_sequence: Mapped[int | None] = mapped_column(Integer, default=None)
+    recurrence_rule: Mapped[dict | None] = mapped_column(JSON, default=None)
 
     account_mode: Mapped[str | None] = mapped_column(String(16), default=None)
+    source: Mapped[str] = mapped_column(String(12), default="shared", server_default="shared")
+    split_mode: Mapped[str] = mapped_column(String(8), default="none", server_default="none")
+    split_members: Mapped[list[str] | None] = mapped_column(JSON, default=None)
+    split_shares: Mapped[dict[str, int] | None] = mapped_column(JSON, default=None)
+    amount_mode: Mapped[str] = mapped_column(String(8), default="fixed", server_default="fixed")
+    payment_method: Mapped[str] = mapped_column(String(8), default="manual", server_default="manual")
+    autopay_type: Mapped[str | None] = mapped_column(String(16), default=None)
+    provider_category: Mapped[str | None] = mapped_column(String(20), default=None)
+    provider_name: Mapped[str | None] = mapped_column(String(120), default=None)
+    provider_identifier: Mapped[str | None] = mapped_column(String(120), default=None)
+    limit_amount_kop: Mapped[int | None] = mapped_column(BigInteger, default=None)
+    payment_details: Mapped[dict | None] = mapped_column(JSON, default=None)
+    invoice_issued_at: Mapped[int | None] = mapped_column(BigInteger, default=None)
 
     # Расход, в который превратился платёж (связь хранится на стороне расхода)
     expense: Mapped["Expense | None"] = relationship(back_populates="payment", lazy="selectin", uselist=False)
@@ -194,12 +210,11 @@ class Expense(Base):
     # Кто платил (по умолчанию автор) — для расчёта «кто кому должен» (docs/FEATURES.md §7)
     paid_by: Mapped[str | None] = mapped_column(ForeignKey("members.id", ondelete="SET NULL"), default=None)
     account_mode: Mapped[str | None] = mapped_column(String(16), default=None)
+    source: Mapped[str] = mapped_column(String(12), default="shared", server_default="shared")
+    split_mode: Mapped[str] = mapped_column(String(8), default="none", server_default="none")
     split_members: Mapped[list[str] | None] = mapped_column(JSON, default=None)
     split_percentages: Mapped[dict[str, int] | None] = mapped_column(JSON, default=None)
-    # Расход создан одобрением запроса на покупку (§3) — не уменьшает карманные деньги
-    request_id: Mapped[str | None] = mapped_column(
-        ForeignKey("purchase_requests.id", ondelete="SET NULL"), unique=True, default=None
-    )
+    split_shares: Mapped[dict[str, int] | None] = mapped_column(JSON, default=None)
     # SHA-256 фискальных реквизитов чека (fn:i:fp); сами реквизиты не храним
     receipt_key: Mapped[str | None] = mapped_column(String(64), default=None)
     import_fingerprint: Mapped[str | None] = mapped_column(String(64), default=None)
@@ -207,7 +222,6 @@ class Expense(Base):
 
     author: Mapped[Member | None] = relationship(lazy="selectin", foreign_keys=[author_id])
     payment: Mapped[Payment | None] = relationship(back_populates="expense")
-    request: Mapped["PurchaseRequest | None"] = relationship(back_populates="expense")
 
 
 class AccountContribution(Base):
@@ -222,41 +236,6 @@ class AccountContribution(Base):
     amount_kop: Mapped[int] = mapped_column(BigInteger)
     date: Mapped[date] = mapped_column(Date)
     created_at: Mapped[int] = mapped_column(BigInteger, default=now_ms)
-
-
-class Allowance(Base):
-    """Карманные деньги ребёнка: лимит трат на неделю или месяц (docs/FEATURES.md §2)."""
-
-    __tablename__ = "allowances"
-
-    member_id: Mapped[str] = mapped_column(ForeignKey("members.id", ondelete="CASCADE"), primary_key=True)
-    family_id: Mapped[str] = mapped_column(ForeignKey("families.id", ondelete="CASCADE"), index=True)
-    amount_kop: Mapped[int] = mapped_column(BigInteger)
-    period: Mapped[str] = mapped_column(String(8))  # week | month
-    updated_at: Mapped[int] = mapped_column(BigInteger, default=now_ms, onupdate=now_ms)
-    updated_by: Mapped[str | None] = mapped_column(ForeignKey("members.id", ondelete="SET NULL"))
-
-
-class PurchaseRequest(Base):
-    """Запрос на покупку: участник просит, взрослый одобряет или отклоняет (§3)."""
-
-    __tablename__ = "purchase_requests"
-    __table_args__ = (Index("ix_purchase_requests_family_status", "family_id", "status"),)
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
-    family_id: Mapped[str] = mapped_column(ForeignKey("families.id", ondelete="CASCADE"))
-    author_id: Mapped[str | None] = mapped_column(ForeignKey("members.id", ondelete="SET NULL"), index=True)
-    title: Mapped[str] = mapped_column(String(120))
-    amount_kop: Mapped[int] = mapped_column(BigInteger)
-    category: Mapped[str] = mapped_column(String(16))
-    comment: Mapped[str | None] = mapped_column(String(300), default=None)
-    status: Mapped[str] = mapped_column(String(10), default="pending")  # pending|approved|rejected|cancelled
-    decided_by: Mapped[str | None] = mapped_column(ForeignKey("members.id", ondelete="SET NULL"), default=None)
-    decided_at: Mapped[int | None] = mapped_column(BigInteger, default=None)
-    decision_comment: Mapped[str | None] = mapped_column(String(300), default=None)
-    created_at: Mapped[int] = mapped_column(BigInteger, default=now_ms)
-
-    expense: Mapped[Expense | None] = relationship(back_populates="request", lazy="selectin", uselist=False)
 
 
 class Goal(Base):

@@ -13,7 +13,7 @@ import { EmptyState } from '../ui/Feedback';
 import { ProgressBar } from '../ui/ProgressBar';
 
 /**
- * Family savings goals. Adults create and change them, anyone contributes.
+ * Family savings goals. Every active participant may create, change and contribute.
  * A contribution increases the savings progress and the shared account balance.
  */
 export function GoalsCard() {
@@ -23,7 +23,7 @@ export function GoalsCard() {
   const shown = goals.filter((g) => g.status !== 'archived');
   const archived = goals.length - shown.length;
 
-  // A child cannot create goals: an empty card would only be noise
+  // Keep the compact empty state when goal creation is unavailable.
   if (!isParent && shown.length === 0) return null;
 
   return (

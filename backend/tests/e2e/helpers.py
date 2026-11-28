@@ -66,7 +66,7 @@ def create_family(client: httpx.Client, family: str = "Ивановы", user: st
 
 
 def join(client: httpx.Client, code: "Member | str", user: str = "Борис") -> Member:
-    """Вход по коду. Передан взрослый — входим по коду его семьи, и он сразу подтверждает вход;
+    """Вход по коду. Передан владелец — входим по коду его семьи, и он сразу подтверждает вход;
     передан код — участник остаётся ждать подтверждения (docs/FEATURES.md §1)."""
     approver = code if isinstance(code, Member) else None
     r = client.post(f"/api/invites/{approver.invite_code if approver else code}/join", json={"userName": user})
@@ -75,8 +75,8 @@ def join(client: httpx.Client, code: "Member | str", user: str = "Борис") -
     return approve(approver, member) if approver else member
 
 
-def approve(parent: Member, member: Member) -> Member:
-    r = parent.post(f"/api/family/members/{member.id}/approve")
+def approve(owner: Member, member: Member) -> Member:
+    r = owner.post(f"/api/family/members/{member.id}/approve")
     assert r.status_code == 200, r.text
     member.invite_code = member.get("/api/family").json()["inviteCode"]  # до подтверждения код не виден
     return member
@@ -180,19 +180,6 @@ class EventStream:
             self._cm.__exit__(None, None, None)
         except Exception:
             pass
-
-
-def add_child(parent: Member, client: httpx.Client, name: str = "Соня") -> Member:
-    """Ребёнок входит по детскому коду семьи, взрослый подтверждает."""
-    r = parent.post("/api/family/child-invites")
-    assert r.status_code == 200, r.text
-    return approve(parent, join(client, r.json()["code"], name))
-
-
-def set_allowance(parent: Member, child: Member, amount: float = 1000, period: str = "week") -> dict:
-    r = parent.put(f"/api/family/members/{child.id}/allowance", {"amount": amount, "period": period})
-    assert r.status_code == 200, r.text
-    return r.json()
 
 
 def receipt_qr(amount: str = "1250.50", fp: str = "3826443159", when: str = "20261021T1530") -> str:

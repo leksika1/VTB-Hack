@@ -2,25 +2,28 @@
 
 export type ExpenseCategory = 'food' | 'housing' | 'transport' | 'kids' | 'other';
 
-/** parent — manages the family money; child — sees only own expenses and pocket money */
-export type Role = 'parent' | 'child';
+/** In v2 every confirmed person is an equal family member. */
+export type Role = 'member';
 
 export interface User {
   id: string;
   name: string;
   color: string;
   role?: Role;
+  isOwner?: boolean;
+  status?: 'active' | 'pending' | 'rejected';
+  requestedAt?: number | null;
 }
 
 export interface Family {
   id: string;
   name: string;
-  /** Family code (joins as an adult after approval). null for a child and for someone still waiting */
+  ownerId?: string | null;
+  isOwner?: boolean;
+  /** Family code. null only while the current viewer waits for approval. */
   inviteCode: string | null;
-  /** Permanent child code. Only adults see it */
-  childInviteCode?: string | null;
   members: User[];
-  /** People who joined by code and wait for an adult to let them in. Only adults see them */
+  /** People who joined by code and wait for the owner. All active members can see them. */
   pendingMembers?: User[];
   /** The viewer is waiting for approval: sees only the family name and themselves */
   pending?: boolean;
@@ -34,7 +37,7 @@ export interface InvitePreview {
   familyName: string;
   membersCount: number;
   role: Role;
-  /** false — invite link: joins at once; true — family or child code: an adult approves first */
+  /** In v2 every family code and invite link requires owner approval. */
   needsApproval: boolean;
 }
 
@@ -55,20 +58,10 @@ export interface Me {
   id: string;
   name: string;
   role: Role;
-  status?: 'active' | 'pending';
+  status?: 'active' | 'pending' | 'rejected';
   vtbLinked: boolean;
-}
-
-/** Pocket money of a child: a spending limit for a week or a month */
-export interface Allowance {
-  memberId: string;
-  amount: number;
-  period: 'week' | 'month';
-  periodStart: string;
-  periodEnd: string;
-  spent: number;
-  left: number;
-  updatedAt: number;
+  loginId?: string | null;
+  isOwner?: boolean;
 }
 
 /** Family plan for one month. A limit, not money that is guaranteed to exist. */
@@ -109,8 +102,6 @@ export interface Expense {
   splitPercentages?: Record<string, number> | null;
   /** Who paid; by default the author */
   paidBy?: string | null;
-  /** Created from an approved purchase request */
-  requestId?: string | null;
   createdAt: number;
 }
 

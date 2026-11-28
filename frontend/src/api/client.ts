@@ -5,9 +5,9 @@
  */
 import { budgetKey, useDataStore } from '../store/dataStore';
 import { useFamilyStore } from '../store/familyStore';
+import { useUIStore } from '../store/uiStore';
 import type {
   AccountContribution, AccountMode,
-  Allowance,
   AppNotification,
   Expense,
   ExpenseCategory,
@@ -84,6 +84,7 @@ interface SessionResponse {
   token: string;
   currentUserId: string;
   family: Family;
+  loginId?: string | null;
 }
 
 interface StateResponse {
@@ -93,13 +94,12 @@ interface StateResponse {
   budgets: MonthlyBudget[];
   expenses: Expense[];
   payments: Payment[];
-  allowances?: Allowance[];
   unreadNotifications?: number;
 }
 
 function clearSession() {
   const { family, savedSession } = useFamilyStore.getState();
-  useDataStore.setState({ budgets: {}, expenses: [], payments: [], allowances: [], goals: [], unreadNotifications: 0, accountContributions: [] });
+  useDataStore.setState({ budgets: {}, expenses: [], payments: [], goals: [], unreadNotifications: 0, accountContributions: [] });
   // The demo copy was left or has expired: back to the real account that was open before it
   if (family?.isDemo && savedSession) {
     useFamilyStore.setState({ ...savedSession, savedSession: null });
@@ -115,7 +115,6 @@ function applyState(state: StateResponse, unread: number) {
     budgets: Object.fromEntries(state.budgets.map((b) => [budgetKey(b.familyId, b.monthKey), b])),
     expenses: state.expenses,
     payments: state.payments,
-    allowances: state.allowances ?? [],
     unreadNotifications: unread,
     accountContributions: state.accountContributions ?? [],
   });
@@ -139,6 +138,7 @@ async function loadState(): Promise<void> {
 async function startSession(session: SessionResponse): Promise<Family> {
   useFamilyStore.setState({ token: session.token, family: session.family, currentUserId: session.currentUserId });
   await loadState();
+  if (session.loginId) useUIStore.getState().addToast(`Сохраните личный ID для входа: ${session.loginId}`, 'info');
   return session.family;
 }
 
@@ -232,7 +232,14 @@ export async function createFamily(familyName: string, userName: string, request
   return startSession(session);
 }
 
-/** What the invited person sees before joining: family name, members, with which role and whether an adult approves */
+export async function loginById(loginId: string): Promise<Family> {
+  const session = await request<SessionResponse>('/auth/login', {
+    method: 'POST', body: { loginId: loginId.trim().toUpperCase() }, anonymous: true,
+  });
+  return startSession(session);
+}
+
+/** What the invited person sees before joining: family name, members and owner-approval requirement. */
 export async function getInvitePreview(code: string): Promise<InvitePreview> {
   const normalized = normalizeInviteCode(code);
   return request<InvitePreview>(`/invites/${normalized}`, { anonymous: true });
@@ -240,14 +247,14 @@ export async function getInvitePreview(code: string): Promise<InvitePreview> {
 
 function normalizeInviteCode(code: string): string {
   const normalized = code.trim().toUpperCase();
-  // 6 characters: family or child code; 16: invite link (joins without approval)
+  // 6 characters: family code; 16: invite link. Both require owner approval.
   if (!/^[A-Z0-9]{6}([A-Z0-9]{10})?$/.test(normalized)) {
     throw new ApiError('Код — 6 латинских букв и цифр, код из ссылки — 16', 'code');
   }
   return normalized;
 }
 
-/** Join by a family code, child code or invite link. By code the member waits for approval (family.pending). */
+/** Join by a family code or invite link. The new member always waits for owner approval. */
 export async function joinFamily(code: string, userName: string, requestId: string): Promise<Family> {
   const normalized = normalizeInviteCode(code);
   const session = await withLinkToken((oidcLinkToken) =>
@@ -301,9 +308,9 @@ export async function reloadState(): Promise<void> {
   await loadState();
 }
 
-/* ── Members and invites (adults) ── */
+/* ── Members and invites ── */
 
-/** Invite link: whoever opens it joins at once, without approval. The code is shown only now */
+/** Invite link: whoever opens it creates a request for the owner. The code is shown only now. */
 export async function createInviteLink(role: Role): Promise<InviteLink> {
   return request<InviteLink>('/family/invite-links', { method: 'POST', body: { role } });
 }
@@ -311,6 +318,13 @@ export async function createInviteLink(role: Role): Promise<InviteLink> {
 export async function approveMember(memberId: string): Promise<void> {
   const family = await request<Family>(`/family/members/${memberId}/approve`, { method: 'POST' });
   useFamilyStore.setState({ family });
+}
+
+export async function rejectMember(memberId: string): Promise<void> {
+  await request<void>(`/family/members/${memberId}/reject`, { method: 'POST' });
+  useFamilyStore.setState((s) => s.family ? {
+    family: { ...s.family, pendingMembers: s.family.pendingMembers?.filter((m) => m.id !== memberId) },
+  } : s);
 }
 
 /** Decline a join request (or remove a member) */
@@ -664,23 +678,6 @@ export async function copyPaymentsFromPreviousMonth(monthKey: string): Promise<n
   return result.added;
 }
 
-/* ── Pocket money (docs/FEATURES.md §2, adults) ── */
-
-export async function saveAllowance(memberId: string, amount: number, period: 'week' | 'month', requestId: string): Promise<Allowance> {
-  const saved = await request<Allowance>(`/family/members/${memberId}/allowance`, {
-    method: 'PUT',
-    body: { amount, period },
-    requestId,
-  });
-  useDataStore.setState((s) => ({ allowances: [...s.allowances.filter((a) => a.memberId !== memberId), saved] }));
-  return saved;
-}
-
-export async function deleteAllowance(memberId: string): Promise<void> {
-  await request<void>(`/family/members/${memberId}/allowance`, { method: 'DELETE' });
-  useDataStore.setState((s) => ({ allowances: s.allowances.filter((a) => a.memberId !== memberId) }));
-}
-
 /* ── Savings goals (§4) ── */
 
 export interface GoalInput {
@@ -717,7 +714,7 @@ export async function deleteGoal(id: string): Promise<void> {
   useDataStore.setState((s) => ({ goals: s.goals.filter((g) => g.id !== id) }));
 }
 
-/** A child contributes from pocket money, so the allowance changes too — the state is reloaded */
+/** A contribution also tops up the shared account. */
 export async function contributeToGoal(id: string, amount: number, requestId: string): Promise<Goal> {
   const { goal, accountContribution } = await request<{ goal: Goal; accountContribution?: AccountContribution | null }>(
     `/goals/${id}/contributions`, { method: 'POST', body: { amount }, requestId },

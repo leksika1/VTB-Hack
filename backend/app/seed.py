@@ -3,8 +3,7 @@
 
 Одна на сервер, с фиксированным id, поэтому запуск повторяется безопасно (в том числе из нескольких копий
 backend одновременно). Войти:
-  - по коду семьи (печатается командой; постоянный — SHOWCASE_INVITE_CODE) — новым взрослым участником;
-  - по одноразовому детскому коду (печатается командой) — ребёнком;
+  - по коду семьи (печатается командой; постоянный — SHOWCASE_INVITE_CODE) — новым участником;
   - через тестовый ВТБ ID (OIDC_MOCK=true) логинами petya, masha, sonya — участниками витрины.
 Даты в данных — относительно дня создания, поэтому витрину стоит пересоздавать (--reset) перед показом.
 
@@ -23,7 +22,6 @@ from sqlalchemy.exc import IntegrityError
 from . import db, infra
 from .config import get_settings
 from .models import Family
-from .services.families import ensure_child_code
 from .validation import normalize_invite_code
 from .oidc import mock_sub
 from .services.demo import build_sample_family
@@ -60,13 +58,11 @@ async def ensure_showcase(reset: bool = False, session_factory=None) -> bool:
     return True
 
 
-async def showcase_codes(session_factory=None) -> tuple[str, str]:
-    """Код семьи витрины и её постоянный детский код."""
+async def showcase_code(session_factory=None) -> str:
+    """Код семьи витрины."""
     async with (session_factory or db.session)() as session:
         family = await session.get(Family, SHOWCASE_ID)
-        child_code = await ensure_child_code(session, family)
-        await session.commit()
-        return family.invite_code, child_code
+        return family.invite_code
 
 
 async def _main(reset: bool) -> None:
@@ -76,10 +72,9 @@ async def _main(reset: bool) -> None:
     try:
         created = await ensure_showcase(reset=reset)
         print("Витрина создана" if created else "Витрина уже есть (для пересоздания: --reset)")
-        family_code, child_code = await showcase_codes()
-        print(f"Код семьи (вход взрослым): {family_code}")
-        print(f"Детский код (вход ребёнком): {child_code}")
-        print("Вошедшие по коду видят данные после подтверждения: Петя или Маша → вкладка «Семья»")
+        family_code = await showcase_code()
+        print(f"Код семьи: {family_code}")
+        print("Вошедшие по коду видят данные после подтверждения владельцем Петей")
     finally:
         await infra.close_redis()
         await db.dispose_engine()

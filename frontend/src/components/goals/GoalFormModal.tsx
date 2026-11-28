@@ -11,7 +11,7 @@ import { AmountField, Field, FormError } from '../ui/Field';
 import { Button } from '../ui/Button';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 
-/** Create or change a savings goal (adults). A goal with contributions is archived instead of deleted */
+/** Create or change a savings goal. A goal with contributions is archived instead of deleted. */
 export function GoalFormModal({ goalId }: { goalId?: string }) {
   const closeModal = useUIStore((s) => s.closeModal);
   const addToast = useUIStore((s) => s.addToast);

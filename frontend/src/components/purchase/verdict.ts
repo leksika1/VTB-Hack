@@ -1,6 +1,6 @@
 import { ErrorIcon, Accept, WarningIcon } from '../ui/icons';
 
-/** Verdict look, shared with purchase requests that carry the server's check */
+/** Visual state for the server-side purchase affordability check. */
 export const VERDICT = {
   ok: { icon: Accept, tone: 'bg-success-soft text-success', title: 'Покупка помещается в план' },
   tight: { icon: WarningIcon, tone: 'bg-warning-soft text-warning', title: 'Хватает, но запас будет маленьким' },

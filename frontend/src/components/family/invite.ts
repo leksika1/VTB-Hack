@@ -1,5 +1,5 @@
 /**
- * Invite link: https://<domain>/?invite=<code>. The code is a family code, a child code (6 characters)
+ * Invite link: https://<domain>/?invite=<code>. The code is a family code (6 characters)
  * or an invite link code (16). The family name is not in the link: the invite screen asks the server (GET /invites/{code}).
  */
 export function buildInviteUrl(code: string): string {
