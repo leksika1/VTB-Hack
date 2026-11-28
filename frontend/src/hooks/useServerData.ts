@@ -29,9 +29,17 @@ interface CacheEntry<T> {
   snapshot: Snapshot<T>;
   pending: Promise<void> | null;
   listeners: Set<() => void>;
+  /** Данные изменились, пока экран был закрыт: при следующем показе перезапросить */
+  stale: boolean;
 }
 
 const cache = new Map<string, CacheEntry<unknown>>();
+
+// Открытые экраны перезапрашивают данные сами (см. useServerResource), а закрытые помечаем устаревшими,
+// чтобы при возврате на вкладку не показать старые суммы.
+subscribeToDataChanges(() => {
+  for (const entry of cache.values()) entry.stale = true;
+});
 
 function entryFor<T>(key: string, fetcher: () => Promise<T>, enabled: boolean): CacheEntry<T> {
   let entry = cache.get(key) as CacheEntry<T> | undefined;
@@ -41,6 +49,7 @@ function entryFor<T>(key: string, fetcher: () => Promise<T>, enabled: boolean): 
       snapshot: { data: undefined, loading: enabled, error: null },
       pending: null,
       listeners: new Set(),
+      stale: false,
     };
     cache.set(key, entry as CacheEntry<unknown>);
   } else {
@@ -56,7 +65,8 @@ function publish<T>(entry: CacheEntry<T>, snapshot: Snapshot<T>) {
 
 function load<T>(entry: CacheEntry<T>, force = false): Promise<void> {
   if (entry.pending) return entry.pending;
-  if (!force && entry.snapshot.data !== undefined) return Promise.resolve();
+  if (!force && !entry.stale && entry.snapshot.data !== undefined) return Promise.resolve();
+  entry.stale = false;
   publish(entry, { ...entry.snapshot, loading: true, error: null });
   entry.pending = entry.fetcher().then(
     (data) => publish(entry, { data, loading: false, error: null }),

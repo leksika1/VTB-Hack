@@ -68,10 +68,10 @@ function FamilyOverview() {
                   compact
                   icon={<Receipt size={22} />}
                   title="Расходов пока нет"
-                  description={`Добавьте первую покупку за ${formatMonthLower(monthKey)} — она сразу уменьшит свободную сумму`}
+                  description={`Добавьте первую покупку за ${formatMonthLower(monthKey)} — она сразу уменьшит остаток на общем счёте`}
                   action={
                     <Button variant="secondary" onClick={() => openModal({ type: 'expenseForm' })}>
-                      Записать покупку
+                      Добавить покупку
                     </Button>
                   }
                 />
@@ -159,7 +159,7 @@ function UpcomingPaymentsCard() {
           description="Добавьте аренду, коммунальные услуги или кружки — они появятся в запланированных платежах"
           action={
             <Button variant="secondary" onClick={() => openModal({ type: 'paymentForm' })}>
-              Добавить платёж
+              Добавить платёжку
             </Button>
           }
         />

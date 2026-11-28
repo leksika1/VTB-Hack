@@ -76,7 +76,7 @@ export function OperationsHistory({ showCharts = true }: { showCharts?: boolean 
                 </div>
               )}
               {filtered.length ? <ExpenseDayGroups expenses={filtered} /> : <p className="text-ink-2">Операции не найдены.</p>}
-              <Button size="sm" variant="secondary" onClick={() => openModal({ type: 'expenseForm' })}>Записать покупку</Button>
+              <Button size="sm" variant="secondary" onClick={() => openModal({ type: 'expenseForm' })}>Добавить покупку</Button>
             </div>
           )}
         </Disclosure>

@@ -30,7 +30,7 @@ export function AccountContributionModal({ amount }: { amount?: number }) {
 
   return (
     <Modal title="Пополнить общий счёт" onClose={close}
-      description="Пополнение в демо записывается в семейный бюджет. Банковское списание не выполняется."
+      description="Сумма запишется в семейный бюджет. В прототипе деньги с карты не списываются."
       footer={<Button type="submit" form="account-contribution" loading={request.pending} fullWidth>Записать пополнение</Button>}>
       <form id="account-contribution" className="space-y-4" onSubmit={submit} noValidate>
         <div className="flex items-center gap-3 rounded-control bg-surface-muted p-3">

@@ -135,11 +135,11 @@ export function ExpenseFormModal({ expenseId, prefill }: ExpenseFormModalProps) 
 
   return (
     <Modal
-      title={expenseId ? 'Изменить покупку' : 'Записать покупку'}
+      title={expenseId ? 'Изменить покупку' : 'Добавить покупку'}
       onClose={closeModal}
       footer={
         <Button type="submit" form="expense-form" fullWidth size="lg" loading={save.pending}>
-          {expenseId ? 'Сохранить изменения' : 'Записать покупку'}
+          {expenseId ? 'Сохранить изменения' : 'Добавить покупку'}
         </Button>
       }
     >

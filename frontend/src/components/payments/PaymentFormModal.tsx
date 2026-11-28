@@ -212,7 +212,7 @@ export function PaymentFormModal({ paymentId, prefill, planned }: PaymentFormMod
   }
 
   return (
-    <Modal title={paymentId ? 'Изменить платёж' : planned ? 'Запланировать покупку' : 'Добавить платёжку'}
+    <Modal title={paymentId ? 'Изменить платёжку' : planned ? 'Запланировать покупку' : 'Добавить платёжку'}
       description="Покупки и платёжки списываются с общего семейного счёта."
       onClose={closeModal} size="lg"
       footer={<div className="flex w-full items-center gap-3">
