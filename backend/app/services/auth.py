@@ -7,15 +7,25 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import get_settings
-from ..errors import Conflict, DemoOnly, NotFound, ValidationFailed
+from ..errors import Conflict, DemoOnly, NotFound, Unauthorized, ValidationFailed
 from ..infra import get_redis
 from ..models import Member
 from ..oidc import OidcError, get_provider, pkce_challenge, validate_id_token
 from ..schemas import OidcCallbackOut
+from ..security import hash_token, normalize_login_id
 from . import families
 
 STATE_TTL = 600
 LINK_TTL = 600
+
+
+async def login_by_id(db: AsyncSession, value: str):
+    """Прототип входа до ВТБ ID. Одинаковый ответ не раскрывает существование ID."""
+    normalized = normalize_login_id(value)
+    member = await db.scalar(select(Member).where(Member.login_id_hash == hash_token(normalized)))
+    if member is None or not member.present:
+        raise Unauthorized("Неверный ID участника")
+    return await families.issue_session(db, member.id)
 
 
 def _require_enabled() -> None:

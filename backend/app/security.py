@@ -20,5 +20,18 @@ def new_invite_code() -> str:
 
 
 def new_invite_link_code() -> str:
-    """Код ссылки-приглашения: 16 символов (80 бит) — вход без подтверждения, перебором не угадать."""
+    """Код ссылки-приглашения: 16 символов (80 бит), подтверждаемый владельцем."""
     return "".join(secrets.choice(_INVITE_ALPHABET) for _ in range(16))
+
+
+def new_login_id() -> str:
+    """Личный ID из 10 base32-символов без похожих знаков, формат XXXXX-XXXXX."""
+    raw = "".join(secrets.choice(_INVITE_ALPHABET) for _ in range(10))
+    return raw[:5] + "-" + raw[5:]
+
+
+def normalize_login_id(value: str) -> str:
+    raw = "".join((value or "").upper().split())
+    if len(raw) == 10:
+        raw = raw[:5] + "-" + raw[5:]
+    return raw

@@ -1,22 +1,15 @@
-"""
-Пример семьи с данными (состав — docs/TEST_DATA.md).
-
-- create_demo_family — личная копия для посетителя (кнопка «Посмотреть на примере»): её можно ломать,
-  копии старше DEMO_TTL_HOURS удаляет фоновая очистка.
-- build_sample_family — то же наполнение для постоянной тестовой семьи на сервере (app/seed.py).
-"""
+"""Демо-данные v2: три равных участника, ожидающая заявка и разные способы оплаты."""
 import calendar
 from datetime import date
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import clock
-from ..models import (AccountContribution, Allowance, Budget, Expense, Family, Goal, GoalContribution, Member, Payment, PurchaseRequest,
-                      now_ms)
+from ..models import AccountContribution, Budget, Expense, Family, Goal, GoalContribution, Member, Payment, now_ms
 from ..schemas import SessionOut
 from ..security import MEMBER_COLORS
 from ..validation import shift_month
-from . import families, requests
+from . import families, recurring
 
 HOUR_MS = 3_600_000
 
@@ -30,141 +23,112 @@ async def create_demo_family(db: AsyncSession) -> SessionOut:
     return await families.issue_session(db, petya.id)
 
 
-async def build_sample_family(
-    db: AsyncSession, *, name: str, is_demo: bool, family_id: str | None = None,
-    oidc_subs: dict[str, str] | None = None,
-) -> Member:
-    """Семья с бюджетами, расходами, платежами и ребёнком. Возвращает Петю.
-    oidc_subs — {"Петя": sub, …}: участникам сразу привязывается учётная запись тестового ВТБ ID."""
-    now = now_ms()
-    subs = oidc_subs or {}
-
+async def build_sample_family(db: AsyncSession, *, name: str, is_demo: bool,
+                              family_id: str | None = None,
+                              oidc_subs: dict[str, str] | None = None) -> Member:
+    now, subs = now_ms(), oidc_subs or {}
     today = clock.today()
-    month = today.strftime("%Y-%m")
-    prev = shift_month(month, -1)
-    prev2 = shift_month(month, -2)
+    month, prev, prev2 = today.strftime("%Y-%m"), shift_month(today.strftime("%Y-%m"), -1), \
+        shift_month(today.strftime("%Y-%m"), -2)
     last_day = calendar.monthrange(today.year, today.month)[1]
 
     def day(offset: int) -> date:
-        """День текущего месяца со сдвигом от сегодня, не выходящий за границы месяца."""
         return today.replace(day=min(max(today.day + offset, 1), last_day))
 
-    def d(month_key: str, dd: int) -> date:
-        return date.fromisoformat(f"{month_key}-{dd:02d}")
+    def d(key: str, number: int) -> date:
+        year, mon = map(int, key.split("-"))
+        return date(year, mon, min(number, calendar.monthrange(year, mon)[1]))
 
     family = Family(name=name, invite_code=await families.unique_invite_code(db), is_demo=is_demo)
     if family_id:
         family.id = family_id
-    family.child_invite_code = await families.unique_invite_code(db)
-    petya = Member(family=family, name="Петя", color=MEMBER_COLORS[0], joined_at=now - 1000 * HOUR_MS,
-                   oidc_sub=subs.get("Петя"))
-    masha = Member(family=family, name="Маша", color=MEMBER_COLORS[1], joined_at=now - 999 * HOUR_MS,
-                   oidc_sub=subs.get("Маша"))
-    # Ребёнок — для сценариев карманных денег и запроса на покупку (docs/FEATURES.md §2–3)
-    sonya = Member(family=family, name="Соня", color=MEMBER_COLORS[2], role="child", joined_at=now - 998 * HOUR_MS,
-                   oidc_sub=subs.get("Соня"))
-    db.add_all([family, petya, masha, sonya])
+    petya = Member(family=family, name="Петя", color=MEMBER_COLORS[0], role="member",
+                   joined_at=now - 1000 * HOUR_MS, oidc_sub=subs.get("Петя"))
+    masha = Member(family=family, name="Маша", color=MEMBER_COLORS[1], role="member",
+                   joined_at=now - 999 * HOUR_MS, oidc_sub=subs.get("Маша"))
+    nina = Member(family=family, name="Нина", color=MEMBER_COLORS[2], role="member",
+                  joined_at=now - 998 * HOUR_MS, oidc_sub=subs.get("Нина") or subs.get("Соня"))
+    pending = Member(family=family, name="Даша", color=MEMBER_COLORS[3], role="member", status="pending",
+                     joined_at=now - 2 * HOUR_MS)
+    db.add_all([family, petya, masha, nina, pending])
+    await db.flush()
+    family.owner_id = petya.id
+    for member in (petya, masha, nina, pending):
+        await families._assign_login_id(db, member)
     await db.flush()
 
-    db.add_all(
-        [
-            Budget(
-                family_id=family.id,
-                month_key=month,
-                total_kop=_kop(140000),
-                category_plans_kop={k: _kop(v) for k, v in
-                                    {"food": 45000, "housing": 46000, "transport": 15000, "kids": 20000, "other": 9000}.items()},
-                updated_by=petya.id,
-            ),
-            Budget(
-                family_id=family.id,
-                month_key=prev,
-                total_kop=_kop(135000),
-                category_plans_kop={k: _kop(v) for k, v in
-                                    {"food": 45000, "housing": 44000, "transport": 15000, "kids": 18000, "other": 8000}.items()},
-                updated_by=petya.id,
-                updated_at=now - 30 * 24 * HOUR_MS,
-            ),
-        ]
-    )
+    plans = {"food": 45_000, "housing": 46_000, "transport": 15_000, "kids": 20_000, "other": 9_000}
+    db.add_all([
+        Budget(family_id=family.id, month_key=month, total_kop=_kop(140_000),
+               category_plans_kop={key: _kop(value) for key, value in plans.items()}, updated_by=petya.id),
+        Budget(family_id=family.id, month_key=prev, total_kop=_kop(135_000),
+               category_plans_kop={key: _kop(value) for key, value in plans.items()}, updated_by=masha.id),
+    ])
 
-    def payment(title, amount, category, due, author, status="upcoming") -> Payment:
-        return Payment(family_id=family.id, title=title, amount_kop=_kop(amount), category=category,
-                       due_date=due, status=status, author_id=author.id, created_at=now - 500 * HOUR_MS,
-                       account_mode="shared_split" if title in {"Аренда квартиры", "Коммунальные услуги"} else "shared_common")
-
-    pay_rent = payment("Аренда квартиры", 38000, "housing", d(month, 1), petya, "paid")
-    pay_prev_rent = payment("Аренда квартиры", 38000, "housing", d(prev, 1), petya, "paid")
-    pay_prev_util = payment("Коммунальные услуги", 6400, "housing", d(prev, 25), masha, "paid")
-    db.add_all(
-        [
-            pay_rent,
-            payment("Коммунальные услуги", 6500, "housing", day(4), masha),
-            payment("Интернет и связь", 1800, "other", day(2), petya),
-            payment("Детский сад", 7500, "kids", day(6), masha),
-            payment("ОСАГО", 5200, "transport", day(9), petya),
-            pay_prev_rent,
-            pay_prev_util,
-        ]
-    )
+    members = [petya.id, masha.id, nina.id]
+    payments = [
+        Payment(family_id=family.id, title="ЖКУ", amount_kop=_kop(6_500), category="housing", due_date=day(4),
+                author_id=petya.id, account_mode="shared_split", source="shared", split_mode="equal",
+                split_members=members, amount_mode="invoice", payment_method="autopay", autopay_type="by_invoice",
+                provider_category="housing", provider_name="МосОблЕИРЦ", provider_identifier="1234567890",
+                limit_amount_kop=_kop(8_000)),
+        Payment(family_id=family.id, title="Интернет", amount_kop=_kop(1_800), category="other", due_date=day(2),
+                author_id=masha.id, account_mode="shared_common", source="shared", split_mode="none",
+                amount_mode="fixed", payment_method="autopay", autopay_type="by_date",
+                provider_category="internet", provider_name="Домашняя сеть", provider_identifier="D-77881"),
+        Payment(family_id=family.id, title="Детский сад", amount_kop=_kop(7_500), category="kids", due_date=day(6),
+                author_id=nina.id, account_mode="shared_split", source="shared", split_mode="equal",
+                split_members=members, payment_method="manual", payment_details={
+                    "recipient": "Детский сад № 14", "method": "uin", "uin": "18810177260010000001",
+                    "purpose": "Оплата за текущий месяц"}),
+        Payment(family_id=family.id, title="ОСАГО", amount_kop=_kop(5_200), category="transport", due_date=day(9),
+                author_id=petya.id, account_mode="shared_common", source="shared", split_mode="none",
+                payment_method="manual", payment_details={
+                    "recipient": "Страховая компания", "method": "bank_account", "account": "40702810900000000001",
+                    "bic": "044525225", "inn": "7700000000", "purpose": "Полис ОСАГО"}),
+        Payment(family_id=family.id, title="Годовая подписка", amount_kop=_kop(2_990), category="other", due_date=day(12),
+                author_id=masha.id, account_mode="shared_split", source="shared", split_mode="equal",
+                split_members=members, payment_method="manual", payment_details={
+                    "recipient": "Онлайн-сервис", "method": "card", "cardNumber": "4276000012345678",
+                    "purpose": "Годовая подписка"}),
+    ]
+    db.add_all(payments)
     await db.flush()
+    await recurring.start_series(db, payments[1], {"frequency": "monthly", "interval": 1, "endMode": "never"})
+    await recurring.start_series(db, payments[4], {"frequency": "yearly", "interval": 1, "endMode": "never"})
 
-    def expense(title, amount, category, on, author, age_hours, paid_from=None, *, mode=None, percentages=None) -> Expense:
-        if mode is None and (paid_from or on.strftime("%Y-%m") == month):
-            mode = paid_from.account_mode if paid_from else "shared_common"
+    def expense(title: str, amount: float, category: str, on: date, author: Member, *,
+                source: str = "shared", split: str = "none") -> Expense:
         return Expense(family_id=family.id, title=title, amount_kop=_kop(amount), category=category, date=on,
-                       author_id=author.id, paid_by=author.id, payment_id=paid_from.id if paid_from else None,
-                       created_at=now - age_hours * HOUR_MS, account_mode=mode,
-                       split_members=[petya.id, masha.id] if mode in {"shared_split", "personal_split"} else None,
-                       split_percentages=percentages)
+                       author_id=author.id, paid_by=author.id,
+                       account_mode=("personal_split" if source == "personal" else "shared_split")
+                       if split != "none" else ("outside" if source == "personal" else "shared_common"),
+                       source=source, split_mode=split, split_members=members if split == "equal" else None,
+                       created_at=now - HOUR_MS)
 
-    db.add_all(
-        [
-            expense("Аренда квартиры", 38000, "housing", d(month, 1), petya, 400, pay_rent),
-            expense("Онлайн-кинотеатр", 399, "other", d(month, 2), petya, 380),
-            expense("Секция плавания, абонемент", 8500, "kids", day(-12), masha, 290),
-            expense("Учебники и канцтовары", 4200, "kids", day(-10), masha, 240),
-            expense("Заправка", 3400, "transport", day(-8), petya, 190),
-            expense("Продукты на неделю", 6850.4, "food", day(-6), petya, 140,
-                    mode="shared_split", percentages={petya.id: 60, masha.id: 40}),
-            expense("Фрукты и сыр на рынке", 2150, "food", day(-3), masha, 70, mode="personal_split"),
-            expense("Аптека", 1270.5, "other", day(-1), masha, 20),
-            expense("Супермаркет у дома", 3120, "food", day(0), petya, 2),
-            # прошлый месяц — для «как в прошлом месяце» в форме бюджета
-            expense("Продукты на месяц", 39800, "food", d(prev, 10), petya, 900, mode="outside"),
-            expense("Аренда квартиры", 38000, "housing", d(prev, 1), petya, 1100, pay_prev_rent),
-            expense("Коммунальные услуги", 6400, "housing", d(prev, 25), masha, 700, pay_prev_util),
-        ]
-    )
     db.add_all([
-        AccountContribution(family_id=family.id, member_id=masha.id, amount_kop=_kop(120000), date=d(prev, 1)),
-        AccountContribution(family_id=family.id, member_id=masha.id, amount_kop=_kop(30000), date=d(month, 1)),
-        AccountContribution(family_id=family.id, member_id=petya.id, amount_kop=_kop(10600), date=d(month, 1)),
+        expense("Продукты на неделю", 6_850.40, "food", day(-6), petya, split="equal"),
+        expense("Фрукты и сыр", 2_150, "food", day(-3), masha, source="personal", split="equal"),
+        expense("Аптека", 1_270.50, "other", day(-1), nina),
+        expense("Заправка", 3_400, "transport", day(-8), petya),
+        expense("Продукты прошлого месяца", 39_800, "food", d(prev, 10), masha),
     ])
-    headphones = PurchaseRequest(family_id=family.id, author_id=sonya.id, title="Беспроводные наушники", amount_kop=_kop(3500),
-                                 category="other", comment="Старые сломались", created_at=now - 3 * HOUR_MS)
     db.add_all([
-        Allowance(member_id=sonya.id, family_id=family.id, amount_kop=_kop(1500), period="week", updated_by=masha.id),
-        Expense(family_id=family.id, title="Мороженое", amount_kop=_kop(180), category="food", date=today,
-                author_id=sonya.id, paid_by=sonya.id, created_at=now - HOUR_MS),
-        headphones,
+        AccountContribution(family_id=family.id, member_id=petya.id, amount_kop=_kop(20_000), date=d(month, 1)),
+        AccountContribution(family_id=family.id, member_id=masha.id, amount_kop=_kop(18_000), date=d(month, 1)),
+        AccountContribution(family_id=family.id, member_id=nina.id, amount_kop=_kop(12_000), date=d(month, 2)),
+        AccountContribution(family_id=family.id, member_id=masha.id, amount_kop=_kop(90_000), date=d(prev, 1)),
     ])
-    # Копилка: стиралка за 60 000 ₽ к концу следующего месяца, по 15 000 ₽ в месяц уже отложено (docs/FEATURES.md §4)
+
     next_month = shift_month(month, 1)
-    washer = Goal(family_id=family.id, title="Новая стиральная машина", target_kop=_kop(60000),
-                  deadline=d(next_month, calendar.monthrange(*map(int, next_month.split("-")))[1]),
-                  created_by=petya.id, created_at=now - 1500 * HOUR_MS)
+    washer = Goal(family_id=family.id, title="Новая стиральная машина", target_kop=_kop(60_000),
+                  deadline=d(next_month, 31), created_by=petya.id, created_at=now - 1500 * HOUR_MS)
     db.add(washer)
     await db.flush()
     db.add_all([
-        GoalContribution(goal_id=washer.id, family_id=family.id, member_id=who.id, amount_kop=_kop(15000), date=on,
-                         created_at=now - age_hours * HOUR_MS)
-        for who, on, age_hours in ((petya, d(prev2, 5), 1400), (masha, d(prev, 5), 700), (petya, day(-1), 20))
+        GoalContribution(goal_id=washer.id, family_id=family.id, member_id=who.id, amount_kop=_kop(10_000),
+                         date=on, created_at=now - age * HOUR_MS)
+        for who, on, age in ((petya, d(prev2, 5), 1400), (masha, d(prev, 5), 700), (nina, day(-1), 20))
     ])
-    await db.flush()
-    # Как при обычном создании: у взрослых запрос сразу виден в «Событиях»
-    await requests.notify_created(db, sonya, headphones)
     await db.commit()
     return petya
-
-

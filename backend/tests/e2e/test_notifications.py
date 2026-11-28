@@ -11,13 +11,11 @@ from tests.conftest import run_sql
 
 from .helpers import (
     TODAY,
-    add_child,
     add_expense,
     add_payment,
     assert_error,
     create_family,
     join,
-    set_allowance,
     set_budget,
 )
 
@@ -26,31 +24,25 @@ def kinds(m, **params):
     return [n["kind"] for n in m.get("/api/notifications", params=params).json()]
 
 
-def test_request_notifications_and_read_state(api, new_client):
-    anna = create_family(api)
-    boris = join(new_client(), anna, "Борис")
-    child = add_child(anna, new_client())
-    assert "member_join_request" in kinds(anna)  # Соня просила доступ
-    assert "member_joined" in kinds(boris)  # Анна впустила Соню
+def test_join_notifications_and_read_state(api, new_client):
+    owner = create_family(api)
+    boris = join(new_client(), owner, "Борис")
+    pending = join(new_client(), owner.invite_code, "Вера")
+    request_note = owner.get("/api/notifications").json()[0]
+    assert (request_note["kind"], request_note["data"]["memberId"], request_note["readAt"]) == (
+        "member_join_request", pending.id, None)
+    assert_error(boris.post(f"/api/family/members/{pending.id}/approve"), 403, "forbidden")
+    owner.post(f"/api/family/members/{pending.id}/approve")
+    assert "member_approved" in kinds(pending)
+    assert "member_joined" in kinds(boris)
 
-    req = child.post("/api/purchase-requests", {"title": "Наушники", "amount": 3500, "category": "other"}).json()
-    for parent in (anna, boris):
-        n = parent.get("/api/notifications").json()[0]
-        assert (n["kind"], n["data"]["requestId"], n["readAt"]) == ("request_created", req["id"], None)
-        assert "Наушники" in n["title"]
-    assert "request_created" not in kinds(child)  # автору — нет
-
-    boris.post(f"/api/purchase-requests/{req['id']}/approve", {"comment": "Бери"})
-    decided = child.get("/api/notifications").json()[0]
-    assert (decided["kind"], decided["data"]["status"], decided["body"]) == ("request_decided", "approved", "Бери")
-
-    unread = anna.get("/api/state").json()["unreadNotifications"]
-    assert unread >= 2
-    first = anna.get("/api/notifications").json()[0]["id"]
-    assert anna.post(f"/api/notifications/{first}/read").status_code == 204
-    assert anna.get("/api/state").json()["unreadNotifications"] == unread - 1
-    assert anna.post("/api/notifications/read-all").status_code == 204
-    assert anna.get("/api/notifications", params={"unreadOnly": "true"}).json() == []
+    unread = owner.get("/api/state").json()["unreadNotifications"]
+    assert unread >= 1
+    first = owner.get("/api/notifications").json()[0]["id"]
+    assert owner.post(f"/api/notifications/{first}/read").status_code == 204
+    assert owner.get("/api/state").json()["unreadNotifications"] == unread - 1
+    assert owner.post("/api/notifications/read-all").status_code == 204
+    assert owner.get("/api/notifications", params={"unreadOnly": "true"}).json() == []
 
 
 def test_notifications_are_private_and_paginated(api, new_client):
@@ -78,15 +70,12 @@ def test_category_limit_notified_once_per_status(api, new_client):
     assert "category_limit" not in kinds(anna)  # автору траты — не нужно
 
 
-def test_goal_and_allowance_notifications(api, new_client):
+def test_goal_notification_reaches_all_members(api, new_client):
     anna = create_family(api)
-    child = add_child(anna, new_client())
-    set_allowance(anna, child, 500, "week")
-    note = child.get("/api/notifications").json()[0]
-    assert note["kind"] == "allowance_changed" and "500 ₽ в неделю" in note["body"]
+    boris = join(new_client(), anna)
     goal = anna.post("/api/goals", {"title": "Отпуск", "target": 100}).json()
     anna.post(f"/api/goals/{goal['id']}/contributions", {"amount": 100})
-    assert "goal_achieved" in kinds(child) and "goal_achieved" in kinds(anna)
+    assert "goal_achieved" in kinds(boris) and "goal_achieved" in kinds(anna)
 
 
 def test_payment_reminders(api, needs_db):
@@ -122,7 +111,7 @@ def test_email_verification_flow(api, new_client, needs_db):
     anna = create_family(api)
     boris = join(new_client(), anna)
     me = anna.get("/api/me").json()
-    assert (me["email"], me["emailVerified"], me["notifyByEmail"], me["role"]) == (None, False, False, "parent")
+    assert (me["email"], me["emailVerified"], me["notifyByEmail"], me["role"]) == (None, False, False, "member")
     assert_error(anna.put("/api/me/notifications", {"email": True}), 422, field="email")
     assert_error(anna.put("/api/me/email", {"email": "not-an-email"}), 422, field="email")
     assert_error(anna.put("/api/me/email", {"email": "a@b.ru\r\nBcc: x@y.ru"}), 422, field="email")
@@ -139,7 +128,7 @@ def test_email_verification_flow(api, new_client, needs_db):
 
     assert anna.put("/api/me/notifications", {"email": True}).json()["notifyByEmail"] is True
     before = run_sql(needs_db, "SELECT count(*) FROM email_outbox WHERE member_id = $1", anna.id)
-    boris.post("/api/purchase-requests", {"title": "Кофемашина", "amount": 9000, "category": "other"})
+    join(new_client(), anna.invite_code, "Вера")
     assert run_sql(needs_db, "SELECT count(*) FROM email_outbox WHERE member_id = $1", anna.id) == before + 1
 
     assert anna.delete("/api/me/email").status_code == 204

@@ -73,6 +73,15 @@ async def payment_reminders_once(session_factory=None) -> int:
     return created
 
 
+async def autopay_once(session_factory=None) -> int:
+    """Оплатить наступившие автоплатежи; блокировки строк исключают дубль между репликами."""
+    from .services import finance
+    async with (session_factory or db.session)() as session:
+        paid = await finance.autopay_due(session)
+        await session.commit()
+    return paid
+
+
 async def send_emails_periodically(interval: int) -> None:
     from .services import notifications
 
@@ -93,6 +102,7 @@ async def run_periodically(interval: int) -> None:
             removed = await cleanup_once()
             removed["recurring_created"] = await extend_recurring_once()
             removed["payment_reminders"] = await payment_reminders_once()
+            removed["autopay_paid"] = await autopay_once()
             if any(removed.values()):
                 log.info("maintenance", extra={"extra_fields": removed})
         except asyncio.CancelledError:

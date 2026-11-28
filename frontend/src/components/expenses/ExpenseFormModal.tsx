@@ -47,9 +47,9 @@ export function ExpenseFormModal({ expenseId, prefill }: ExpenseFormModalProps) 
   const [date, setDate] = useState(existing?.date ?? defaultDate(viewedMonth));
   const initialPayer = existing ? existing.paidBy ?? existing.authorId : user?.id ?? null;
   const [paidBy, setPaidBy] = useState(initialPayer);
-  const [source, setSource] = useState<'shared' | 'personal'>(existing
+  const source: 'shared' | 'personal' = existing
     ? existing.accountMode?.startsWith('shared') ? 'shared' : 'personal'
-    : 'shared');
+    : 'shared';
   const [division, setDivision] = useState<'none' | 'equal' | 'custom'>(existing?.splitPercentages
     ? 'custom'
     : existing?.accountMode?.endsWith('_split') ? 'equal' : 'none');
@@ -60,17 +60,16 @@ export function ExpenseFormModal({ expenseId, prefill }: ExpenseFormModalProps) 
     : division === 'none' ? 'outside' : 'personal_split';
   const [submitted, setSubmitted] = useState(false);
 
-  // An adult may name any adult as the payer (docs/FEATURES.md §7); a child's own spending stays the child's
-  const adults = family?.members.filter((m) => m.role !== 'child') ?? [];
-  const payerIsAdult = adults.some((m) => m.id === initialPayer);
-  const editableMode = isParent && !existing?.paymentId && (!existing || payerIsAdult);
-  const choosePayer = editableMode && source === 'personal' && adults.length > 1;
+  const participants = family?.members ?? [];
+  const payerIsActive = participants.some((m) => m.id === initialPayer);
+  const editableMode = isParent && !existing?.paymentId && (!existing || payerIsActive);
+  const choosePayer = editableMode && source === 'personal' && participants.length > 1;
   const custom = editableMode && division === 'custom';
-  const entries = adults.map((member) => [member.id, percentages[member.id] ?? '0'] as const);
+  const entries = participants.map((member) => [member.id, percentages[member.id] ?? '0'] as const);
   const percentTotal = entries.reduce((sum, [, value]) => sum + Number(value || 0), 0);
   const percentsValid = percentTotal === 100 && entries.every(([, value]) => /^\d{0,3}$/.test(value) && Number(value) <= 100);
   const splitError = custom && submitted && !percentsValid ? 'Укажите целые проценты от 0 до 100. Сумма долей должна быть 100%.' : null;
-  // A purchase that has not happened yet belongs in the plan, not in expenses; payments are an adult's tool
+  // A purchase that has not happened yet belongs in the plan, not in expenses.
   const futureMonth = viewedMonth > toMonthKey();
   const futureDate = !!date && daysFromToday(date) > 0;
   const offerPlan = !expenseId && isParent && (futureMonth || futureDate);
@@ -154,14 +153,7 @@ export function ExpenseFormModal({ expenseId, prefill }: ExpenseFormModalProps) 
         {editableMode && (
           <fieldset className="space-y-4 rounded-control bg-surface-muted p-3 sm:p-4">
             <legend className="px-1 font-medium text-ink">Источник и деление</legend>
-            <div className="flex flex-wrap gap-3">
-              <RadioButton name="purchase-source" value="shared" checked={source === 'shared'} onChange={() => setSource('shared')}>
-                Общий счёт
-              </RadioButton>
-              <RadioButton name="purchase-source" value="personal" checked={source === 'personal'} onChange={() => setSource('personal')}>
-                Личная карта
-              </RadioButton>
-            </div>
+            <p className="text-sm text-ink-2">{source === 'personal' ? 'Личная карта (покупка из импорта)' : 'Общий счёт'}</p>
             <div className="flex flex-wrap gap-3">
               <RadioButton name="purchase-division" value="none" checked={division === 'none'} onChange={() => setDivision('none')}>
                 Без деления
@@ -172,16 +164,16 @@ export function ExpenseFormModal({ expenseId, prefill }: ExpenseFormModalProps) 
               <RadioButton name="purchase-division" value="custom" checked={division === 'custom'} onChange={() => {
                 setDivision('custom');
                 if (!Object.keys(percentages).length) {
-                  const share = Math.floor(100 / adults.length);
-                  setPercentages(Object.fromEntries(adults.map((member, index) =>
-                    [member.id, String(share + (index < 100 % adults.length ? 1 : 0))])));
+                  const share = Math.floor(100 / participants.length);
+                  setPercentages(Object.fromEntries(participants.map((member, index) =>
+                    [member.id, String(share + (index < 100 % participants.length ? 1 : 0))])));
                 }
               }}>В долях</RadioButton>
             </div>
             {custom && (
               <div className="space-y-2">
                 <div className="grid gap-2 sm:grid-cols-2">
-                  {adults.map((member) => (
+                  {participants.map((member) => (
                     <Field key={member.id} label={`Доля: ${member.name}`} suffix="%" inputMode="numeric" maxLength={3}
                       value={percentages[member.id] ?? ''}
                       onChange={(event) => setPercentages((previous) => ({ ...previous, [member.id]: event.target.value }))} />
@@ -198,7 +190,7 @@ export function ExpenseFormModal({ expenseId, prefill }: ExpenseFormModalProps) 
           <fieldset>
             <legend className="block text-sm font-medium text-ink-2 mb-1.5">Кто платил</legend>
             <div className="flex flex-wrap gap-x-5 gap-y-3">
-              {adults.map((m) => (
+              {participants.map((m) => (
                 <RadioButton
                   key={m.id}
                   name="expense-payer"

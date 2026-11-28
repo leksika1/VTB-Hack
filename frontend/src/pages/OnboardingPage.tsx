@@ -10,6 +10,7 @@ import {
   getLinkToken,
   getOidcConfig,
   joinFamily,
+  loginById,
   startDemo,
   startOidc,
   type OidcConfig,
@@ -23,7 +24,7 @@ import { Field, FormError } from '../components/ui/Field';
 import { Button } from '../components/ui/Button';
 import { Skeleton } from '../components/ui/Feedback';
 
-type Mode = 'create' | 'join';
+type Mode = 'create' | 'join' | 'login';
 
 interface OnboardingPageProps {
   /** Code from an invite link (?invite=…) */
@@ -124,10 +125,12 @@ export function OnboardingPage({ invite, onInviteDismiss }: OnboardingPageProps)
             <>
               {mode && <Button size="sm" variant="ghost" icon={<ArrowLeft size={16} />} onClick={() => setMode(null)}>Назад</Button>}
               <T as="h1" font="Header/H3" className="mt-3">
-                {mode === 'create' ? 'Новая семья' : mode === 'join' ? 'Вход по приглашению' : 'Войти в Общий план'}
+                {mode === 'create' ? 'Новая семья' : mode === 'join' ? 'Вход по приглашению'
+                  : mode === 'login' ? 'Вход по личному ID' : 'Войти в Общий план'}
               </T>
               <div className="mt-6 space-y-3">
-                {mode === 'create' ? <CreateForm /> : mode === 'join' ? <JoinForm invite={null} /> : (
+                {mode === 'create' ? <CreateForm /> : mode === 'join' ? <JoinForm invite={null} />
+                  : mode === 'login' ? <LoginForm /> : (
                   <>
                     {oidc?.enabled && !vtbConfirmed && (
                       <Button fullWidth size="lg" icon={<Bank size={18} />} loading={oidcPending} onClick={signInWithBank}>
@@ -135,7 +138,8 @@ export function OnboardingPage({ invite, onInviteDismiss }: OnboardingPageProps)
                       </Button>
                     )}
                     <Button fullWidth size="lg" variant="secondary" onClick={() => setMode('create')}>Создать семью</Button>
-                    <Button fullWidth variant="ghost" onClick={() => setMode('join')}>У меня есть код</Button>
+                    <Button fullWidth variant="ghost" onClick={() => setMode('login')}>Войти по личному ID</Button>
+                    <Button fullWidth variant="ghost" onClick={() => setMode('join')}>У меня есть приглашение</Button>
                   </>
                 )}
               </div>
@@ -168,6 +172,37 @@ export function OnboardingPage({ invite, onInviteDismiss }: OnboardingPageProps)
         </section>
       </main>
     </div>
+  );
+}
+
+function LoginForm() {
+  const addToast = useUIStore((s) => s.addToast);
+  const login = useAsyncAction(loginById);
+  const [loginId, setLoginId] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+
+  const onSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    setSubmitted(true);
+    if (!loginId.trim()) return;
+    const result = await login.run(loginId);
+    if (result.ok) addToast(`Открыта семья «${result.value.name}»`);
+  };
+
+  return (
+    <form onSubmit={onSubmit} noValidate className="space-y-4">
+      <Field
+        label="Личный ID участника"
+        value={loginId}
+        onChange={(event) => setLoginId(event.target.value.toUpperCase())}
+        placeholder="XXXXX-XXXXX"
+        maxLength={11}
+        autoComplete="username"
+        error={submitted && !loginId.trim() ? 'Введите личный ID' : login.errorField === 'loginId' ? login.error : null}
+      />
+      {login.error && login.errorField !== 'loginId' && <FormError>{login.error}</FormError>}
+      <Button type="submit" fullWidth size="lg" loading={login.pending}>Войти</Button>
+    </form>
   );
 }
 
@@ -239,9 +274,9 @@ function JoinForm({
     const res = await join.run(code, userName, requestId);
     if (!res.ok) return;
     clearInviteFromUrl();
-    // Link and child codes never equal family.inviteCode, so App cannot tell on its own that the invite is used
+    // An invite link never equals family.inviteCode, so App cannot infer the join source on its own.
     onJoined?.();
-    if (res.value.pending) addToast('Заявка отправлена. Ждём, когда взрослый участник подтвердит вход.', 'info');
+    if (res.value.pending) addToast('Заявка отправлена. Ждём подтверждения владельца семьи.', 'info');
     else addToast(`Вы присоединились к «${res.value.name}»`);
   };
 
@@ -279,13 +314,11 @@ function JoinForm({
           <T as="h1" font="Header/H3" className="break-words">«{info.familyName}»</T>
           <p className="text-ink-2">
             {info.membersCount} {plural(info.membersCount, 'участник', 'участника', 'участников')},{' '}
-            {info.role === 'child' ? 'вы войдёте как ребёнок' : 'вы войдёте как взрослый участник'}
+            вы войдёте как участник
           </p>
           <p className="text-ink-2">
-            {info.role === 'child'
-              ? 'Вы будете видеть свои расходы и карманные деньги и сможете просить о покупках.'
-              : 'Вы будете видеть общий план, расходы и платежи и сможете добавлять свои.'}
-            {info.needsApproval && ' Вход по коду подтверждает взрослый участник семьи — до этого данные семьи не видны.'}
+            Вы будете видеть общий план, расходы и платежи и сможете добавлять свои.
+            {info.needsApproval && ' Вход подтверждает владелец семьи — до этого данные бюджета не видны.'}
           </p>
         </>
       )}
@@ -365,7 +398,7 @@ function CodeField({ label, value, onChange, error }: { label: string; value: st
   return (
     <Field
       label={label}
-      hint="Шесть символов из приглашения. Вход подтвердит взрослый участник."
+      hint="Шесть символов из приглашения. Вход подтвердит владелец семьи."
       value={value}
       onChange={(e) => onChange(clean(e.target.value).slice(0, CODE_LENGTH))}
       onPaste={onPaste}

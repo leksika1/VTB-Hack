@@ -13,12 +13,17 @@ from ..deps import Authorization, CurrentMember, Db, resolve_member
 from ..errors import NotFound, ValidationFailed
 from ..oidc import MockProvider, get_provider
 from ..ratelimit import SignupLimit
-from ..schemas import OidcCallbackIn, OidcCallbackOut, OidcConfigOut, OidcStartIn, OidcStartOut
+from ..schemas import LoginIdIn, OidcCallbackIn, OidcCallbackOut, OidcConfigOut, OidcStartIn, OidcStartOut, SessionOut
 from ..security import MEMBER_COLORS
 from ..seed import SHOWCASE_LOGINS
 from ..services import auth
 
 router = APIRouter(tags=["auth"])
+
+
+@router.post("/auth/login", response_model=SessionOut, summary="Войти по личному ID участника")
+async def login_by_id(body: LoginIdIn, db: Db, _: SignupLimit):
+    return await auth.login_by_id(db, body.login_id)
 
 
 @router.get("/auth/oidc/config", response_model=OidcConfigOut, summary="Доступен ли вход через банк")
@@ -65,7 +70,6 @@ _MARK = (
     '<path d="M12.3 14c.8-.8 1.7-1.2 2.7-1.2 2.4 0 4.2 1.9 4.2 4.9" stroke="#7ea6ff" stroke-width="1.9" stroke-linecap="round"/>'
     "</svg>"
 )
-_CHILD_LOGINS = {"sonya"}  # остальные участники витрины — взрослые
 _CHEVRON = (
     '<svg class="chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
     'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>'
@@ -91,7 +95,7 @@ def _render_page(request: Request, redirect_uri: str, state: str, login_error: s
         f'<span class="avatar" style="background:{MEMBER_COLORS[i % len(MEMBER_COLORS)]}" aria-hidden="true">'
         f'{html.escape(name[0])}</span>'
         f'<span class="who"><strong>{html.escape(name)}</strong>'
-        f'<span>{"ребёнок" if login in _CHILD_LOGINS else "взрослый"}</span></span>'
+        f'<span>участник</span></span>'
         f'{_CHEVRON}</button></form>'
         for i, (name, login) in enumerate(SHOWCASE_LOGINS.items())
     )

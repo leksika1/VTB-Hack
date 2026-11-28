@@ -19,7 +19,6 @@ export type ModalState =
   | { type: 'paymentForm'; paymentId?: string; prefill?: PurchaseDraft & { title?: string; dueDate?: string }; planned?: boolean }
   | { type: 'purchaseCheck'; prefill?: PurchaseDraft }
   | { type: 'invite' }
-  | { type: 'allowanceForm'; memberId: string }
   | { type: 'goalForm'; goalId?: string }
   | { type: 'accountContribution'; amount: number }
   | { type: 'goalContribution'; goalId: string }

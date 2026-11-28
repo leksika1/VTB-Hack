@@ -8,6 +8,7 @@ notify() пишет уведомление каждому получателю (
 import asyncio
 import logging
 import smtplib
+from datetime import date
 from email.message import EmailMessage
 from email.utils import parseaddr
 
@@ -36,7 +37,8 @@ async def notify(
 ) -> int:
     created = 0
     for member in recipients:
-        if not member.active:
+        # Ожидающий тоже получает решение по своей заявке; вышедшему уже не пишем.
+        if not member.present:
             continue
         result = await db.execute(
             insert(Notification).values(
@@ -64,7 +66,8 @@ async def _family(db: AsyncSession, family_id: str) -> list[Member]:
 
 
 async def parents(db: AsyncSession, family_id: str, exclude: str | None = None) -> list[Member]:
-    return [m for m in await _family(db, family_id) if m.is_parent and m.id != exclude]
+    """Устаревшее имя: в v2 все активные участники равноправны."""
+    return [m for m in await _family(db, family_id) if m.id != exclude]
 
 
 async def everyone(db: AsyncSession, family_id: str, exclude: str | None = None) -> list[Member]:
@@ -78,7 +81,7 @@ _CATEGORY_NAMES = {"food": "Продукты", "housing": "Жильё", "transpo
 
 
 async def check_category_limit(db: AsyncSession, family_id: str, category: str, month_key: str, author_id: str) -> None:
-    """После новой траты: категория перешла в «почти исчерпан» или «превышен» — сообщить взрослым."""
+    """После новой траты: категория перешла в «почти исчерпан» или «превышен» — сообщить участникам."""
     budget = await db.get(Budget, (family_id, month_key))
     if budget is None or not budget.category_plans_kop.get(category):
         return
@@ -101,10 +104,30 @@ async def check_category_limit(db: AsyncSession, family_id: str, category: str, 
                  dedupe_key=f"category:{category}:{month_key}:{cat.status}")
 
 
+async def debt_reminders(db: AsyncSession, family_id: str) -> int:
+    """Не чаще одного напоминания участнику в месяц и только о его собственной сумме."""
+    from . import account
+    month = clock.current_month_key()
+    calculated = await account.summary(db, family_id, month)
+    active = {member.id: member for member in await _family(db, family_id)}
+    created = 0
+    for item in calculated.members:
+        member = active.get(item.member_id)
+        if member is None or round(item.due * 100) <= member.debt_reminder_threshold_kop:
+            continue
+        amount = f"{item.due:,.2f}".replace(",", " ").replace(".", ",")
+        created += await notify(
+            db, family_id, [member], "debt_reminder", f"Пополните свою долю на общем счёте: {amount} ₽",
+            "Сумма рассчитана по разделённым покупкам, взносам и личным оплатам.",
+            {"month": month, "due": item.due}, dedupe_key=f"debt_reminder:{month}",
+        )
+    return created
+
+
 async def payments_due(db: AsyncSession) -> int:
     """Фоновая задача: неоплаченные платежи со сроком сегодня–через 2 дня."""
     today = clock.today()
-    soon = today.fromordinal(today.toordinal() + PAYMENT_DUE_DAYS)
+    soon = date.fromordinal(today.toordinal() + PAYMENT_DUE_DAYS)
     rows = await db.scalars(
         select(Payment).where(Payment.status == "upcoming", Payment.due_date >= today, Payment.due_date <= soon)
     )

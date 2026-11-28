@@ -58,17 +58,17 @@ docker compose -f docker-compose.yml -f docker-compose.e2e.yml down -v
 backend/tests/
   unit/test_rules.py        формулы месяца, статусы категорий, вердикты покупки, проверки ввода
   e2e/test_system.py        health, ready, OpenAPI, формат ошибок, CORS, X-Request-ID
-  e2e/test_family.py        семья, приглашения, вход, выход, демо, смена участника, /state
+  e2e/test_family.py        единая роль, владелец, заявки, выход, демо и /state
   e2e/test_budgets.py       бюджет месяца: создание, правка, проверки, идемпотентность
   e2e/test_expenses.py      расходы: CRUD, права, сортировка, копейки, идемпотентность
   e2e/test_payments.py      платежи: CRUD, оплата и отмена, перенос месяца
   e2e/test_summary.py       сводка, статусы категорий, проверка покупки
   e2e/test_security.py      токены, изоляция семей, срок сессий, лимиты, X-Forwarded-For
   e2e/test_hardening.py     заголовки, размер тела, лимит чтений и потоков, смена кода, предел записей
-  e2e/test_roles.py         роли, детские приглашения, права ребёнка, смена роли, исключение
-  e2e/test_allowance.py     карманные деньги, «кто платил», запросы на покупку
+  e2e/test_invite_links.py ссылки с подтверждением, отзыв и срок действия
+  e2e/test_v2.py            владелец, loginId, доли, платежи, аналитика и календарь
   e2e/test_receipts.py      QR-код чека и защита от повторного добавления
-  e2e/test_planning.py      цели, повторяющиеся платежи, прогноз, расчёты между взрослыми
+  e2e/test_planning.py      цели, повторяющиеся платежи и прогноз
   e2e/test_notifications.py уведомления, e-mail с подтверждением
   e2e/test_imports.py       импорт выписки
   e2e/test_oidc.py          вход через ВТБ ID на тестовом провайдере

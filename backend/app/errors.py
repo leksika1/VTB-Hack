@@ -43,7 +43,7 @@ class Forbidden(ApiError):
 class PendingApproval(Forbidden):
     code = "pending_approval"
 
-    def __init__(self, message: str = "Взрослый участник семьи ещё не подтвердил ваш вход"):
+    def __init__(self, message: str = "Владелец семьи ещё не подтвердил ваш вход"):
         super().__init__(message)
 
 

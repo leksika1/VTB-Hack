@@ -18,11 +18,43 @@ export function ProfileSettings() {
   const demo = useFamilyStore((state) => state.family?.isDemo);
   return (
     <div className="divide-y divide-line">
+      {!demo && <ParticipantIdCard />}
       {!demo && <VtbIdCard />}
       <AppearanceCard />
       {demo && <DemoCard />}
       <LeaveCard />
     </div>
+  );
+}
+
+function ParticipantIdCard() {
+  const addToast = useUIStore((s) => s.addToast);
+  const [me, setMe] = useState<Me | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    getMe().then((value) => alive && setMe(value), () => { });
+    return () => { alive = false; };
+  }, []);
+
+  if (!me?.loginId) return null;
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(me.loginId!);
+      addToast('Личный ID скопирован', 'info');
+    } catch {
+      addToast('Не удалось скопировать ID', 'error');
+    }
+  };
+  return (
+    <Card className="p-5">
+      <SectionHeader title="Личный ID для входа" />
+      <p className="text-ink-2">Храните его как пароль: по этому ID можно открыть только ваш профиль участника.</p>
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <code className="rounded-control bg-surface-muted px-3 py-2 text-lg font-semibold tracking-wider">{me.loginId}</code>
+        <Button variant="secondary" size="sm" onClick={copy}>Скопировать</Button>
+      </div>
+    </Card>
   );
 }
 

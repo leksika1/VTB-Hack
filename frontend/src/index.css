@@ -409,6 +409,16 @@ input[type='number']::-webkit-inner-spin-button {
   overflow-wrap: anywhere;
 }
 
+.amount-concealed {
+  filter: blur(7px);
+  user-select: none;
+  transition: filter 180ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .amount-concealed { transition: none; }
+}
+
 .account-visibility {
   color: white !important;
   --admiral-color-Neutral_Neutral50: white;

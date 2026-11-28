@@ -6,7 +6,6 @@ import { BudgetFormModal } from '../budget/BudgetFormModal';
 import { PaymentFormModal } from '../payments/PaymentFormModal';
 import { PurchaseCheckModal } from '../purchase/PurchaseCheckModal';
 import { InviteModal } from '../family/InviteModal';
-import { AllowanceFormModal } from '../family/AllowanceFormModal';
 import { GoalFormModal } from '../goals/GoalFormModal';
 import { GoalContributionModal } from '../goals/GoalContributionModal';
 import { AccountContributionModal } from '../account/AccountContributionModal';
@@ -26,8 +25,6 @@ function renderModal(modal: NonNullable<ModalState>) {
       return <PurchaseCheckModal prefill={modal.prefill} />;
     case 'invite':
       return <InviteModal />;
-    case 'allowanceForm':
-      return <AllowanceFormModal key={modal.memberId} memberId={modal.memberId} />;
     case 'goalForm':
       return <GoalFormModal key={`g-${modal.goalId ?? 'new'}`} goalId={modal.goalId} />;
     case 'accountContribution':

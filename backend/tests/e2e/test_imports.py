@@ -1,5 +1,5 @@
 """Импорт банковской выписки (docs/FEATURES.md §10)."""
-from .helpers import add_child, assert_error, create_family
+from .helpers import assert_error, create_family, join
 
 STATEMENT = (
     "Дата;Сумма;Описание;MCC\n"
@@ -68,8 +68,8 @@ def test_import_validation_limits_and_permissions(api, new_client):
         upload(anna)
     assert_error(anna.post("/api/imports", {"filename": "x.csv", "content": STATEMENT}), 409)
 
-    child = add_child(anna, new_client())
-    assert_error(child.post("/api/imports", {"filename": "x.csv", "content": STATEMENT}), 403)
+    member = join(new_client(), anna)
+    assert member.post("/api/imports", {"filename": "x.csv", "content": STATEMENT}).status_code == 201
     eve = create_family(new_client(), "Чужие", "Ева")
     assert_error(eve.get(f"/api/imports/{batch['id']}"), 404)
     assert_error(eve.post(f"/api/imports/{batch['id']}/confirm", {}), 404)

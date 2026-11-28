@@ -42,7 +42,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const setProfileOpen = useUIStore((s) => s.setProfileOpen);
   const mobile = useMediaQuery('(max-width: 1023px)');
   const profilePage = mobile && profileOpen;
-  // The plan (budget and payments) is for adults only
+  // Compatibility flag: in v2 every active participant has access to the plan.
   const isParent = useIsParent();
   const tab = !isParent && storedTab === 'calendar' ? 'overview' : storedTab;
   const nav = isParent ? NAV : NAV.filter((n) => n.tab !== 'calendar');

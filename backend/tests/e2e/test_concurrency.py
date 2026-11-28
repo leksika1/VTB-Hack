@@ -43,3 +43,15 @@ def test_parallel_mark_paid_creates_single_expense(api, new_client):
     assert all(r.status_code in (200, 409) for r in responses), [r.text for r in responses]
     assert len(anna.get("/api/expenses").json()) == 1
     assert anna.get("/api/payments").json()[0]["status"] == "paid"
+
+
+def test_parallel_pay_now_from_two_replicas_creates_one_expense(api, new_client):
+    anna = create_family(api)
+    boris = join(new_client(), anna)
+    anna.post("/api/account/contributions", {"amount": 500}, idem=key())
+    payment = add_payment(anna, 500)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        responses = list(pool.map(lambda member: member.post(f"/api/payments/{payment['id']}/pay"),
+                                  (anna, boris)))
+    assert all(response.status_code == 200 for response in responses), [response.text for response in responses]
+    assert len(anna.get("/api/expenses").json()) == 1

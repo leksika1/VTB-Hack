@@ -2,7 +2,6 @@ import { useState, type FormEvent } from 'react';
 import { contributeToGoal } from '../../api/client';
 import { useAsyncAction, useRequestId } from '../../hooks/useAsyncAction';
 import { useDataStore } from '../../store/dataStore';
-import { useFamilyStore, useIsParent } from '../../store/familyStore';
 import { useUIStore } from '../../store/uiStore';
 import { formatCurrency, parseAmount, validateAmount } from '../../utils/currency';
 import { Modal } from '../ui/Modal';
@@ -10,14 +9,11 @@ import { AmountField, FormError } from '../ui/Field';
 import { Button } from '../ui/Button';
 import { ProgressBar } from '../ui/ProgressBar';
 
-/** Put money aside into a goal. Any member can; a child contributes from pocket money */
+/** Put money aside into a shared goal. */
 export function GoalContributionModal({ goalId }: { goalId: string }) {
   const closeModal = useUIStore((s) => s.closeModal);
   const addToast = useUIStore((s) => s.addToast);
   const goal = useDataStore((s) => s.goals.find((g) => g.id === goalId));
-  const currentUserId = useFamilyStore((s) => s.currentUserId);
-  const allowance = useDataStore((s) => s.allowances.find((a) => a.memberId === currentUserId));
-  const isParent = useIsParent();
   const requestId = useRequestId();
   const contribute = useAsyncAction(contributeToGoal);
 
@@ -48,11 +44,7 @@ export function GoalContributionModal({ goalId }: { goalId: string }) {
   return (
     <Modal
       title={`Отложить: ${goal.title}`}
-      description={
-        isParent
-          ? 'Взнос пополнит общий счёт и приблизит семью к цели.'
-          : 'Взнос спишется из ваших карманных денег и пополнит общий счёт семьи.'
-      }
+      description="Взнос пополнит общий счёт и приблизит семью к цели."
       onClose={closeModal}
       footer={
         <Button type="submit" form="goal-contribution-form" fullWidth size="lg" loading={contribute.pending}>
@@ -78,7 +70,6 @@ export function GoalContributionModal({ goalId }: { goalId: string }) {
           placeholder="0"
           emphasis
           error={amountError}
-          hint={!isParent && allowance ? `Карманных денег осталось ${formatCurrency(allowance.left)}` : undefined}
           data-autofocus
         />
         {contribute.error && contribute.errorField !== 'amount' && <FormError>{contribute.error}</FormError>}

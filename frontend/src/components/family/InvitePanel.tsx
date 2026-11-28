@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Check, Copy, LinkIcon, Share } from '../ui/icons';
-import type { Role } from '../../types';
 import { createInviteLink } from '../../api/client';
 import { useAsyncAction } from '../../hooks/useAsyncAction';
 import { useFamilyStore } from '../../store/familyStore';
@@ -8,16 +7,10 @@ import { useUIStore } from '../../store/uiStore';
 import { formatDateShort, toISODate } from '../../utils/date';
 import { Button } from '../ui/Button';
 import { FormError } from '../ui/Field';
-import { SegmentedControl, SegmentedControlItem } from '@admiral-ds/react-ui';
 import { buildInviteUrl } from './invite';
 
-const ROLES: { value: Role; label: string }[] = [
-  { value: 'parent', label: 'Взрослого' },
-  { value: 'child', label: 'Ребёнка' },
-];
-
 /**
- * Invite for adults: a link (joins at once, valid 7 days) and the permanent codes (join after approval).
+ * Invite link and family code. Both create a request that only the owner can approve.
  * The link code is returned by the server only once, so the created link is kept for this tab.
  */
 export function InvitePanel() {
@@ -26,7 +19,7 @@ export function InvitePanel() {
   const links = useUIStore((s) => s.inviteLinks);
   const rememberInviteLink = useUIStore((s) => s.rememberInviteLink);
   const create = useAsyncAction(createInviteLink);
-  const [role, setRole] = useState<Role>('parent');
+  const role = 'member' as const;
   const [copied, setCopied] = useState(false);
   if (!family) return null;
   if (family.isDemo) {
@@ -40,7 +33,7 @@ export function InvitePanel() {
 
   // Kept only for this tab, so it cannot outlive its 7 days unnoticed
   const link = links[`${family.id}:${role}`] ?? null;
-  const code = role === 'parent' ? family.inviteCode : family.childInviteCode;
+  const code = family.inviteCode;
 
   const onCreate = async () => {
     const res = await create.run(role);
@@ -69,23 +62,6 @@ export function InvitePanel() {
 
   return (
     <div>
-      <SegmentedControl dimension="m" appearance="filled" aria-label="Кого пригласить">
-        {ROLES.map((r) => (
-          <SegmentedControlItem
-            key={r.value}
-            name="invite-role"
-            value={r.value}
-            checked={role === r.value}
-            onChange={() => {
-              setRole(r.value);
-              create.reset();
-            }}
-          >
-            {r.label}
-          </SegmentedControlItem>
-        ))}
-      </SegmentedControl>
-
       {link ? (
         <>
           <div className="mt-3 rounded-xl bg-surface-muted px-3.5 py-3 text-sm text-ink-2 break-all select-all">{link.url}</div>
@@ -100,7 +76,7 @@ export function InvitePanel() {
             )}
           </div>
           <p className="text-[13px] text-ink-3 mt-2">
-            По ссылке входят сразу, без подтверждения. Действует до {formatDateShort(toISODate(new Date(link.expiresAt)))}.
+            Заявку по ссылке подтверждает владелец. Ссылка действует до {formatDateShort(toISODate(new Date(link.expiresAt)))}.
             Сохраните её сейчас — после перезагрузки страницы ссылку покажем только новую.
           </p>
         </>
@@ -110,10 +86,7 @@ export function InvitePanel() {
             Создать ссылку-приглашение
           </Button>
           <p className="text-[13px] text-ink-3 mt-2">
-            {role === 'parent'
-              ? 'Взрослый участник увидит общий бюджет, расходы и платежи.'
-              : 'Ребёнок увидит только свои расходы, карманные деньги и запросы.'}{' '}
-            Ссылка действует 7 дней.
+            Новый участник получит доступ к бюджету после подтверждения владельцем. Ссылка действует 7 дней.
           </p>
         </>
       )}
@@ -121,7 +94,7 @@ export function InvitePanel() {
 
       {code && (
         <p className="text-sm text-ink-3 mt-4 pt-4 border-t border-line">
-          {role === 'parent' ? 'Код семьи' : 'Детский код'}:{' '}
+          Код семьи:{' '}
           <span className="font-mono font-semibold text-ink tracking-wider">{code}</span>
           <span className="block text-[13px] mt-0.5">Вошедший по коду увидит данные семьи после вашего подтверждения.</span>
         </p>

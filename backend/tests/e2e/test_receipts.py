@@ -1,5 +1,5 @@
 """Расход по QR-коду чека (docs/FEATURES.md §8)."""
-from .helpers import TODAY, add_child, assert_error, create_family, receipt_qr, set_allowance
+from .helpers import TODAY, assert_error, create_family, join, receipt_qr
 
 
 def test_parse_receipt(api):
@@ -32,10 +32,9 @@ def test_same_receipt_only_once_per_family(api, new_client):
     assert_error(anna.post("/api/expenses", {**body, "receipt": "мусор"}), 422, field="receipt")
 
 
-def test_child_does_not_learn_whose_receipt(api, new_client):
+def test_every_member_sees_family_receipt_duplicate(api, new_client):
     anna = create_family(api)
     anna.post("/api/expenses", {"title": "x", "amount": 10, "category": "food", "date": TODAY, "receipt": receipt_qr()})
-    child = add_child(anna, new_client())
-    set_allowance(anna, child, 100)
-    parsed = child.post("/api/receipts/parse", {"qr": receipt_qr()}).json()
-    assert (parsed["duplicate"], parsed["duplicateOf"]) == (True, None)
+    member = join(new_client(), anna)
+    parsed = member.post("/api/receipts/parse", {"qr": receipt_qr()}).json()
+    assert parsed["duplicate"] is True and parsed["duplicateOf"] is not None

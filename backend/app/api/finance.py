@@ -12,6 +12,7 @@ from ..schemas import (
     CopyPaymentsOut,
     ExpenseIn,
     ExpenseOut,
+    InvoiceIn,
     MonthSummaryOut,
     PaymentIn,
     PaymentOut,
@@ -67,9 +68,7 @@ async def save_budget(month_key: str, body: BudgetIn, member: ParentMember, db: 
 
 @router.get("/expenses", response_model=list[ExpenseOut], tags=["expenses"])
 async def list_expenses(member: CurrentMember, db: Db, month: str | None = Query(None, description="YYYY-MM")):
-    # Ребёнок видит только свои расходы
-    author = None if member.is_parent else member.id
-    return [ExpenseOut.of(e) for e in await finance.list_expenses(db, member.family_id, month, author_id=author)]
+    return [ExpenseOut.of(e) for e in await finance.list_expenses(db, member.family_id, month)]
 
 
 @router.post("/expenses", response_model=ExpenseOut, status_code=201, tags=["expenses"])
@@ -101,12 +100,26 @@ async def delete_expense(expense_id: str, member: CurrentMember, db: Db):
 
 
 @router.get("/payments", response_model=list[PaymentOut], tags=["payments"])
-async def list_payments(member: ParentMember, db: Db, month: str | None = Query(None, description="YYYY-MM")):
+async def list_payments(member: CurrentMember, db: Db, month: str | None = Query(None, description="YYYY-MM")):
     return [PaymentOut.of(p) for p in await finance.list_payments(db, member.family_id, month)]
 
 
+@router.get("/payments/autopay-catalog", tags=["payments"], summary="Справочник полей автоплатежа")
+async def get_autopay_catalog(member: CurrentMember):
+    return finance.autopay_catalog()
+
+
+@router.get("/payments/{payment_id}", response_model=PaymentOut, tags=["payments"],
+            summary="Карточка платежа с полными реквизитами")
+async def get_payment(payment_id: str, member: CurrentMember, db: Db):
+    payment = await finance._get_payment(db, member, payment_id)
+    if payment is None:
+        raise NotFound("Платёж не найден")
+    return PaymentOut.of(payment, detailed=True)
+
+
 @router.post("/payments", response_model=PaymentOut, status_code=201, tags=["payments"])
-async def create_payment(body: PaymentIn, member: ParentMember, db: Db, idem: IdempotencyKey = None):
+async def create_payment(body: PaymentIn, member: CurrentMember, db: Db, idem: IdempotencyKey = None):
     async def action():
         return _dump(PaymentOut.of(await finance.create_payment(db, member, body)))
 
@@ -114,7 +127,7 @@ async def create_payment(body: PaymentIn, member: ParentMember, db: Db, idem: Id
 
 
 @router.put("/payments/{payment_id}", response_model=PaymentOut, tags=["payments"])
-async def update_payment(payment_id: str, body: PaymentIn, member: ParentMember, db: Db, idem: IdempotencyKey = None):
+async def update_payment(payment_id: str, body: PaymentIn, member: CurrentMember, db: Db, idem: IdempotencyKey = None):
     async def action():
         return _dump(PaymentOut.of(await finance.update_payment(db, member, payment_id, body)))
 
@@ -123,7 +136,7 @@ async def update_payment(payment_id: str, body: PaymentIn, member: ParentMember,
 
 
 @router.delete("/payments/{payment_id}", status_code=204, tags=["payments"])
-async def delete_payment(payment_id: str, member: ParentMember, db: Db):
+async def delete_payment(payment_id: str, member: CurrentMember, db: Db):
     await finance.delete_payment(db, member, payment_id)
     await db.commit()
     return Response(status_code=204)
@@ -131,7 +144,7 @@ async def delete_payment(payment_id: str, member: ParentMember, db: Db):
 
 @router.post("/payments/{payment_id}/paid", response_model=PaymentPaidOut, tags=["payments"],
              summary="Отметить оплаченным (paid=true) или вернуть в предстоящие (paid=false)")
-async def set_payment_paid(payment_id: str, body: PaymentPaidIn, member: ParentMember, db: Db):
+async def set_payment_paid(payment_id: str, body: PaymentPaidIn, member: CurrentMember, db: Db):
     payment, expense = await finance.set_payment_paid(
         db, member, payment_id, body.paid, record_today=body.record_today,
         from_shared_account=body.from_shared_account,
@@ -141,8 +154,31 @@ async def set_payment_paid(payment_id: str, body: PaymentPaidIn, member: ParentM
     return out
 
 
+@router.post("/payments/{payment_id}/pay", response_model=PaymentPaidOut, tags=["payments"],
+             summary="Оплатить сейчас с общего счёта")
+async def pay_now(payment_id: str, member: CurrentMember, db: Db, idem: IdempotencyKey = None):
+    async def action():
+        payment, expense = await finance.set_payment_paid(db, member, payment_id, True, from_shared_account=True)
+        return _dump(PaymentPaidOut(payment=PaymentOut.of(payment),
+                                    expense=ExpenseOut.of(expense) if expense else None))
+    return await idempotency.run(db, member.id, idem, idempotency.fingerprint("pay payment", payment_id), action)
+
+
+@router.post("/payments/{payment_id}/invoice", response_model=PaymentOut, tags=["payments"],
+             summary="Эмуляция выставления счёта поставщиком")
+async def issue_invoice(payment_id: str, body: InvoiceIn, member: CurrentMember, db: Db,
+                        idem: IdempotencyKey = None):
+    async def action():
+        payment = await finance.invoice_payment(db, member, payment_id, body.amount)
+        if payment.payment_method == "autopay" and payment.autopay_type == "by_invoice":
+            await finance.attempt_autopay(db, payment)
+        return _dump(PaymentOut.of(payment))
+    return await idempotency.run(db, member.id, idem,
+                                 idempotency.fingerprint("invoice payment", payment_id, body.amount), action)
+
+
 @router.post("/payments/copy-previous-month", response_model=CopyPaymentsOut, tags=["payments"])
-async def copy_payments(body: CopyPaymentsIn, member: ParentMember, db: Db, idem: IdempotencyKey = None):
+async def copy_payments(body: CopyPaymentsIn, member: CurrentMember, db: Db, idem: IdempotencyKey = None):
     async def action():
         copies = await finance.copy_payments_from_previous_month(db, member, body.month_key)
         return _dump(CopyPaymentsOut(added=len(copies), payments=[PaymentOut.of(p) for p in copies]))

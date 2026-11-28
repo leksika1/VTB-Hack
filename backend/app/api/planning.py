@@ -1,9 +1,11 @@
-"""Цели-копилки, прогноз месяца, расчёты между взрослыми (docs/FEATURES.md §4, §5, §7)."""
-from fastapi import APIRouter, Response
+"""Цели-копилки, прогноз месяца и расчёты между участниками."""
+from fastapi import APIRouter, Query, Response
 
 from ..deps import CurrentMember, Db, IdempotencyKey, ParentMember
 from ..schemas import (
     AccountContributionOut,
+    AnalyticsOut,
+    CalendarOut,
     CategoryForecastOut,
     ContributionIn,
     ContributionOut,
@@ -18,6 +20,17 @@ from ..services import goals, idempotency, insights
 from ..validation import kop_to_amount
 
 router = APIRouter()
+
+
+@router.get("/analytics", response_model=AnalyticsOut, tags=["analytics"], summary="Аналитика без прогнозов")
+async def analytics(month: str, member: CurrentMember, db: Db,
+                    months: int = Query(6, ge=1, le=24)):
+    return await insights.analytics(db, member.family_id, month, months)
+
+
+@router.get("/calendar", response_model=CalendarOut, tags=["calendar"], summary="Календарь расходов и платежей")
+async def calendar(month: str, member: CurrentMember, db: Db):
+    return await insights.calendar(db, member.family_id, month)
 
 
 def _dump(model) -> dict:
@@ -69,13 +82,13 @@ async def list_contributions(goal_id: str, member: CurrentMember, db: Db):
 
 
 @router.post("/goals/{goal_id}/contributions", response_model=ContributionResultOut, status_code=201, tags=["goals"],
-             summary="Внести в цель (ребёнок — из карманных денег)")
+             summary="Внести деньги в общую цель")
 async def contribute(goal_id: str, body: ContributionIn, member: CurrentMember, db: Db, idem: IdempotencyKey = None):
     async def action():
         goal, contribution, account_contribution = await goals.contribute(db, member, goal_id, body)
         return _dump(ContributionResultOut(
             goal=await goals.to_out(db, goal), contribution=ContributionOut.of(contribution),
-            account_contribution=AccountContributionOut.of(account_contribution) if member.is_parent else None,
+            account_contribution=AccountContributionOut.of(account_contribution),
         ))
 
     fp = idempotency.fingerprint("POST contribution", goal_id, _dump(body))
@@ -105,7 +118,7 @@ async def month_forecast(month_key: str, member: ParentMember, db: Db):
     )
 
 
-# ── Расчёты между взрослыми ──
+# ── Расчёты между участниками ──
 
 
 @router.get("/months/{month_key}/settlement", response_model=SettlementOut, tags=["summary"],

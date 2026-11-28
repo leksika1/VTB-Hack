@@ -1,12 +1,13 @@
 from fastapi import APIRouter, Request, Response
 
-from ..deps import AnyMember, CurrentMember, Db, IdempotencyKey, ParentMember, mark_silent
+from .. import clock
+from ..deps import AnyMember, CurrentMember, Db, IdempotencyKey, OwnerMember, mark_silent
 from ..ratelimit import InviteLimit, SignupLimit, client_ip
 from ..schemas import (
     AccountContributionOut,
+    AccountSummaryOut,
     BudgetOut,
     ContributionAmountIn,
-    ChildInviteOut,
     CreateFamilyIn,
     ExpenseOut,
     FamilyOut,
@@ -15,12 +16,11 @@ from ..schemas import (
     InvitePreviewOut,
     JoinFamilyIn,
     PaymentOut,
-    RoleIn,
     SessionOut,
     StateOut,
     SwitchUserIn,
 )
-from ..services import account, allowance, demo, families, finance, idempotency, notifications
+from ..services import account, demo, families, finance, idempotency, notifications
 
 router = APIRouter(tags=["family"])
 
@@ -65,61 +65,53 @@ async def leave_family(member: AnyMember, db: Db):
 
 
 @router.post("/family/invite-code", response_model=FamilyOut, summary="Сменить код приглашения")
-async def rotate_invite_code(member: ParentMember, db: Db):
+async def rotate_invite_code(member: CurrentMember, db: Db):
     """Старый код и ссылки с ним перестают работать. Участники семьи остаются."""
     return await families.rotate_invite_code(db, member)
 
 
-@router.post("/family/child-invites", response_model=ChildInviteOut, summary="Детский код семьи")
-async def create_child_invite(member: ParentMember, db: Db, request: Request):
-    """Постоянный, как код семьи; вошедший по нему получит роль child (docs/FEATURES.md §1).
-    Тот же код есть в `childInviteCode` у GET /family."""
-    mark_silent(request)
-    return await families.create_child_invite(db, member)
-
-
-@router.post("/family/child-invite-code", response_model=FamilyOut, summary="Сменить детский код")
-async def rotate_child_code(member: ParentMember, db: Db):
-    """Старый детский код перестаёт работать. Дети в семье остаются."""
-    return await families.rotate_child_code(db, member)
-
-
 @router.post("/family/invite-links", response_model=InviteLinkOut, status_code=201,
-             summary="Ссылка-приглашение без подтверждения")
-async def create_invite_link(member: ParentMember, db: Db, request: Request, body: InviteLinkIn | None = None):
-    """Вошедшие по ссылке `?invite=<code>` сразу видят данные семьи. Ссылка многоразовая, действует 7 дней
-    или до отзыва; код (16 символов) показывается один раз (docs/FEATURES.md §1)."""
+             summary="Ссылка-приглашение с подтверждением владельцем")
+async def create_invite_link(member: CurrentMember, db: Db, request: Request, body: InviteLinkIn | None = None):
+    """Ссылка многоразовая, но каждый новый участник ждёт решения владельца."""
     mark_silent(request)
     return await families.create_invite_link(db, member, (body or InviteLinkIn()).role)
 
 
 @router.get("/family/invite-links", response_model=list[InviteLinkOut], summary="Действующие ссылки")
-async def list_invite_links(member: ParentMember, db: Db):
+async def list_invite_links(member: CurrentMember, db: Db):
     return await families.list_invite_links(db, member)
 
 
 @router.delete("/family/invite-links/{link_id}", status_code=204, summary="Отозвать ссылку")
-async def revoke_invite_link(link_id: str, member: ParentMember, db: Db, request: Request):
+async def revoke_invite_link(link_id: str, member: CurrentMember, db: Db, request: Request):
     mark_silent(request)
     await families.revoke_invite_link(db, member, link_id)
     return Response(status_code=204)
 
 
 @router.post("/family/members/{member_id}/approve", response_model=FamilyOut, summary="Подтвердить вход участника")
-async def approve_member(member_id: str, member: ParentMember, db: Db):
-    """Вошедший по коду начинает видеть данные семьи. Отказ — DELETE /family/members/{id}."""
+async def approve_member(member_id: str, member: OwnerMember, db: Db):
+    """Только владелец открывает ожидающему данные семьи."""
     return await families.approve_member(db, member, member_id)
 
 
-@router.put("/family/members/{member_id}", response_model=FamilyOut, summary="Сменить роль участника")
-async def set_member_role(member_id: str, body: RoleIn, member: ParentMember, db: Db):
-    return await families.set_role(db, member, member_id, body.role)
+@router.post("/family/members/{member_id}/reject", status_code=204, summary="Отклонить заявку")
+async def reject_member(member_id: str, member: OwnerMember, db: Db):
+    await families.reject_member(db, member, member_id)
+    return Response(status_code=204)
 
 
 @router.delete("/family/members/{member_id}", status_code=204, summary="Исключить участника или отклонить вход")
-async def remove_member(member_id: str, member: ParentMember, db: Db):
+async def remove_member(member_id: str, member: OwnerMember, db: Db):
     await families.remove_member(db, member, member_id)
     return Response(status_code=204)
+
+
+@router.post("/family/members/{member_id}/make-owner", response_model=FamilyOut,
+             summary="Передать владение семьёй")
+async def transfer_ownership(member_id: str, member: OwnerMember, db: Db):
+    return await families.transfer_ownership(db, member, member_id)
 
 
 @router.post("/family/switch-user", response_model=SessionOut, summary="Демо: войти как другой участник")
@@ -130,31 +122,37 @@ async def switch_user(body: SwitchUserIn, request: Request, member: CurrentMembe
 
 @router.post("/account/contributions", response_model=AccountContributionOut, status_code=201,
              summary="Записать пополнение демо-счёта")
-async def contribute_to_account(body: ContributionAmountIn, member: ParentMember, db: Db,
+async def contribute_to_account(body: ContributionAmountIn, member: CurrentMember, db: Db,
                                 idem: IdempotencyKey = None):
     async def action():
         contribution = await account.add_contribution(db, member, body.amount)
-        return AccountContributionOut.of(contribution).model_dump(mode="json", by_alias=True)
+        current = await account.summary(db, member.family_id, clock.current_month_key())
+        own = next((item for item in current.members if item.member_id == member.id), None)
+        out = AccountContributionOut.of(contribution)
+        out.top_up_suggestion = own.due if own else 0
+        return out.model_dump(mode="json", by_alias=True)
 
     return await idempotency.run(db, member.id, idem, idempotency.fingerprint("account contribution", body.amount), action)
+
+
+@router.get("/account/summary", response_model=AccountSummaryOut, tags=["account"],
+            summary="Остаток общего счёта, взносы и доли")
+async def account_summary(month: str, member: CurrentMember, db: Db):
+    return await account.summary(db, member.family_id, month)
 
 
 @router.get("/state", response_model=StateOut, summary="Все данные семьи для старта приложения")
 async def get_state(member: AnyMember, db: Db):
     family = await families.load_family(db, member.family_id)
-    if member.pending:  # до подтверждения взрослым — ни одной записи семьи
+    if not member.active:  # до подтверждения или после отказа — ни одной записи семьи
         return StateOut(family=FamilyOut.of(family, member), current_user_id=member.id, budgets=[], expenses=[],
-                        payments=[], allowances=[], unread_notifications=0)
-    # Ребёнку — только его расходы; бюджет и платежи семьи — только взрослым (docs/FEATURES.md §1)
-    adult = member.is_parent
+                        payments=[], unread_notifications=await notifications.unread_count(db, member))
     return StateOut(
         family=FamilyOut.of(family, member),
         current_user_id=member.id,
-        budgets=[BudgetOut.of(b) for b in await finance.list_budgets(db, family.id)] if adult else [],
-        expenses=[ExpenseOut.of(e) for e in await finance.list_expenses(db, family.id, author_id=None if adult else member.id)],
-        payments=[PaymentOut.of(p) for p in await finance.list_payments(db, family.id)] if adult else [],
-        allowances=await allowance.list_allowances(db, member),
+        budgets=[BudgetOut.of(b) for b in await finance.list_budgets(db, family.id)],
+        expenses=[ExpenseOut.of(e) for e in await finance.list_expenses(db, family.id)],
+        payments=[PaymentOut.of(p) for p in await finance.list_payments(db, family.id)],
         unread_notifications=await notifications.unread_count(db, member),
-        account_contributions=[AccountContributionOut.of(c) for c in await account.list_contributions(db, family.id)]
-        if adult else [],
+        account_contributions=[AccountContributionOut.of(c) for c in await account.list_contributions(db, family.id)],
     )
