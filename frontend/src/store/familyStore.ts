@@ -6,6 +6,7 @@ export interface SavedSession {
   family: Family;
   currentUserId: string | null;
   token: string;
+  unreadNotifications: number;
 }
 
 interface FamilyState {
@@ -13,6 +14,8 @@ interface FamilyState {
   currentUserId: string | null;
   /** Session token from the backend, sent as Authorization: Bearer */
   token: string | null;
+  /** Unread in-app notifications returned with GET /state. */
+  unreadNotifications: number;
   /** The real account put aside while the demo copy is open: leaving the demo brings it back */
   savedSession: SavedSession | null;
 }
@@ -23,6 +26,7 @@ export const useFamilyStore = create<FamilyState>()(
       family: null,
       currentUserId: null,
       token: null,
+      unreadNotifications: 0,
       savedSession: null,
     }),
     // v3: data lives on the backend now; v2 held the local mock data

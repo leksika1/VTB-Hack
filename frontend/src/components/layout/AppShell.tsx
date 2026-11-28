@@ -1,13 +1,13 @@
 import { useEffect, type ReactNode } from 'react';
 import { HorizontalTab, HorizontalTabs, T } from '@admiral-ds/react-ui';
 import styled from 'styled-components';
-import { Dashboard, Receipt, BarChart, Users, Calendar, ArrowLeft } from '../ui/icons';
+import { Dashboard, Receipt, BarChart, Users, Calendar, ArrowLeft, Bell } from '../ui/icons';
 import { ProfileDropdown } from './ProfileDropdown';
 import type { Tab } from '../../types';
 import { useUIStore } from '../../store/uiStore';
 import { useCurrentUser, useFamilyStore } from '../../store/familyStore';
 import { Badge } from '../ui/Misc';
-import { Button } from '../ui/Button';
+import { Button, IconButton } from '../ui/Button';
 import { Card, PageHeader } from '../ui/Card';
 import { ProfileSettings } from '../family/ProfileSettings';
 import { useMediaQuery } from '../../utils/theme';
@@ -35,8 +35,10 @@ export function BrandMark({ size = 36 }: { size?: number }) {
 export function AppShell({ children }: { children: ReactNode }) {
   const storedTab = useUIStore((s) => s.tab);
   const setTab = useUIStore((s) => s.setTab);
+  const openModal = useUIStore((s) => s.openModal);
   const family = useFamilyStore((s) => s.family);
   const user = useCurrentUser();
+  const unreadNotifications = useFamilyStore((s) => s.unreadNotifications);
   const profileOpen = useUIStore((s) => s.profileOpen);
   const profileSection = useUIStore((s) => s.profileSection);
   const setProfileOpen = useUIStore((s) => s.setProfileOpen);
@@ -69,6 +71,23 @@ export function AppShell({ children }: { children: ReactNode }) {
             {/* Demo data looks real, so the mark stays on every screen size */}
             {family?.isDemo && <span className="shrink-0"><Badge tone="warning">Демо</Badge></span>}
 
+            {user && (
+              <span className="relative shrink-0">
+                <IconButton label={unreadNotifications > 0
+                  ? `Уведомления: ${unreadNotifications} непрочитанных`
+                  : 'Уведомления'}
+                  className="!size-10 !rounded-full"
+                  onClick={() => openModal({ type: 'notifications' })}>
+                  <Bell size={20} />
+                </IconButton>
+                {unreadNotifications > 0 && (
+                  <span className="pointer-events-none absolute -right-1 -top-1 grid min-w-5 place-items-center rounded-full bg-danger px-1 text-[11px] font-semibold leading-5 text-white"
+                    aria-hidden>
+                    {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                  </span>
+                )}
+              </span>
+            )}
             {user && <ProfileDropdown user={user} mobile={mobile} />}
           </div>
         </div>

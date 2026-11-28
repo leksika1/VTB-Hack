@@ -173,29 +173,54 @@ function ConcealedAmount({ visible, children }: { visible: boolean; children: st
   </>;
 }
 
-export function FamilyContributionsCard({ month }: { month: string }) {
-  const family = useFamilyStore((s) => s.family);
+export function FamilyContributionsCard({ month, summary, detailed = false }: {
+  month: string;
+  summary?: AccountSummary;
+  detailed?: boolean;
+}) {
+  if (summary) return <ContributionsCard month={month} summary={summary} detailed={detailed} />;
+  return <RemoteContributionsCard month={month} detailed={detailed} />;
+}
+
+function RemoteContributionsCard({ month, detailed }: { month: string; detailed: boolean }) {
   const account = useAccountSummary(month);
+
+  return (
+    <ContributionsCard month={month} summary={account.data} detailed={detailed}
+      loading={account.loading} error={account.error} onRetry={account.refetch} />
+  );
+}
+
+function ContributionsCard({ month, summary, detailed, loading = false, error = null, onRetry }: {
+  month: string;
+  summary?: AccountSummary;
+  detailed: boolean;
+  loading?: boolean;
+  error?: string | null;
+  onRetry?: () => Promise<void>;
+}) {
+  const family = useFamilyStore((s) => s.family);
   const [membersOpen, setMembersOpen] = useState(true);
 
   return (
     <Card className="px-3 py-3">
-      <Disclosure title={`Взносы за ${formatMonthLower(month)}`} open={membersOpen} onOpenChange={setMembersOpen}
+      <Disclosure title={detailed ? 'Взносы участников' : `Взносы за ${formatMonthLower(month)}`}
+        open={membersOpen} onOpenChange={setMembersOpen}
         className="select-none">
-        {account.loading && !account.data && <ContributionSkeleton />}
-        {account.error && !account.data && (
-          <InlineLoadError message={account.error} loading={account.loading} onRetry={account.refetch} />
+        {loading && !summary && <ContributionSkeleton />}
+        {error && !summary && onRetry && (
+          <InlineLoadError message={error} loading={loading} onRetry={onRetry} />
         )}
-        {account.data && (
+        {summary && (
           <>
             <ul key={month} className="space-y-2 pt-1">
-              {account.data.members.map((member) => (
-                <CompactMemberRow key={member.memberId} member={member}
+              {summary.members.map((member) => (
+                <ContributionMemberRow key={member.memberId} member={member} detailed={detailed}
                   color={family?.members.find((item) => item.id === member.memberId)?.color} />
               ))}
             </ul>
             <div className="mt-3 border-t border-line pt-2">
-              <ContributionHistory summary={account.data} />
+              <ContributionHistory summary={summary} />
             </div>
           </>
         )}
@@ -204,13 +229,50 @@ export function FamilyContributionsCard({ month }: { month: string }) {
   );
 }
 
-function CompactMemberRow({ member, color }: { member: AccountMemberSummary; color?: string }) {
+function ContributionMemberRow({ member, color, detailed }: {
+  member: AccountMemberSummary;
+  color?: string;
+  detailed: boolean;
+}) {
   const owes = member.status === 'owes';
-  const tone = owes ? 'text-danger' : 'text-success';
+  const overpaid = member.status === 'overpaid';
+  const tone = owes ? 'text-danger' : overpaid ? 'text-success' : 'text-ink-2';
+  const settlement = owes
+    ? `Осталось ${formatCurrency(member.due)}`
+    : overpaid
+      ? `Переплатил ${formatCurrency(member.overpaid)}`
+      : 'Расчёт закрыт';
   // Процент от своей доли (а не от всех взносов семьи): внесено на счёт + оплачено лично.
   const covered = member.share > 0
     ? `внёс ${formatPercent(Math.round(((member.contributed + member.paidPersonally) / member.share) * 100))} своей доли`
     : 'без доли в тратах';
+
+  if (detailed) {
+    return (
+      <li className="rounded-control bg-surface-muted px-3 py-3">
+        <div className="flex items-center gap-3">
+          <Avatar user={{ name: member.name, color: color ?? 'var(--accent)' }} />
+          <p className="min-w-0 flex-1 truncate font-medium">{member.name}</p>
+          <p className={`shrink-0 text-right text-sm font-semibold tabular ${tone}`}>{settlement}</p>
+        </div>
+        <dl className="mt-3 grid grid-cols-1 gap-2 border-t border-line pt-3 text-sm min-[25rem]:grid-cols-3">
+          <div>
+            <dt className="text-ink-2">Доля</dt>
+            <dd className="font-medium tabular">{formatCurrency(member.share)} ({formatPercent(member.sharePercent)})</dd>
+          </div>
+          <div>
+            <dt className="text-ink-2">Внесено</dt>
+            <dd className="font-medium tabular">{formatCurrency(member.contributed)}</dd>
+          </div>
+          <div>
+            <dt className="text-ink-2">Оплачено лично</dt>
+            <dd className="font-medium tabular">{formatCurrency(member.paidPersonally)}</dd>
+          </div>
+        </dl>
+      </li>
+    );
+  }
+
   return (
     <li className="flex items-center gap-3 rounded-control bg-surface px-3 py-2">
       <Avatar user={{ name: member.name, color: color ?? 'var(--accent)' }} size="sm" />
@@ -219,7 +281,7 @@ function CompactMemberRow({ member, color }: { member: AccountMemberSummary; col
         <p className={`text-sm ${tone}`}>{covered}</p>
       </div>
       <p className={`shrink-0 text-right text-sm font-medium tabular ${tone}`}>
-        осталось {formatCurrency(member.due)}
+        {settlement}
       </p>
     </li>
   );
@@ -239,51 +301,6 @@ function ContributionHistory({ summary }: { summary: AccountSummary }) {
         </div>
       ) : <p className="pt-1 text-sm text-ink-2">Пополнений в этом месяце пока нет.</p>}
     </Disclosure>
-  );
-}
-
-/** Detailed contribution breakdown stays on Analytics. */
-export function FamilyAccountBreakdown({ month }: { month: string }) {
-  const family = useFamilyStore((s) => s.family);
-  const account = useAccountSummary(month);
-
-  return (
-    <Card className="px-5 py-3">
-      <Disclosure title="Взносы и доли" className="select-none">
-        {account.loading && !account.data && <ContributionSkeleton />}
-        {account.error && !account.data && (
-          <InlineLoadError message={account.error} loading={account.loading} onRetry={account.refetch} />
-        )}
-        {account.data && (
-          <>
-            <ul key={month} className="space-y-2 pt-3">
-              {account.data.members.map((member) => (
-                <li key={member.memberId} className="flex items-center gap-3 rounded-control bg-surface-muted px-3 py-2">
-                  <Avatar user={{
-                    name: member.name,
-                    color: family?.members.find((item) => item.id === member.memberId)?.color ?? 'var(--accent)',
-                  }} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap justify-between gap-2">
-                      <p className="font-medium wrap-anywhere">{member.name}</p>
-                      <p className="font-medium tabular">К внесению {formatCurrency(member.due)}</p>
-                    </div>
-                    <p className="text-sm text-ink-2">
-                      Доля {formatCurrency(member.share)} ({formatPercent(member.sharePercent)}), внесено{' '}
-                      {formatCurrency(member.contributed)} ({formatPercent(member.contributionPercent)})
-                      {!!member.paidPersonally && `, оплачено лично ${formatCurrency(member.paidPersonally)}`}
-                    </p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-            <div className="mt-4">
-              <ContributionHistory summary={account.data} />
-            </div>
-          </>
-        )}
-      </Disclosure>
-    </Card>
   );
 }
 

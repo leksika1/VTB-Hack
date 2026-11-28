@@ -60,10 +60,12 @@ def test_real_family_owner_must_transfer_before_leave(api, new_client):
     assert anna.get("/api/state").status_code == 200
 
 
-def test_demo_contains_pending_member_without_legacy_requests(new_client):
+def test_demo_contains_pending_member_and_debt_reminder(new_client):
     demo = start_demo(new_client())
     assert [row["name"] for row in demo.get("/api/family").json()["pendingMembers"]] == ["Даша"]
-    assert demo.get("/api/notifications").json() == []
+    reminders = [row for row in demo.get("/api/notifications").json() if row["kind"] == "debt_reminder"]
+    assert len(reminders) == 1
+    assert reminders[0]["data"]["due"] > 0
 
 
 def test_demo_saves_for_a_washing_machine_without_touching_the_budget(new_client):

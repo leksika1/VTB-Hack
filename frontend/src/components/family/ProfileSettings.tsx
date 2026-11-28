@@ -233,7 +233,7 @@ function DemoCard() {
           ))}
         </div>
         <p className="text-[13px] text-ink-3 mt-2">
-          Два участника в одном браузере — только для показа. Совместную работу нужно проверять в разных сессиях.
+          Несколько участников в одном браузере — только для показа. Совместную работу нужно проверять в разных сессиях.
         </p>
         {switchUser.error && <p role="alert" className="text-sm text-danger mt-2">{switchUser.error}</p>}
       </div>

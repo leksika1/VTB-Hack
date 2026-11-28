@@ -132,6 +132,7 @@ interface StateResponse {
   accountContributions?: AccountContribution[];
   family: Family;
   currentUserId: string;
+  unreadNotifications: number;
   budgets: MonthlyBudget[];
   expenses: Expense[];
   payments: Payment[];
@@ -146,11 +147,15 @@ function clearSession() {
     refreshData().catch(() => {});
     return;
   }
-  useFamilyStore.setState({ family: null, currentUserId: null, token: null, savedSession: null });
+  useFamilyStore.setState({ family: null, currentUserId: null, token: null, unreadNotifications: 0, savedSession: null });
 }
 
 function applyState(state: StateResponse) {
-  useFamilyStore.setState({ family: state.family, currentUserId: state.currentUserId });
+  useFamilyStore.setState({
+    family: state.family,
+    currentUserId: state.currentUserId,
+    unreadNotifications: state.unreadNotifications,
+  });
   useDataStore.setState({
     budgets: Object.fromEntries(state.budgets.map((b) => [budgetKey(b.familyId, b.monthKey), b])),
     expenses: state.expenses,
@@ -170,7 +175,12 @@ async function loadState(): Promise<void> {
 }
 
 async function startSession(session: SessionResponse): Promise<Family> {
-  useFamilyStore.setState({ token: session.token, family: session.family, currentUserId: session.currentUserId });
+  useFamilyStore.setState({
+    token: session.token,
+    family: session.family,
+    currentUserId: session.currentUserId,
+    unreadNotifications: 0,
+  });
   await loadState();
   if (session.loginId) useUIStore.getState().addToast(`Сохраните личный ID для входа: ${session.loginId}`, 'info');
   return session.family;
@@ -311,8 +321,10 @@ export async function joinFamily(code: string, userName: string, requestId: stri
  */
 export async function startDemo(): Promise<Family> {
   const session = await request<SessionResponse>('/demo', { method: 'POST', anonymous: true });
-  const { token, family, currentUserId } = useFamilyStore.getState();
-  if (token && family && !family.isDemo) useFamilyStore.setState({ savedSession: { token, family, currentUserId } });
+  const { token, family, currentUserId, unreadNotifications } = useFamilyStore.getState();
+  if (token && family && !family.isDemo) {
+    useFamilyStore.setState({ savedSession: { token, family, currentUserId, unreadNotifications } });
+  }
   return startSession(session);
 }
 
@@ -862,6 +874,7 @@ export async function listNotifications(): Promise<AppNotification[]> {
 
 export async function markNotificationsRead(): Promise<void> {
   await request<void>('/notifications/read-all', { method: 'POST' });
+  useFamilyStore.setState({ unreadNotifications: 0 });
 }
 
 export function errorMessage(error: unknown): string {

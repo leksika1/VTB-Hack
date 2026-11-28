@@ -18,7 +18,7 @@ import { EmptyState } from '../ui/Feedback';
 import { ExpenseDayGroups } from './ExpenseList';
 import { SpendingCharts } from './SpendingCharts';
 
-export function OperationsHistory() {
+export function OperationsHistory({ showCharts = true }: { showCharts?: boolean }) {
   const monthKey = useUIStore((s) => s.monthKey);
   const openModal = useUIStore((s) => s.openModal);
   const family = useFamilyStore((s) => s.family);
@@ -38,7 +38,7 @@ export function OperationsHistory() {
 
   return (
     <div className="space-y-5">
-      {expenses.length > 0 && <SpendingCharts expenses={expenses} selected={categories} onToggle={toggleCategory} />}
+      {showCharts && expenses.length > 0 && <SpendingCharts expenses={expenses} selected={categories} onToggle={toggleCategory} />}
       <Card className="px-2 py-2 sm:px-3">
         <Disclosure title={`История операций (${expenses.length})`} open={open} onOpenChange={setOpen}>
           {!expenses.length ? (

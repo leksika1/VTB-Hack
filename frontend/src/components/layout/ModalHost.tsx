@@ -9,6 +9,7 @@ import { InviteModal } from '../family/InviteModal';
 import { GoalFormModal } from '../goals/GoalFormModal';
 import { GoalContributionModal } from '../goals/GoalContributionModal';
 import { AccountContributionModal } from '../account/AccountContributionModal';
+import { NotificationsModal } from './NotificationsModal';
 import { Presence } from '../ui/Presence';
 
 function renderModal(modal: NonNullable<ModalState>) {
@@ -31,6 +32,8 @@ function renderModal(modal: NonNullable<ModalState>) {
       return <AccountContributionModal amount={modal.amount} />;
     case 'goalContribution':
       return <GoalContributionModal key={modal.goalId} goalId={modal.goalId} />;
+    case 'notifications':
+      return <NotificationsModal />;
   }
 }
 

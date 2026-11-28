@@ -23,6 +23,7 @@ export type ModalState =
   | { type: 'goalForm'; goalId?: string }
   | { type: 'accountContribution'; amount?: number }
   | { type: 'goalContribution'; goalId: string }
+  | { type: 'notifications' }
   | null;
 
 export type Theme = 'light' | 'dark' | 'system';

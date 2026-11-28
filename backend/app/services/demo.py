@@ -9,7 +9,7 @@ from ..models import AccountContribution, Budget, Expense, Family, Goal, GoalCon
 from ..schemas import SessionOut
 from ..security import MEMBER_COLORS
 from ..validation import shift_month
-from . import families, recurring
+from . import families, notifications, recurring
 
 HOUR_MS = 3_600_000
 
@@ -114,7 +114,8 @@ async def build_sample_family(db: AsyncSession, *, name: str, is_demo: bool,
         expense("Продукты прошлого месяца", 39_800, "food", d(prev, 10), masha),
     ])
     db.add_all([
-        AccountContribution(family_id=family.id, member_id=petya.id, amount_kop=_kop(20_000), date=d(month, 1)),
+        # Петя остаётся должен по своей доле: демо сразу показывает напоминание и сценарий пополнения.
+        AccountContribution(family_id=family.id, member_id=petya.id, amount_kop=_kop(1_000), date=d(month, 1)),
         AccountContribution(family_id=family.id, member_id=masha.id, amount_kop=_kop(18_000), date=d(month, 1)),
         AccountContribution(family_id=family.id, member_id=nina.id, amount_kop=_kop(12_000), date=d(month, 2)),
         AccountContribution(family_id=family.id, member_id=masha.id, amount_kop=_kop(90_000), date=d(prev, 1)),
@@ -130,5 +131,7 @@ async def build_sample_family(db: AsyncSession, *, name: str, is_demo: bool,
                          date=on, created_at=now - age * HOUR_MS)
         for who, on, age in ((petya, d(prev2, 5), 1400), (masha, d(prev, 5), 700), (nina, day(-1), 20))
     ])
+    await db.commit()
+    await notifications.debt_reminders(db, family.id)
     await db.commit()
     return petya
