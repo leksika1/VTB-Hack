@@ -56,7 +56,7 @@ def test_three_way_shares_summary_analytics_and_calendar(api, new_client):
     assert owner.post("/api/expenses", body, idem=key()).status_code == 201
     summary = owner.get(f"/api/account/summary?month={TODAY[:7]}").json()
     assert [m["share"] for m in summary["members"]] == [33.35, 33.33, 33.33]
-    assert sum(m["due"] for m in summary["members"]) == 100.01
+    assert sum(round(m["due"] * 100) for m in summary["members"]) == 10001
     assert owner.get(f"/api/analytics?month={TODAY[:7]}&months=2").status_code == 200
     assert owner.get(f"/api/calendar?month={TODAY[:7]}").status_code == 200
     assert_error(owner.post("/api/expenses", {**body, "source": "personal"}, idem=key()), 422,
