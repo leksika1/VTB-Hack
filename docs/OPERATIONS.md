@@ -64,7 +64,7 @@ BACKEND_ALIAS=family-backend-prod          # то же, что у Backend это
 ```
 
 Остальные переменные из таблиц ниже необязательны. Задавать в Dokploy можно те, что перечислены в `environment`
-compose-файла сервиса (лимиты, почта, ВТБ ID, витрина, `ENABLE_DOCS`, `LOG_LEVEL`, `DEMO_TTL_HOURS`; у фронтенда —
+compose-файла сервиса (лимиты, почта, ВТБ ID, витрина, `ENABLE_DOCS`, `LOG_LEVEL`; у фронтенда —
 лимиты nginx): только они доходят до контейнера. Для остальных добавьте строку в `environment` обоих compose-файлов.
 
 `BACKEND_ALIAS` должен быть разным у prod и dev: оба окружения на одном сервере делят `dokploy-network`, и с одинаковым
@@ -93,13 +93,12 @@ Environment как выше, Deploy Backend, затем Frontend. Старые �
 | `TIMEZONE` | `Europe/Moscow` | Пояс для «сегодня» и «текущего месяца» |
 | `FORWARDED_ALLOW_IPS` | частные сети (`10/8, 172.16/12, 192.168/16, 127.0.0.1`) | Чьему `X-Forwarded-For` верить. Не ставьте `*` — клиент обойдёт лимиты, подставив чужой IP |
 | `SESSION_TTL_DAYS` | `90` | Сессия закрывается после стольких дней без запросов |
-| `DEMO_TTL_HOURS` | `24` | Срок жизни демо-семей |
 | `IDEMPOTENCY_TTL_HOURS` | `24` | Сколько хранить ответы для `Idempotency-Key` |
 | `MAINTENANCE_INTERVAL_SECONDS` | `3600` | Период фоновой очистки; `0` — выключить |
 | `RATE_LIMIT_ENABLED` | `true` | Включить лимиты запросов |
 | `RATE_LIMIT_WINDOW_SECONDS` | `60` | Окно лимитов |
 | `RATE_LIMIT_INVITE` | `120` | Запросов к приглашениям с IP за окно |
-| `RATE_LIMIT_SIGNUP` | `60` | Созданий семьи/демо с IP за окно |
+| `RATE_LIMIT_SIGNUP` | `60` | Созданий семьи и попыток входа с IP за окно |
 | `RATE_LIMIT_WRITE` | `120` | Изменений данных на участника за окно |
 | `EVENTS_HEARTBEAT_SECONDS` | `15` | Интервал `: ping` в потоке событий |
 | `RATE_LIMIT_READ` | `600` | Чтений на участника за окно |

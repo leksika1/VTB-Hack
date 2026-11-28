@@ -6,6 +6,11 @@
 import { budgetKey, useDataStore } from '../store/dataStore';
 import { useFamilyStore } from '../store/familyStore';
 import { useUIStore } from '../store/uiStore';
+import { familyOut } from '../demo/logic';
+import { handleLocalDemo } from '../demo/localApi';
+import { clearDemoState, getDemoState, hasStoredLocalDemo } from '../demo/storage';
+import { LOCAL_DEMO_TOKEN } from '../demo/types';
+import { ApiError, SharedAccountShortageError } from './errors';
 import type {
   AccountContribution,
   AccountSummary,
@@ -35,28 +40,7 @@ import type {
   SplitMode,
 } from '../types';
 
-export class ApiError extends Error {
-  readonly field?: string;
-  readonly status?: number;
-  constructor(message: string, field?: string, status?: number) {
-    super(message);
-    this.name = 'ApiError';
-    this.field = field;
-    this.status = status;
-  }
-}
-
-/** Ошибка 409 от «Оплатить сейчас» с доступной интерфейсу суммой нехватки. */
-export class SharedAccountShortageError extends ApiError {
-  readonly shortage: number;
-
-  constructor(shortage: number) {
-    const formatted = new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(shortage);
-    super(`На общем счёте не хватает ${formatted} ₽`, undefined, 409);
-    this.name = 'SharedAccountShortageError';
-    this.shortage = shortage;
-  }
-}
+export { ApiError, SharedAccountShortageError } from './errors';
 
 const NETWORK_ERROR = 'Не удалось связаться с сервером. Проверьте подключение и попробуйте ещё раз.';
 const SESSION_EXPIRED = 'Сессия истекла. Откройте приложение заново.';
@@ -76,7 +60,7 @@ function notifyDataChanged() {
 }
 
 interface RequestOptions {
-  method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   requestId?: string;
   /** Requests made before there is a session (create, join, demo) */
@@ -84,11 +68,16 @@ interface RequestOptions {
 }
 
 async function request<T>(path: string, { method = 'GET', body, requestId, anonymous }: RequestOptions = {}): Promise<T> {
+  const token = useFamilyStore.getState().token;
+  if (token === LOCAL_DEMO_TOKEN) {
+    const data = await handleLocalDemo(method, path, body);
+    if (method !== 'GET') notifyDataChanged();
+    return data as T;
+  }
   const headers: Record<string, string> = {};
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (requestId) headers['Idempotency-Key'] = requestId;
   if (!anonymous) {
-    const token = useFamilyStore.getState().token;
     if (!token) throw new ApiError(SESSION_EXPIRED, undefined, 401);
     headers.Authorization = `Bearer ${token}`;
   }
@@ -190,6 +179,15 @@ async function startSession(session: SessionResponse): Promise<Family> {
 
 /** Loads everything of the family. Without a session there is nothing to load — onboarding is shown. */
 export async function loadInitialData(): Promise<void> {
+  if (!useFamilyStore.getState().token && hasStoredLocalDemo()) {
+    const state = getDemoState();
+    useFamilyStore.setState({
+      token: LOCAL_DEMO_TOKEN,
+      family: familyOut(state),
+      currentUserId: state.currentUserId,
+      unreadNotifications: 0,
+    });
+  }
   if (!useFamilyStore.getState().token) {
     clearSession();
     return;
@@ -216,6 +214,9 @@ export async function refreshData(): Promise<void> {
  * Returns a function that stops the subscription.
  */
 export function subscribeToChanges(onChange: () => void): () => void {
+  if (useFamilyStore.getState().token === LOCAL_DEMO_TOKEN) {
+    return subscribeToDataChanges(onChange);
+  }
   let stopped = false;
   let controller: AbortController | null = null;
   let retryDelay = 1000;
@@ -315,29 +316,20 @@ export async function joinFamily(code: string, userName: string, requestId: stri
   return startSession(session);
 }
 
-/**
- * A personal copy of the demo family on the server — a sandbox: nobody can join it, VTB ID and e-mail are not
- * attached to it. The real account that was open is kept aside and comes back when the demo is left.
- */
+/** Локальная демо-семья: данные остаются в этом браузере, реальная сессия откладывается до выхода. */
 export async function startDemo(): Promise<Family> {
-  const session = await request<SessionResponse>('/demo', { method: 'POST', anonymous: true });
   const { token, family, currentUserId, unreadNotifications } = useFamilyStore.getState();
   if (token && family && !family.isDemo) {
     useFamilyStore.setState({ savedSession: { token, family, currentUserId, unreadNotifications } });
   }
-  return startSession(session);
+  const state = getDemoState();
+  return startSession({ token: LOCAL_DEMO_TOKEN, family: familyOut(state), currentUserId: state.currentUserId });
 }
 
-/** Close the demo copy: the server ends its sessions (real families are untouched), the real account returns */
+/** Закрыть локальное демо, стереть его данные и вернуть реальную сессию, если она была. */
 export async function exitDemo(): Promise<void> {
-  const demoToken = useFamilyStore.getState().token;
-  try {
-    await request<void>('/family/leave', { method: 'POST' });
-  } catch {
-    /* the copy may be gone already — leave it anyway */
-  }
-  // A 401 above has already switched back to the real account
-  if (useFamilyStore.getState().token === demoToken) clearSession();
+  clearDemoState();
+  clearSession();
 }
 
 export async function leaveFamily(): Promise<void> {

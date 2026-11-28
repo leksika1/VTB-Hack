@@ -1,5 +1,5 @@
-"""Семья v2: единая роль, владелец, подтверждение, выход и демо."""
-from .helpers import MONTH, TODAY, add_expense, assert_error, auth, create_family, join, key, set_budget, start_demo
+"""Семья v2: единая роль, владелец, подтверждение и выход."""
+from .helpers import add_expense, assert_error, auth, create_family, join, key, set_budget
 
 
 def test_create_family_owner_and_login_id(api):
@@ -95,29 +95,3 @@ def test_member_limit_counts_pending(api, new_client):
         join(new_client(), owner.invite_code, f"Гость {index}")
     assert_error(new_client().post(f"/api/invites/{owner.invite_code}/join",
                                    json={"userName": "Лишний"}), 409, "conflict")
-
-
-def test_demo_v2_and_switch_user(api):
-    demo = start_demo(api)
-    family = demo.get("/api/family").json()
-    assert family["isDemo"] is True and family["members"][0]["isOwner"] is True
-    assert [(row["name"], row["role"]) for row in family["members"]] == [
-        ("Петя", "member"), ("Маша", "member"), ("Нина", "member")]
-    assert [row["name"] for row in family["pendingMembers"]] == ["Даша"]
-    state = demo.get("/api/state").json()
-    assert len(state["budgets"]) == 2 and len(state["payments"]) >= 5
-    assert "allowances" not in state
-    assert {row["paymentMethod"] for row in state["payments"]} == {"manual", "autopay"}
-    masha = next(row for row in family["members"] if row["name"] == "Маша")
-    switched = demo.post("/api/family/switch-user", {"userId": masha["id"]}).json()
-    created = api.post("/api/expenses", headers=auth(switched["token"]),
-                       json={"title": "Кофе", "amount": 200, "category": "food", "date": TODAY}).json()
-    assert created["authorName"] == "Маша"
-
-
-def test_each_visitor_gets_isolated_demo(api, new_client):
-    first, second = start_demo(api), start_demo(new_client())
-    assert first.family_id != second.family_id
-    before = len(second.get("/api/expenses", params={"month": MONTH}).json())
-    add_expense(first, 1)
-    assert len(second.get("/api/expenses", params={"month": MONTH}).json()) == before

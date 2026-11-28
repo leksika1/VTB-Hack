@@ -12,11 +12,11 @@ export interface SavedSession {
 interface FamilyState {
   family: Family | null;
   currentUserId: string | null;
-  /** Session token from the backend, sent as Authorization: Bearer */
+  /** Токен сервера или маркер local-demo, который никогда не отправляется в сеть. */
   token: string | null;
   /** Unread in-app notifications returned with GET /state. */
   unreadNotifications: number;
-  /** The real account put aside while the demo copy is open: leaving the demo brings it back */
+  /** Реальная сессия, отложенная на время локального демо. */
   savedSession: SavedSession | null;
 }
 

@@ -24,8 +24,8 @@ def test_openapi_and_docs(api):
     spec = api.get("/api/openapi.json").json()
     paths = set(spec["paths"])
     for expected in (
-        "/api/families", "/api/invites/{code}", "/api/invites/{code}/join", "/api/demo", "/api/family",
-        "/api/family/leave", "/api/family/switch-user", "/api/family/invite-code",
+        "/api/families", "/api/invites/{code}", "/api/invites/{code}/join", "/api/family",
+        "/api/family/leave", "/api/family/invite-code",
         "/api/family/members/{member_id}/approve", "/api/family/members/{member_id}/reject",
         "/api/family/members/{member_id}/make-owner", "/api/family/invite-links",
         "/api/family/invite-links/{link_id}", "/api/state", "/api/events", "/api/ready",
@@ -36,6 +36,8 @@ def test_openapi_and_docs(api):
         "/api/months/{month_key}/purchase-check", "/api/account/summary", "/api/analytics", "/api/calendar",
     ):
         assert expected in paths, expected
+    assert "/api/demo" not in paths
+    assert "/api/family/switch-user" not in paths
     assert api.get("/api/docs").status_code == 200
 
 

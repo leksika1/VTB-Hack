@@ -18,9 +18,8 @@ from ..schemas import (
     PaymentOut,
     SessionOut,
     StateOut,
-    SwitchUserIn,
 )
-from ..services import account, demo, families, finance, idempotency, notifications
+from ..services import account, families, finance, idempotency, notifications
 
 router = APIRouter(tags=["family"])
 
@@ -45,11 +44,6 @@ async def join_family(
     request.state.family_id = session.family.id
     request.state.member_id = session.current_user_id
     return session
-
-
-@router.post("/demo", response_model=SessionOut, status_code=201, summary="Открыть демо-семью")
-async def create_demo(db: Db, _: SignupLimit):
-    return await demo.create_demo_family(db)
 
 
 @router.get("/family", response_model=FamilyOut, summary="Моя семья и участники")
@@ -112,12 +106,6 @@ async def remove_member(member_id: str, member: OwnerMember, db: Db):
              summary="Передать владение семьёй")
 async def transfer_ownership(member_id: str, member: OwnerMember, db: Db):
     return await families.transfer_ownership(db, member, member_id)
-
-
-@router.post("/family/switch-user", response_model=SessionOut, summary="Демо: войти как другой участник")
-async def switch_user(body: SwitchUserIn, request: Request, member: CurrentMember, db: Db):
-    mark_silent(request)
-    return await families.switch_demo_user(db, member, body.user_id)
 
 
 @router.post("/account/contributions", response_model=AccountContributionOut, status_code=201,

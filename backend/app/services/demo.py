@@ -6,7 +6,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import clock
 from ..models import AccountContribution, Budget, Expense, Family, Goal, GoalContribution, Member, Payment, now_ms
-from ..schemas import SessionOut
 from ..security import MEMBER_COLORS
 from ..validation import shift_month
 from . import families, notifications, recurring
@@ -16,11 +15,6 @@ HOUR_MS = 3_600_000
 
 def _kop(rub: float) -> int:
     return round(rub * 100)
-
-
-async def create_demo_family(db: AsyncSession) -> SessionOut:
-    petya = await build_sample_family(db, name="Семья Смирновых", is_demo=True)
-    return await families.issue_session(db, petya.id)
 
 
 async def build_sample_family(db: AsyncSession, *, name: str, is_demo: bool,

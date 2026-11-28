@@ -1,5 +1,5 @@
 """
-Фоновые задачи: очистка (старые ответы идемпотентности, просроченные сессии, демо-семьи)
+Фоновые задачи: очистка (старые ответы идемпотентности, просроченные сессии, уведомления и импорты)
 и продление повторяющихся платежей.
 Запросы идемпотентны, поэтому несколько реплик могут выполнять их одновременно без блокировок.
 """
@@ -10,7 +10,7 @@ from sqlalchemy import delete
 
 from . import db
 from .config import get_settings
-from .models import Family, IdempotencyRecord, InviteLink, MemberSession, Notification, StatementImport, now_ms
+from .models import IdempotencyRecord, InviteLink, MemberSession, Notification, StatementImport, now_ms
 
 log = logging.getLogger("app.maintenance")
 
@@ -43,11 +43,6 @@ async def cleanup_once(session_factory=None) -> dict[str, int]:
                 )
             )).rowcount,
             "invite_links": (await session.execute(delete(InviteLink).where(InviteLink.expires_at < now))).rowcount,
-            "demo_families": (await session.execute(
-                delete(Family).where(
-                    Family.is_demo.is_(True), Family.created_at < now - settings.demo_ttl_hours * HOUR_MS
-                )
-            )).rowcount,
         }
         await session.commit()
     return removed

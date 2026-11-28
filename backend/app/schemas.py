@@ -43,10 +43,6 @@ class OidcCallbackIn(Schema):
     state: str = Field(max_length=100)
 
 
-class SwitchUserIn(Schema):
-    user_id: str
-
-
 class BudgetIn(Schema):
     total_amount: float
     category_plans: dict[str, float] = {}
@@ -226,7 +222,7 @@ class FamilyOut(Schema):
         if not viewer.active:
             return cls(id=f.id, name=f.name, owner_id=f.owner_id, is_owner=False, invite_code=None,
                        child_invite_code=None, members=[UserOut.of(viewer)],
-                       pending_members=[], pending=True, is_demo=f.is_demo)
+                       pending_members=[], pending=True, is_demo=False)
         return cls(
             id=f.id, owner_id=f.owner_id, is_owner=f.owner_id == viewer.id,
             name=f.name,
@@ -235,12 +231,12 @@ class FamilyOut(Schema):
             members=[UserOut.of(m) for m in f.members if m.active],
             pending_members=[UserOut.of(m) for m in f.members if m.pending],
             pending=False,
-            is_demo=f.is_demo,
+            is_demo=False,
         )
 
 
 class SessionOut(Schema):
-    """Выдаётся при создании семьи, входе по приглашению, демо и смене участника."""
+    """Выдаётся при создании семьи, входе по приглашению или личному ID."""
 
     token: str
     current_user_id: str

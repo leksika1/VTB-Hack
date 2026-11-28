@@ -214,7 +214,7 @@ function DemoCard() {
     <Card className="p-5">
       <SectionHeader
         title="Режим демонстрации"
-        subtitle="Инструменты для показа прототипа. В настоящем приложении их не будет."
+        subtitle="Демо работает только в этом браузере, данные не уходят на сервер"
       />
 
       <div>
@@ -233,7 +233,7 @@ function DemoCard() {
           ))}
         </div>
         <p className="text-[13px] text-ink-3 mt-2">
-          Несколько участников в одном браузере — только для показа. Совместную работу нужно проверять в разных сессиях.
+          Данные сохраняются между перезагрузками. При выходе из демо они будут удалены.
         </p>
         {switchUser.error && <p role="alert" className="text-sm text-danger mt-2">{switchUser.error}</p>}
       </div>

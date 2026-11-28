@@ -143,19 +143,3 @@ def test_preferences_and_private_deduplicated_debt_reminder(api, new_client, nee
         assert len(notes) == 1 and notes[0]["data"]["due"] == 1_000
     assert run_sql(needs_db, "SELECT count(*) FROM notifications WHERE kind='debt_reminder' AND family_id=$1",
                    owner.family_id) == 2
-
-
-def test_demo_summary_analytics_and_calendar_are_consistent(api):
-    demo = api.post("/api/demo").json()
-    headers = {"Authorization": f"Bearer {demo['token']}"}
-    month = TODAY[:7]
-    state = api.get("/api/state", headers=headers).json()
-    summary = api.get(f"/api/account/summary?month={month}", headers=headers).json()
-    analytics = api.get(f"/api/analytics?month={month}&months=2", headers=headers).json()
-    calendar = api.get(f"/api/calendar?month={month}", headers=headers).json()
-    month_expenses = [row for row in state["expenses"] if row["date"].startswith(month)]
-    assert analytics["account"] == summary
-    assert analytics["series"][-1]["expenses"] == round(sum(row["amount"] for row in month_expenses), 2)
-    assert round(sum(row["amount"] for row in analytics["categories"]), 2) == analytics["series"][-1]["expenses"]
-    assert round(sum(day["expenseTotal"] for day in calendar["days"]), 2) == analytics["series"][-1]["expenses"]
-    assert calendar["days"][-1]["accountBalance"] == summary["afterPlanned"]

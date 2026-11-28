@@ -86,5 +86,5 @@ OwnerMember = Annotated[Member, Depends(owner_member)]
 
 
 def mark_silent(request: Request) -> None:
-    """POST без изменения данных (проверка покупки, смена участника демо) — событие не рассылаем."""
+    """POST без изменения данных (например, проверка покупки) — событие не рассылаем."""
     request.state.silent = True
