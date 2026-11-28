@@ -1,5 +1,5 @@
 """Импорт банковской выписки (docs/FEATURES.md §10)."""
-from .helpers import assert_error, create_family, join
+from .helpers import MONTH, TODAY, assert_error, create_family, join, key
 
 STATEMENT = (
     "Дата;Сумма;Описание;MCC\n"
@@ -81,3 +81,44 @@ def test_large_statement_fits_body_limit(api):
                    for i in range(1000))
     batch = upload(anna, "Дата;Сумма;Описание;MCC\n" + rows)
     assert batch["spendingRows"] == 1000
+
+
+def test_card_import_is_private_deterministic_and_counts_as_personal_payment(api, new_client):
+    anna = create_family(api)
+    boris = join(new_client(), anna)
+    baseline = {
+        "title": "Общая покупка", "amount": 1_000, "category": "food", "date": TODAY,
+        "splitMode": "equal", "splitMembers": [anna.id, boris.id],
+    }
+    assert anna.post("/api/expenses", baseline, idem=key()).status_code == 201
+    due_before = next(row for row in anna.get(f"/api/account/summary?month={MONTH}").json()["members"]
+                      if row["memberId"] == anna.id)["due"]
+
+    first = anna.post("/api/imports/card", {"month": MONTH}, idem=key())
+    assert first.status_code == 201, first.text
+    batch = first.json()
+    assert 8 <= len(batch["rows"]) <= 13
+    assert batch["createdBy"] == anna.id
+    assert all(row["date"].startswith(MONTH) and row["date"] <= TODAY for row in batch["rows"])
+
+    # Открытый черновик переиспользуется, набор строк не меняется.
+    repeated = anna.post("/api/imports/card", {"month": MONTH}, idem=key()).json()
+    assert repeated["id"] == batch["id"]
+    assert [(row["date"], row["amount"], row["description"]) for row in repeated["rows"]] == [
+        (row["date"], row["amount"], row["description"]) for row in batch["rows"]
+    ]
+    assert_error(boris.get(f"/api/imports/{batch['id']}"), 404)
+
+    choices = [{"id": row["id"], "accountMode": "personal_split"} for row in batch["rows"]]
+    confirmed = anna.post(f"/api/imports/{batch['id']}/confirm", {"rows": choices}).json()
+    assert confirmed["imported"] == len(batch["rows"])
+    imported_ids = {row["expenseId"] for row in confirmed["rows"] if row["expenseId"]}
+    imported = [row for row in anna.get("/api/expenses").json() if row["id"] in imported_ids]
+    assert imported and all(row["source"] == "personal" and row["paidBy"] == anna.id for row in imported)
+    due_after = next(row for row in anna.get(f"/api/account/summary?month={MONTH}").json()["members"]
+                     if row["memberId"] == anna.id)["due"]
+    assert due_after < due_before
+
+    after_confirm = anna.post("/api/imports/card", {"month": MONTH}, idem=key()).json()
+    assert after_confirm["id"] == batch["id"]
+    assert all(row["expenseId"] for row in after_confirm["rows"])

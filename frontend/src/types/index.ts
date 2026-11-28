@@ -141,6 +141,8 @@ export interface PaymentDetails {
   cardNumber?: string;
   account?: string;
   bic?: string;
+  inn?: string;
+  kpp?: string;
   uin?: string;
 }
 
@@ -170,6 +172,7 @@ export interface Payment {
   providerIdentifier: string | null;
   limitAmount: number | null;
   paymentDetails: PaymentDetails | null;
+  invoiceIssuedAt: number | null;
   /** @deprecated Поле совместимости, которое пока возвращает бэкенд. */
   recurring: boolean;
   seriesId?: string | null;

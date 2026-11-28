@@ -1,8 +1,14 @@
 """Импорт банковской выписки (docs/FEATURES.md §10): загрузить → проверить категории → подтвердить."""
+import hashlib
+import random
+from calendar import monthrange
+from datetime import date
+
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .. import clock
 from ..errors import Conflict, NotFound, ValidationFailed
 from ..models import CategoryRule, Expense, ImportRow, Member, StatementImport, now_ms
 from ..schemas import ImportConfirmIn, ImportIn
@@ -12,6 +18,23 @@ from . import finance, notifications
 
 MAX_PENDING_IMPORTS = 5
 PENDING_TTL_MS = 7 * 86_400_000
+CARD_FILENAME_PREFIX = "ВТБ-карта"
+
+_CARD_MERCHANTS = (
+    ("Пятёрочка", "5411", (450, 4200)),
+    ("ВкусВилл", "5411", (600, 5200)),
+    ("Аптека Ригла", "5912", (280, 2600)),
+    ("Яндекс Go", "4121", (240, 1800)),
+    ("Кофейня Даблби", "5814", (190, 950)),
+    ("Ozon", "5399", (650, 7500)),
+    ("Wildberries", "5399", (500, 6800)),
+    ("АЗС Лукойл", "5541", (1300, 4800)),
+    ("МТС", "4814", (350, 1500)),
+    ("Мосметро", "4111", (60, 1200)),
+    ("Детский мир", "5641", (450, 5200)),
+    ("Перекрёсток", "5411", (500, 4800)),
+    ("Бургерная", "5812", (350, 1800)),
+)
 
 
 async def _rules(db: AsyncSession, family_id: str) -> dict[str, str]:
@@ -52,6 +75,53 @@ async def create(db: AsyncSession, member: Member, body: ImportIn) -> StatementI
         ))
     await db.flush()
     await db.refresh(batch, ["rows"])
+    return batch
+
+
+def _card_filename(month_key: str) -> str:
+    return f"{CARD_FILENAME_PREFIX}-{month_key}.csv"
+
+
+def _card_statement(member_id: str, month_key: str) -> str:
+    """Стабильная для участника и месяца эмуляция операций личной карты."""
+    today = clock.today()
+    year, month = map(int, month_key.split("-"))
+    last_day = min(monthrange(year, month)[1], today.day if month_key == today.strftime("%Y-%m") else 31)
+    seed = int.from_bytes(hashlib.sha256(f"{member_id}:{month_key}".encode()).digest()[:8], "big")
+    rng = random.Random(seed)
+    count = rng.randint(8, 13)
+    merchants = list(_CARD_MERCHANTS)
+    rng.shuffle(merchants)
+    rows = ["Дата;Сумма;Описание;MCC"]
+    for index in range(count):
+        title, mcc, bounds = merchants[index % len(merchants)]
+        on = date(year, month, rng.randint(1, last_day))
+        amount_kop = rng.randint(bounds[0] * 100, bounds[1] * 100)
+        rows.append(f"{on.isoformat()};-{amount_kop // 100}.{amount_kop % 100:02d};{title};{mcc}")
+    return "\n".join(rows) + "\n"
+
+
+async def create_card(db: AsyncSession, member: Member, month_key: str) -> StatementImport:
+    if not 2000 <= int(month_key[:4]) <= 2100:
+        raise ValidationFailed("Год должен быть от 2000 до 2100", "month")
+    if month_key > clock.current_month_key():
+        raise ValidationFailed("Нельзя получить покупки за будущий месяц", "month")
+    # Два одновременных открытия вкладки для одного участника не должны создать два черновика.
+    await db.scalar(select(Member.id).where(Member.id == member.id).with_for_update())
+    filename = _card_filename(month_key)
+    latest = await db.scalar(select(StatementImport).where(
+        StatementImport.family_id == member.family_id,
+        StatementImport.created_by == member.id,
+        StatementImport.filename == filename,
+    ).order_by(StatementImport.created_at.desc()).limit(1))
+    if latest is not None:
+        await db.refresh(latest, ["rows"])
+        if latest.status == "pending" or all(row.duplicate or row.expense_id for row in latest.rows):
+            return latest
+    batch = await create(db, member, ImportIn(filename=filename, content=_card_statement(member.id, month_key)))
+    if all(row.duplicate for row in batch.rows):
+        batch.status = "confirmed"
+        await db.flush()
     return batch
 
 

@@ -4,6 +4,7 @@ import { ExpenseFormModal } from '../expenses/ExpenseFormModal';
 import { ExpenseDetailsModal } from '../expenses/ExpenseDetailsModal';
 import { BudgetFormModal } from '../budget/BudgetFormModal';
 import { PaymentFormModal } from '../payments/PaymentFormModal';
+import { PaymentDetailsModal } from '../payments/PaymentDetailsModal';
 import { InviteModal } from '../family/InviteModal';
 import { GoalFormModal } from '../goals/GoalFormModal';
 import { GoalContributionModal } from '../goals/GoalContributionModal';
@@ -20,6 +21,8 @@ function renderModal(modal: NonNullable<ModalState>) {
       return <BudgetFormModal focus={modal.focus} />;
     case 'paymentForm':
       return <PaymentFormModal key={`p-${modal.paymentId ?? 'new'}`} paymentId={modal.paymentId} prefill={modal.prefill} planned={modal.planned} />;
+    case 'paymentDetails':
+      return <PaymentDetailsModal key={modal.paymentId} paymentId={modal.paymentId} />;
     case 'invite':
       return <InviteModal />;
     case 'goalForm':

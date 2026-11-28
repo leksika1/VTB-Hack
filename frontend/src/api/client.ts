@@ -603,11 +603,15 @@ export function getPaymentDetails(id: string): Promise<Payment> {
 export interface PurchaseImport {
   id: string;
   rows: { id: string; date: string | null; amount: number | null; description: string;
-    duplicate: boolean; error: string | null }[];
+    suggestedCategory: ExpenseCategory; duplicate: boolean; error: string | null; expenseId: string | null }[];
 }
 
 export function previewPersonalPurchases(filename: string, content: string): Promise<PurchaseImport> {
   return request('/imports', { method: 'POST', body: { filename, content } });
+}
+
+export function previewCardPurchases(month: string, requestId: string): Promise<PurchaseImport> {
+  return request('/imports/card', { method: 'POST', body: { month }, requestId });
 }
 
 export function discardPersonalPurchases(id: string): Promise<void> {
@@ -765,6 +769,7 @@ export async function issuePaymentInvoice(id: string, amount: number): Promise<P
     method: 'POST', body: { amount }, requestId: crypto.randomUUID(),
   });
   useDataStore.setState((s) => ({ payments: s.payments.map((item) => (item.id === payment.id ? payment : item)) }));
+  if (payment.status === 'paid') await refreshData().catch(() => {});
   return payment;
 }
 

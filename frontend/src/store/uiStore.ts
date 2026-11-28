@@ -18,6 +18,7 @@ export type ModalState =
   | { type: 'budgetForm'; focus?: ExpenseCategory }
   /** planned — a future purchase reserved like a payment, opened from the expense form */
   | { type: 'paymentForm'; paymentId?: string; prefill?: PaymentPrefill; planned?: boolean }
+  | { type: 'paymentDetails'; paymentId: string }
   | { type: 'invite' }
   | { type: 'goalForm'; goalId?: string }
   | { type: 'accountContribution'; amount?: number }

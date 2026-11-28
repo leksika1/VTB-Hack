@@ -151,6 +151,10 @@ class ImportIn(Schema):
     content: str = Field(max_length=2_000_000)
 
 
+class CardImportIn(Schema):
+    month: str | None = None
+
+
 class ImportRowChoice(Schema):
     id: str
     category: str | None = None
@@ -364,6 +368,7 @@ class PaymentOut(Schema):
     provider_identifier: str | None
     limit_amount: float | None
     payment_details: dict | None
+    invoice_issued_at: int | None
 
     @classmethod
     def of(cls, p: models.Payment, *, detailed: bool = False) -> "PaymentOut":
@@ -400,6 +405,7 @@ class PaymentOut(Schema):
             provider_identifier=p.provider_identifier,
             limit_amount=kop_to_amount(p.limit_amount_kop) if p.limit_amount_kop is not None else None,
             payment_details=details,
+            invoice_issued_at=p.invoice_issued_at,
         )
 
 
