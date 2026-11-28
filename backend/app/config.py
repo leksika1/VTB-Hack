@@ -20,8 +20,6 @@ class Settings(BaseSettings):
     # Swagger и OpenAPI на /api/docs; в контуре банка можно выключить
     enable_docs: bool = True
 
-    # Демо-семьи старше этого срока удаляются фоновой очисткой
-    demo_ttl_hours: int = 24
     # Сессия устройства закрывается после стольких дней без запросов
     session_ttl_days: int = 90
     # Сколько хранить ответы для Idempotency-Key
@@ -34,7 +32,7 @@ class Settings(BaseSettings):
     rate_limit_window_seconds: int = 60
     # С одного IP: за одним Wi-Fi или NAT (зал хакатона, офис) бывают десятки людей
     rate_limit_invite: int = 120  # просмотр и вход по коду
-    rate_limit_signup: int = 60  # создание семьи и демо
+    rate_limit_signup: int = 60  # создание семьи и вход
     rate_limit_write: int = 120  # изменения данных — на участника
     rate_limit_read: int = 600  # чтение — на участника
 

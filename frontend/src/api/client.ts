@@ -6,11 +6,23 @@
 import { budgetKey, useDataStore } from '../store/dataStore';
 import { useFamilyStore } from '../store/familyStore';
 import { useUIStore } from '../store/uiStore';
+import { familyOut } from '../demo/logic';
+import { handleLocalDemo } from '../demo/localApi';
+import { clearDemoState, getDemoState, hasStoredLocalDemo } from '../demo/storage';
+import { LOCAL_DEMO_TOKEN } from '../demo/types';
+import { ApiError, SharedAccountShortageError } from './errors';
 import type {
-  AccountContribution, AccountMode,
+  AccountContribution,
+  AccountSummary,
+  AmountMode,
+  Analytics,
   AppNotification,
+  AutopayCatalog,
+  AutopayType,
+  CalendarData,
   Expense,
   ExpenseCategory,
+  ExpenseSource,
   Family,
   Goal,
   InviteLink,
@@ -18,28 +30,37 @@ import type {
   Me,
   MonthlyBudget,
   Payment,
+  PaymentDetails,
+  PaymentMethod,
+  ProviderCategory,
+  RecurrenceEndMode,
+  RecurrenceFrequency,
+  RecurrenceUnit,
   Role,
+  SplitMode,
 } from '../types';
 
-export class ApiError extends Error {
-  readonly field?: string;
-  readonly status?: number;
-  constructor(message: string, field?: string, status?: number) {
-    super(message);
-    this.name = 'ApiError';
-    this.field = field;
-    this.status = status;
-  }
-}
+export { ApiError, SharedAccountShortageError } from './errors';
 
 const NETWORK_ERROR = 'Не удалось связаться с сервером. Проверьте подключение и попробуйте ещё раз.';
 const SESSION_EXPIRED = 'Сессия истекла. Откройте приложение заново.';
 
 /** Empty — same origin: /api is proxied by vite in dev and by nginx in the container */
 const API_BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
+const dataChangeListeners = new Set<() => void>();
+
+/** Рассылает хукам события существующего realtime-соединения и успешных изменений. */
+export function subscribeToDataChanges(listener: () => void): () => void {
+  dataChangeListeners.add(listener);
+  return () => dataChangeListeners.delete(listener);
+}
+
+function notifyDataChanged() {
+  for (const listener of dataChangeListeners) listener();
+}
 
 interface RequestOptions {
-  method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   requestId?: string;
   /** Requests made before there is a session (create, join, demo) */
@@ -47,11 +68,16 @@ interface RequestOptions {
 }
 
 async function request<T>(path: string, { method = 'GET', body, requestId, anonymous }: RequestOptions = {}): Promise<T> {
+  const token = useFamilyStore.getState().token;
+  if (token === LOCAL_DEMO_TOKEN) {
+    const data = await handleLocalDemo(method, path, body);
+    if (method !== 'GET') notifyDataChanged();
+    return data as T;
+  }
   const headers: Record<string, string> = {};
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (requestId) headers['Idempotency-Key'] = requestId;
   if (!anonymous) {
-    const token = useFamilyStore.getState().token;
     if (!token) throw new ApiError(SESSION_EXPIRED, undefined, 401);
     headers.Authorization = `Bearer ${token}`;
   }
@@ -67,7 +93,10 @@ async function request<T>(path: string, { method = 'GET', body, requestId, anony
     throw new ApiError(NETWORK_ERROR);
   }
 
-  if (response.status === 204) return undefined as T;
+  if (response.status === 204) {
+    if (method !== 'GET') notifyDataChanged();
+    return undefined as T;
+  }
   const data = await response.json().catch(() => null);
   if (!response.ok) {
     if (response.status === 401 && !anonymous) clearSession();
@@ -75,6 +104,7 @@ async function request<T>(path: string, { method = 'GET', body, requestId, anony
     if (error?.message) throw new ApiError(error.message, error.field ?? undefined, response.status);
     throw new ApiError(response.status >= 500 ? 'Сервер временно недоступен. Попробуйте ещё раз.' : NETWORK_ERROR);
   }
+  if (method !== 'GET') notifyDataChanged();
   return data as T;
 }
 
@@ -91,31 +121,34 @@ interface StateResponse {
   accountContributions?: AccountContribution[];
   family: Family;
   currentUserId: string;
+  unreadNotifications: number;
   budgets: MonthlyBudget[];
   expenses: Expense[];
   payments: Payment[];
-  unreadNotifications?: number;
 }
 
 function clearSession() {
   const { family, savedSession } = useFamilyStore.getState();
-  useDataStore.setState({ budgets: {}, expenses: [], payments: [], goals: [], unreadNotifications: 0, accountContributions: [] });
+  useDataStore.setState({ budgets: {}, expenses: [], payments: [], goals: [], accountContributions: [] });
   // The demo copy was left or has expired: back to the real account that was open before it
   if (family?.isDemo && savedSession) {
     useFamilyStore.setState({ ...savedSession, savedSession: null });
     refreshData().catch(() => {});
     return;
   }
-  useFamilyStore.setState({ family: null, currentUserId: null, token: null, savedSession: null });
+  useFamilyStore.setState({ family: null, currentUserId: null, token: null, unreadNotifications: 0, savedSession: null });
 }
 
-function applyState(state: StateResponse, unread: number) {
-  useFamilyStore.setState({ family: state.family, currentUserId: state.currentUserId });
+function applyState(state: StateResponse) {
+  useFamilyStore.setState({
+    family: state.family,
+    currentUserId: state.currentUserId,
+    unreadNotifications: state.unreadNotifications,
+  });
   useDataStore.setState({
     budgets: Object.fromEntries(state.budgets.map((b) => [budgetKey(b.familyId, b.monthKey), b])),
     expenses: state.expenses,
     payments: state.payments,
-    unreadNotifications: unread,
     accountContributions: state.accountContributions ?? [],
   });
 }
@@ -124,19 +157,19 @@ function applyState(state: StateResponse, unread: number) {
 async function loadState(): Promise<void> {
   const { token } = useFamilyStore.getState();
   const state = await request<StateResponse>('/state');
-  const [goals, unread] = await Promise.all([
-    state.family.pending ? [] : request<Goal[]>('/goals'),
-    state.unreadNotifications && !state.family.pending
-      ? listNotifications().then((items) => items.filter((item) => !item.readAt).length, () => 0)
-      : 0,
-  ]);
+  const goals = state.family.pending ? [] : await request<Goal[]>('/goals');
   if (useFamilyStore.getState().token !== token) return;
-  applyState(state, unread);
+  applyState(state);
   useDataStore.setState({ goals });
 }
 
 async function startSession(session: SessionResponse): Promise<Family> {
-  useFamilyStore.setState({ token: session.token, family: session.family, currentUserId: session.currentUserId });
+  useFamilyStore.setState({
+    token: session.token,
+    family: session.family,
+    currentUserId: session.currentUserId,
+    unreadNotifications: 0,
+  });
   await loadState();
   if (session.loginId) useUIStore.getState().addToast(`Сохраните личный ID для входа: ${session.loginId}`, 'info');
   return session.family;
@@ -146,6 +179,15 @@ async function startSession(session: SessionResponse): Promise<Family> {
 
 /** Loads everything of the family. Without a session there is nothing to load — onboarding is shown. */
 export async function loadInitialData(): Promise<void> {
+  if (!useFamilyStore.getState().token && hasStoredLocalDemo()) {
+    const state = getDemoState();
+    useFamilyStore.setState({
+      token: LOCAL_DEMO_TOKEN,
+      family: familyOut(state),
+      currentUserId: state.currentUserId,
+      unreadNotifications: 0,
+    });
+  }
   if (!useFamilyStore.getState().token) {
     clearSession();
     return;
@@ -172,6 +214,9 @@ export async function refreshData(): Promise<void> {
  * Returns a function that stops the subscription.
  */
 export function subscribeToChanges(onChange: () => void): () => void {
+  if (useFamilyStore.getState().token === LOCAL_DEMO_TOKEN) {
+    return subscribeToDataChanges(onChange);
+  }
   let stopped = false;
   let controller: AbortController | null = null;
   let retryDelay = 1000;
@@ -201,7 +246,10 @@ export function subscribeToChanges(onChange: () => void): () => void {
           const messages = buffer.split('\n\n');
           buffer = messages.pop() ?? '';
           // «ready» after a reconnect and «changed» both mean: reload the state
-          if (messages.some((m) => /^event: (changed|ready)$/m.test(m))) onChange();
+          if (messages.some((m) => /^event: (changed|ready)$/m.test(m))) {
+            notifyDataChanged();
+            onChange();
+          }
         }
       } catch {
         if (stopped) return;
@@ -268,32 +316,31 @@ export async function joinFamily(code: string, userName: string, requestId: stri
   return startSession(session);
 }
 
-/**
- * A personal copy of the demo family on the server — a sandbox: nobody can join it, VTB ID and e-mail are not
- * attached to it. The real account that was open is kept aside and comes back when the demo is left.
- */
+/** Локальная демо-семья: данные остаются в этом браузере, реальная сессия откладывается до выхода. */
 export async function startDemo(): Promise<Family> {
-  const session = await request<SessionResponse>('/demo', { method: 'POST', anonymous: true });
-  const { token, family, currentUserId } = useFamilyStore.getState();
-  if (token && family && !family.isDemo) useFamilyStore.setState({ savedSession: { token, family, currentUserId } });
-  return startSession(session);
+  const { token, family, currentUserId, unreadNotifications } = useFamilyStore.getState();
+  if (token && family && !family.isDemo) {
+    useFamilyStore.setState({ savedSession: { token, family, currentUserId, unreadNotifications } });
+  }
+  const state = getDemoState();
+  return startSession({ token: LOCAL_DEMO_TOKEN, family: familyOut(state), currentUserId: state.currentUserId });
 }
 
-/** Close the demo copy: the server ends its sessions (real families are untouched), the real account returns */
+/** Закрыть локальное демо, стереть его данные и вернуть реальную сессию, если она была. */
 export async function exitDemo(): Promise<void> {
-  const demoToken = useFamilyStore.getState().token;
-  try {
-    await request<void>('/family/leave', { method: 'POST' });
-  } catch {
-    /* the copy may be gone already — leave it anyway */
-  }
-  // A 401 above has already switched back to the real account
-  if (useFamilyStore.getState().token === demoToken) clearSession();
+  clearDemoState();
+  clearSession();
 }
 
 export async function leaveFamily(): Promise<void> {
   if (useFamilyStore.getState().family?.isDemo) return exitDemo();
   await request<void>('/family/leave', { method: 'POST' });
+  clearSession();
+}
+
+/** End the session on this device without removing the participant from the family. */
+export async function signOut(): Promise<void> {
+  if (useFamilyStore.getState().family?.isDemo) return exitDemo();
   clearSession();
 }
 
@@ -535,14 +582,40 @@ export async function saveBudget(input: BudgetInput, requestId: string): Promise
   return budget;
 }
 
+/* ── Рассчитанные сервером данные v2 ── */
+
+export function getAccountSummary(month: string): Promise<AccountSummary> {
+  return request<AccountSummary>(`/account/summary?${new URLSearchParams({ month })}`);
+}
+
+export function getAnalytics(month: string, months = 6): Promise<Analytics> {
+  return request<Analytics>(`/analytics?${new URLSearchParams({ month, months: String(months) })}`);
+}
+
+export function getCalendar(month: string): Promise<CalendarData> {
+  return request<CalendarData>(`/calendar?${new URLSearchParams({ month })}`);
+}
+
+export function getAutopayCatalog(): Promise<AutopayCatalog> {
+  return request<AutopayCatalog>('/payments/autopay-catalog');
+}
+
+export function getPaymentDetails(id: string): Promise<Payment> {
+  return request<Payment>(`/payments/${encodeURIComponent(id)}`);
+}
+
 export interface PurchaseImport {
   id: string;
   rows: { id: string; date: string | null; amount: number | null; description: string;
-    duplicate: boolean; error: string | null }[];
+    suggestedCategory: ExpenseCategory; duplicate: boolean; error: string | null; expenseId: string | null }[];
 }
 
 export function previewPersonalPurchases(filename: string, content: string): Promise<PurchaseImport> {
   return request('/imports', { method: 'POST', body: { filename, content } });
+}
+
+export function previewCardPurchases(month: string, requestId: string): Promise<PurchaseImport> {
+  return request('/imports/card', { method: 'POST', body: { month }, requestId });
 }
 
 export function discardPersonalPurchases(id: string): Promise<void> {
@@ -577,13 +650,15 @@ export async function contributeToAccount(amount: number, requestId: string): Pr
 /* ── Expenses ── */
 
 export interface ExpenseInput {
-  accountMode?: AccountMode;
-  splitPercentages?: Record<string, number> | null;
   id?: string;
   title: string;
   amount: number;
   category: ExpenseCategory;
   date: string;
+  source?: ExpenseSource;
+  splitMode?: SplitMode;
+  splitMembers?: string[] | null;
+  splitShares?: Record<string, number> | null;
   /** Who paid; omitted — the author (new) or unchanged (edit) */
   paidBy?: string;
 }
@@ -616,29 +691,44 @@ export async function deleteExpense(id: string): Promise<void> {
 /* ── Mandatory payments ── */
 
 export interface PaymentInput {
-  accountMode?: Exclude<AccountMode, 'personal_split'>;
   id?: string;
   title: string;
   amount: number;
   category: ExpenseCategory;
   dueDate: string;
-  /** true — monthly series, false — stop the series */
-  recurring: boolean;
+  amountMode: AmountMode;
+  recurrence: RecurrenceFrequency;
+  interval?: number;
+  intervalUnit?: RecurrenceUnit | null;
+  endMode?: RecurrenceEndMode;
+  endDate?: string | null;
+  occurrences?: number | null;
+  splitMode: SplitMode;
+  splitMembers?: string[] | null;
+  splitShares?: Record<string, number> | null;
+  /** Для старых платежей без реквизитов не передаётся; выбранный v2-способ всегда приходит со своими полями. */
+  paymentMethod?: PaymentMethod;
+  autopayType?: AutopayType | null;
+  providerCategory?: ProviderCategory | null;
+  providerName?: string | null;
+  providerIdentifier?: string | null;
+  limitAmount?: number | null;
+  paymentDetails?: PaymentDetails | null;
 }
 
 export async function savePayment(input: PaymentInput, requestId: string): Promise<Payment> {
-  const body = { title: input.title, amount: input.amount, category: input.category, dueDate: input.dueDate, recurring: input.recurring, accountMode: input.accountMode };
-  const wasRecurring = input.id ? useDataStore.getState().payments.find((p) => p.id === input.id)?.recurring : false;
+  const { id, ...body } = input;
+  const wasRecurring = id ? useDataStore.getState().payments.find((p) => p.id === id)?.recurring : false;
   let saved: Payment;
-  if (input.id) {
-    saved = await request<Payment>(`/payments/${input.id}`, { method: 'PUT', body, requestId });
+  if (id) {
+    saved = await request<Payment>(`/payments/${id}`, { method: 'PUT', body, requestId });
     useDataStore.setState((s) => ({ payments: s.payments.map((p) => (p.id === saved.id ? saved : p)) }));
   } else {
     saved = await request<Payment>('/payments', { method: 'POST', body, requestId });
     useDataStore.setState((s) => ({ payments: [...s.payments.filter((p) => p.id !== saved.id), saved] }));
   }
   // Starting or stopping a series changes other months on the server (it creates next month's payment)
-  if (Boolean(wasRecurring) !== input.recurring) await refreshData().catch(() => {});
+  if (Boolean(wasRecurring) !== (input.recurrence !== 'once')) await refreshData().catch(() => {});
   return saved;
 }
 
@@ -656,6 +746,42 @@ export async function setPaymentPaid(id: string, paid: boolean, fromSharedAccoun
     method: 'POST',
     body: { paid, recordToday: paid, fromSharedAccount },
   });
+  return applyPaymentResult(id, paid, result);
+}
+
+/** Оплатить с общего счёта; при нехватке ошибка содержит числовую сумму дефицита. */
+export async function payPayment(id: string): Promise<Expense | null> {
+  try {
+    const result = await request<{ payment: Payment; expense: Expense | null }>(`/payments/${id}/pay`, {
+      method: 'POST',
+      requestId: crypto.randomUUID(),
+    });
+    return applyPaymentResult(id, true, result);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 409) {
+      const match = error.message.match(/не хватает\s+([\d\s]+(?:[,.]\d+)?)\s*₽/i);
+      const shortage = match ? Number(match[1].replace(/\s/g, '').replace(',', '.')) : Number.NaN;
+      if (Number.isFinite(shortage)) throw new SharedAccountShortageError(shortage);
+    }
+    throw error;
+  }
+}
+
+/** Эмуляция выставленного поставщиком счёта. */
+export async function issuePaymentInvoice(id: string, amount: number): Promise<Payment> {
+  const payment = await request<Payment>(`/payments/${id}/invoice`, {
+    method: 'POST', body: { amount }, requestId: crypto.randomUUID(),
+  });
+  useDataStore.setState((s) => ({ payments: s.payments.map((item) => (item.id === payment.id ? payment : item)) }));
+  if (payment.status === 'paid') await refreshData().catch(() => {});
+  return payment;
+}
+
+function applyPaymentResult(
+  id: string,
+  paid: boolean,
+  result: { payment: Payment; expense: Expense | null },
+): Expense | null {
   if (useFamilyStore.getState().family?.id !== result.payment.familyId) return result.expense;
   useDataStore.setState((s) => {
     let expenses = s.expenses;
@@ -740,7 +866,7 @@ export async function listNotifications(): Promise<AppNotification[]> {
 
 export async function markNotificationsRead(): Promise<void> {
   await request<void>('/notifications/read-all', { method: 'POST' });
-  useDataStore.setState({ unreadNotifications: 0 });
+  useFamilyStore.setState({ unreadNotifications: 0 });
 }
 
 export function errorMessage(error: unknown): string {

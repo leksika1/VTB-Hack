@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { RadioButton, T } from '@admiral-ds/react-ui';
 import type { Me } from '../../types';
 import { errorMessage, getMe, getOidcConfig, leaveFamily, startOidc, switchDemoUser, unlinkOidc, type OidcConfig } from '../../api/client';
@@ -6,7 +6,7 @@ import { useAsyncAction } from '../../hooks/useAsyncAction';
 import { useFamilyStore } from '../../store/familyStore';
 import { useUIStore, type Theme } from '../../store/uiStore';
 import { switchTheme } from '../../utils/theme';
-import { Bank, LogOut, Star, Verified } from '../ui/icons';
+import { Bank, LogOut, Verified } from '../ui/icons';
 import { Card, SectionHeader } from '../ui/Card';
 import { Badge } from '../ui/Misc';
 import { Button } from '../ui/Button';
@@ -14,15 +14,41 @@ import { ChoiceChip } from '../ui/ChoiceChip';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { Presence } from '../ui/Presence';
 
-export function ProfileSettings() {
+export function ProfileSettings({ focusSection = 'settings' }: { focusSection?: 'settings' | 'access' }) {
   const demo = useFamilyStore((state) => state.family?.isDemo);
   return (
     <div className="divide-y divide-line">
       {!demo && <ParticipantIdCard />}
       {!demo && <VtbIdCard />}
+      <AccessCard focus={focusSection === 'access'} />
       <AppearanceCard />
       {demo && <DemoCard />}
       <LeaveCard />
+    </div>
+  );
+}
+
+function AccessCard({ focus }: { focus: boolean }) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!focus) return;
+    const timer = window.setTimeout(() => {
+      ref.current?.focus({ preventScroll: true });
+      ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    return () => window.clearTimeout(timer);
+  }, [focus]);
+
+  return (
+    <div ref={ref} tabIndex={-1} aria-labelledby="profile-access-title" className="rounded-card outline-none">
+      <Card className="p-5">
+        <SectionHeader id="profile-access-title" title="Доступ и видимость данных" />
+        <div className="space-y-2 text-ink-2">
+          <p>Общий счёт и операции видят все подтверждённые участники семьи.</p>
+          <p>Личные покупки по карте видны только вам, пока вы не добавите их в общий бюджет.</p>
+        </div>
+      </Card>
     </div>
   );
 }
@@ -188,8 +214,7 @@ function DemoCard() {
     <Card className="p-5">
       <SectionHeader
         title="Режим демонстрации"
-        subtitle="Инструменты для показа прототипа. В настоящем приложении их не будет."
-        action={<Badge tone="warning" icon={<Star size={12} aria-hidden />}>Демо</Badge>}
+        subtitle="Демо работает только в этом браузере, данные не уходят на сервер"
       />
 
       <div>
@@ -208,7 +233,7 @@ function DemoCard() {
           ))}
         </div>
         <p className="text-[13px] text-ink-3 mt-2">
-          Два участника в одном браузере — только для показа. Совместную работу нужно проверять в разных сессиях.
+          Данные сохраняются между перезагрузками. При выходе из демо они будут удалены.
         </p>
         {switchUser.error && <p role="alert" className="text-sm text-danger mt-2">{switchUser.error}</p>}
       </div>

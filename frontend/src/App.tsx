@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { errorMessage, loadInitialData, OIDC_CALLBACK_PATH, refreshData, subscribeToChanges, takeOidcIntent, takeReturnInvite } from './api/client';
-import { useFamilyStore, useIsParent } from './store/familyStore';
+import { useFamilyStore } from './store/familyStore';
 import { useUIStore } from './store/uiStore';
 import { AppShell } from './components/layout/AppShell';
 import { ModalHost } from './components/layout/ModalHost';
@@ -43,9 +43,8 @@ function useFamilySync(sessionKey: string | null) {
 
 export default function App() {
   const family = useFamilyStore((s) => s.family);
-  const isParent = useIsParent();
   const storedTab = useUIStore((s) => s.tab);
-  const tab = storedTab === 'calendar' && !isParent ? 'overview' : storedTab;
+  const tab = storedTab;
   const dataStatus = useUIStore((s) => s.dataStatus);
   const setDataStatus = useUIStore((s) => s.setDataStatus);
   const [loadError, setLoadError] = useState('');

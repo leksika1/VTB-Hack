@@ -1,13 +1,12 @@
 import { useEffect, type ReactNode } from 'react';
-import { Badge as AdmiralBadge, HorizontalTab, HorizontalTabs, T } from '@admiral-ds/react-ui';
+import { HorizontalTab, HorizontalTabs, T } from '@admiral-ds/react-ui';
 import styled from 'styled-components';
-import { Dashboard, Receipt, BarChart, Users, Calendar, Settings, ArrowLeft } from '../ui/icons';
+import { Dashboard, Receipt, BarChart, Users, Calendar, ArrowLeft, Bell } from '../ui/icons';
 import { ProfileDropdown } from './ProfileDropdown';
 import type { Tab } from '../../types';
 import { useUIStore } from '../../store/uiStore';
-import { useCurrentUser, useFamilyStore, useIsParent } from '../../store/familyStore';
-import { useDataStore } from '../../store/dataStore';
-import { Avatar, Badge } from '../ui/Misc';
+import { useCurrentUser, useFamilyStore } from '../../store/familyStore';
+import { Badge } from '../ui/Misc';
 import { Button, IconButton } from '../ui/Button';
 import { Card, PageHeader } from '../ui/Card';
 import { ProfileSettings } from '../family/ProfileSettings';
@@ -36,19 +35,16 @@ export function BrandMark({ size = 36 }: { size?: number }) {
 export function AppShell({ children }: { children: ReactNode }) {
   const storedTab = useUIStore((s) => s.tab);
   const setTab = useUIStore((s) => s.setTab);
+  const openModal = useUIStore((s) => s.openModal);
   const family = useFamilyStore((s) => s.family);
   const user = useCurrentUser();
+  const unreadNotifications = useFamilyStore((s) => s.unreadNotifications);
   const profileOpen = useUIStore((s) => s.profileOpen);
+  const profileSection = useUIStore((s) => s.profileSection);
   const setProfileOpen = useUIStore((s) => s.setProfileOpen);
   const mobile = useMediaQuery('(max-width: 1023px)');
   const profilePage = mobile && profileOpen;
-  // Compatibility flag: in v2 every active participant has access to the plan.
-  const isParent = useIsParent();
-  const tab = !isParent && storedTab === 'calendar' ? 'overview' : storedTab;
-  const nav = isParent ? NAV : NAV.filter((n) => n.tab !== 'calendar');
-  // Unread family events live on the «Семья» page; the tab carries their count
-  const unread = useDataStore((s) => s.unreadNotifications);
-  const unreadLabel = (t: Tab) => (t === 'family' && unread > 0 ? `, непрочитанных событий: ${unread}` : '');
+  const tab = storedTab;
 
   // Each section opens from its top instead of inheriting the previous scroll position
   useEffect(() => {
@@ -59,30 +55,40 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="min-h-dvh">
       <header className="sticky top-0 z-30 app-header">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 h-16 lg:h-20 flex items-center gap-3 lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
-          <div className="flex items-center gap-3 min-w-0 flex-1">
+          <button type="button" onClick={() => setTab('family')} aria-label="Открыть раздел «Семья»"
+            className="flex min-w-0 flex-1 items-center gap-3 rounded-control text-left">
             <BrandMark />
-            <div className="min-w-0 leading-tight">
-              <T as="div" font="Caption/Caption 1" color="Neutral/Neutral 70">Общий план</T>
-              <T as="div" font="Subtitle/Subtitle 2" className="truncate" title={family?.name}>
+            <span className="min-w-0 leading-tight">
+              <T as="span" font="Caption/Caption 1" color="Neutral/Neutral 70" className="block">Общий план</T>
+              <T as="span" font="Subtitle/Subtitle 2" className="block truncate" title={family?.name}>
                 {family?.name}
               </T>
-            </div>
-          </div>
+            </span>
+          </button>
 
-          <SectionNavigation nav={nav} tab={tab} profilePage={profilePage} onSelect={setTab} unread={unread} unreadLabel={unreadLabel} />
+          <SectionNavigation nav={NAV} tab={tab} profilePage={profilePage} onSelect={setTab} />
           <div className="flex min-w-0 items-center justify-end gap-2">
             {/* Demo data looks real, so the mark stays on every screen size */}
             {family?.isDemo && <span className="shrink-0"><Badge tone="warning">Демо</Badge></span>}
 
-            {user && (mobile ? (
-              <div className="flex shrink-0 items-center gap-1">
-                <Avatar user={user} size="sm" />
-                <IconButton label="Настройки профиля" className="!size-10"
-                  aria-current={profilePage ? 'page' : undefined} onClick={() => setProfileOpen(!profileOpen)}>
-                  <Settings size={20} />
+            {user && (
+              <span className="relative shrink-0">
+                <IconButton label={unreadNotifications > 0
+                  ? `Уведомления: ${unreadNotifications} непрочитанных`
+                  : 'Уведомления'}
+                  className="!size-10 !rounded-full"
+                  onClick={() => openModal({ type: 'notifications' })}>
+                  <Bell size={20} />
                 </IconButton>
-              </div>
-            ) : <ProfileDropdown user={user} />)}
+                {unreadNotifications > 0 && (
+                  <span className="pointer-events-none absolute -right-1 -top-1 grid min-w-5 place-items-center rounded-full bg-danger px-1 text-[11px] font-semibold leading-5 text-white"
+                    aria-hidden>
+                    {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                  </span>
+                )}
+              </span>
+            )}
+            {user && <ProfileDropdown user={user} mobile={mobile} />}
           </div>
         </div>
       </header>
@@ -94,7 +100,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <PageHeader title="Настройки профиля">
               <Button variant="ghost" size="sm" icon={<ArrowLeft size={16} />} onClick={() => setProfileOpen(false)}>Назад</Button>
             </PageHeader>
-            <Card><ProfileSettings /></Card>
+            <Card><ProfileSettings focusSection={profileSection} /></Card>
           </div>
         )}
       </main>
@@ -148,11 +154,9 @@ interface SectionNavigationProps {
   tab: Tab;
   profilePage: boolean;
   onSelect: (tab: Tab) => void;
-  unread: number;
-  unreadLabel: (tab: Tab) => string;
 }
 
-function SectionNavigation({ nav, tab, profilePage, onSelect, unread, unreadLabel }: SectionNavigationProps) {
+function SectionNavigation({ nav, tab, profilePage, onSelect }: SectionNavigationProps) {
   return (
     <nav aria-label="Разделы" className="section-navigation">
       <HorizontalTabs
@@ -168,27 +172,15 @@ function SectionNavigation({ nav, tab, profilePage, onSelect, unread, unreadLabe
           const item = nav.find((entry) => entry.tab === id);
           if (!item) return null;
           const Icon = item.icon;
-          const count = id === 'family' && unread > 0 ? (unread > 99 ? '99+' : unread) : null;
           const active = selected && !profilePage;
           return (
             <SectionTab key={id} id={`section-${id}`} tabId={id} dimension="m" adaptive="fill"
               selected={active} onSelectTab={chooseTab} aria-selected={active}
-              aria-controls="section-content" aria-label={item.label + unreadLabel(item.tab)}>
+              aria-controls="section-content" aria-label={item.label}>
               <span className="flex items-center gap-2 max-lg:flex-col max-lg:gap-0.5 max-lg:text-[10px]">
-                <span className="relative shrink-0">
-                  <Icon size={20} aria-hidden />
-                  {count !== null && (
-                    <AdmiralBadge data-nav-count="" className="!absolute -top-1 left-full ml-0.5 !h-3.5 !min-w-3.5 !px-0.5 !text-[9px] lg:!hidden"
-                      appearance="info" dimension="s" aria-hidden>{count}</AdmiralBadge>
-                  )}
-                </span>
+                <Icon size={20} aria-hidden />
                 {item.label}
               </span>
-              {count !== null && (
-                <AdmiralBadge data-nav-count="" className="max-lg:!hidden" appearance="info" dimension="s" aria-hidden>
-                  {count}
-                </AdmiralBadge>
-              )}
             </SectionTab>
           );
         }}

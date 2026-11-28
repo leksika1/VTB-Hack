@@ -58,7 +58,7 @@ docker compose -f docker-compose.yml -f docker-compose.e2e.yml down -v
 backend/tests/
   unit/test_rules.py        формулы месяца, статусы категорий, вердикты покупки, проверки ввода
   e2e/test_system.py        health, ready, OpenAPI, формат ошибок, CORS, X-Request-ID
-  e2e/test_family.py        единая роль, владелец, заявки, выход, демо и /state
+  e2e/test_family.py        единая роль, владелец, заявки, выход и /state
   e2e/test_budgets.py       бюджет месяца: создание, правка, проверки, идемпотентность
   e2e/test_expenses.py      расходы: CRUD, права, сортировка, копейки, идемпотентность
   e2e/test_payments.py      платежи: CRUD, оплата и отмена, перенос месяца

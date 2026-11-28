@@ -4,32 +4,36 @@ import type { ExpenseCategory, Role, Tab, Toast } from '../types';
 import { toMonthKey } from '../utils/date';
 import { EXIT_MS } from '../utils/motion';
 
-/** A purchase being checked; it travels between the calculator and the forms opened from it */
-export interface PurchaseDraft {
+/** Значения из формы расхода при переносе будущей покупки в платёж. */
+export interface PaymentPrefill {
   amount?: number;
   category?: ExpenseCategory;
+  title?: string;
+  dueDate?: string;
 }
 
 export type ModalState =
   | { type: 'expenseForm'; expenseId?: string; prefill?: { title?: string; amount?: number; category?: ExpenseCategory } }
   | { type: 'expenseDetails'; expenseId: string }
-  /** focus — the category whose limit should be revised; purchase — the check to return to after saving */
-  | { type: 'budgetForm'; focus?: ExpenseCategory; purchase?: PurchaseDraft }
-  /** planned — a future purchase reserved like a payment, opened from the calculator or the expense form */
-  | { type: 'paymentForm'; paymentId?: string; prefill?: PurchaseDraft & { title?: string; dueDate?: string }; planned?: boolean }
-  | { type: 'purchaseCheck'; prefill?: PurchaseDraft }
+  | { type: 'budgetForm'; focus?: ExpenseCategory }
+  /** planned — a future purchase reserved like a payment, opened from the expense form */
+  | { type: 'paymentForm'; paymentId?: string; prefill?: PaymentPrefill; planned?: boolean }
+  | { type: 'paymentDetails'; paymentId: string }
   | { type: 'invite' }
   | { type: 'goalForm'; goalId?: string }
-  | { type: 'accountContribution'; amount: number }
+  | { type: 'accountContribution'; amount?: number }
   | { type: 'goalContribution'; goalId: string }
+  | { type: 'notifications' }
   | null;
 
 export type Theme = 'light' | 'dark' | 'system';
 export type DataStatus = 'loading' | 'ready' | 'error';
+export type ProfileSection = 'settings' | 'access';
 
 interface UIState {
   tab: Tab;
   profileOpen: boolean;
+  profileSection: ProfileSection;
   /** Month the user is viewing. Independent from the date of an expense being edited. */
   monthKey: string;
   /** Direction of the last month change, drives the carousel: 1 — forward, -1 — back */
@@ -41,7 +45,7 @@ interface UIState {
   /** Invite links created in this tab: the server shows a code only once. Key: `${familyId}:${role}` */
   inviteLinks: Record<string, { url: string; expiresAt: number }>;
   setTab: (tab: Tab) => void;
-  setProfileOpen: (profileOpen: boolean) => void;
+  setProfileOpen: (profileOpen: boolean, section?: ProfileSection) => void;
   setMonthKey: (monthKey: string) => void;
   openModal: (modal: NonNullable<ModalState>) => void;
   closeModal: () => void;
@@ -57,6 +61,7 @@ export const useUIStore = create<UIState>()(
     (set, get) => ({
       tab: 'overview',
       profileOpen: false,
+      profileSection: 'settings',
       monthKey: toMonthKey(),
       monthDirection: 1,
       modal: null,
@@ -66,7 +71,7 @@ export const useUIStore = create<UIState>()(
       inviteLinks: {},
 
       setTab: (tab) => set({ tab, profileOpen: false }),
-      setProfileOpen: (profileOpen) => set({ profileOpen }),
+      setProfileOpen: (profileOpen, profileSection = 'settings') => set({ profileOpen, profileSection }),
       setMonthKey: (monthKey) =>
         set((state) => (monthKey === state.monthKey ? state : { monthKey, monthDirection: monthKey > state.monthKey ? 1 : -1 })),
       openModal: (modal) => set({ modal }),

@@ -43,10 +43,6 @@ class OidcCallbackIn(Schema):
     state: str = Field(max_length=100)
 
 
-class SwitchUserIn(Schema):
-    user_id: str
-
-
 class BudgetIn(Schema):
     total_amount: float
     category_plans: dict[str, float] = {}
@@ -151,6 +147,10 @@ class ImportIn(Schema):
     content: str = Field(max_length=2_000_000)
 
 
+class CardImportIn(Schema):
+    month: str | None = None
+
+
 class ImportRowChoice(Schema):
     id: str
     category: str | None = None
@@ -222,7 +222,7 @@ class FamilyOut(Schema):
         if not viewer.active:
             return cls(id=f.id, name=f.name, owner_id=f.owner_id, is_owner=False, invite_code=None,
                        child_invite_code=None, members=[UserOut.of(viewer)],
-                       pending_members=[], pending=True, is_demo=f.is_demo)
+                       pending_members=[], pending=True, is_demo=False)
         return cls(
             id=f.id, owner_id=f.owner_id, is_owner=f.owner_id == viewer.id,
             name=f.name,
@@ -231,12 +231,12 @@ class FamilyOut(Schema):
             members=[UserOut.of(m) for m in f.members if m.active],
             pending_members=[UserOut.of(m) for m in f.members if m.pending],
             pending=False,
-            is_demo=f.is_demo,
+            is_demo=False,
         )
 
 
 class SessionOut(Schema):
-    """Выдаётся при создании семьи, входе по приглашению, демо и смене участника."""
+    """Выдаётся при создании семьи, входе по приглашению или личному ID."""
 
     token: str
     current_user_id: str
@@ -364,6 +364,7 @@ class PaymentOut(Schema):
     provider_identifier: str | None
     limit_amount: float | None
     payment_details: dict | None
+    invoice_issued_at: int | None
 
     @classmethod
     def of(cls, p: models.Payment, *, detailed: bool = False) -> "PaymentOut":
@@ -400,6 +401,7 @@ class PaymentOut(Schema):
             provider_identifier=p.provider_identifier,
             limit_amount=kop_to_amount(p.limit_amount_kop) if p.limit_amount_kop is not None else None,
             payment_details=details,
+            invoice_issued_at=p.invoice_issued_at,
         )
 
 

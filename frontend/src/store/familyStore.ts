@@ -6,14 +6,17 @@ export interface SavedSession {
   family: Family;
   currentUserId: string | null;
   token: string;
+  unreadNotifications: number;
 }
 
 interface FamilyState {
   family: Family | null;
   currentUserId: string | null;
-  /** Session token from the backend, sent as Authorization: Bearer */
+  /** Токен сервера или маркер local-demo, который никогда не отправляется в сеть. */
   token: string | null;
-  /** The real account put aside while the demo copy is open: leaving the demo brings it back */
+  /** Unread in-app notifications returned with GET /state. */
+  unreadNotifications: number;
+  /** Реальная сессия, отложенная на время локального демо. */
   savedSession: SavedSession | null;
 }
 
@@ -23,6 +26,7 @@ export const useFamilyStore = create<FamilyState>()(
       family: null,
       currentUserId: null,
       token: null,
+      unreadNotifications: 0,
       savedSession: null,
     }),
     // v3: data lives on the backend now; v2 held the local mock data
@@ -38,9 +42,4 @@ export function useCurrentUser(): User | null {
 export function resolveAuthorName(family: Family | null, authorId: string | null, fallback?: string | null): string {
   const member = authorId ? family?.members.find((m) => m.id === authorId) : undefined;
   return member?.name ?? fallback ?? 'Автор не указан';
-}
-
-/** Kept as a compatibility name: every active member has family-finance access in v2. */
-export function useIsParent(): boolean {
-  return useFamilyStore((s) => !!s.family?.members.find((m) => m.id === s.currentUserId));
 }

@@ -1,10 +1,10 @@
 import { useState, type FormEvent } from 'react';
 import { CalendarUpdate } from '../ui/icons';
-import type { AccountMode, ExpenseCategory } from '../../types';
+import type { ExpenseCategory, SplitMode } from '../../types';
 import { saveExpense } from '../../api/client';
 import { useAsyncAction, useRequestId } from '../../hooks/useAsyncAction';
 import { useDataStore } from '../../store/dataStore';
-import { useCurrentUser, useFamilyStore, useIsParent } from '../../store/familyStore';
+import { useCurrentUser, useFamilyStore } from '../../store/familyStore';
 import { useUIStore } from '../../store/uiStore';
 import { amountToInput, parseAmount, validateAmount } from '../../utils/currency';
 import { daysFromToday, formatMonthIn, todayISO, toMonthKey } from '../../utils/date';
@@ -13,6 +13,8 @@ import { AmountField, Field, FieldError, FormError } from '../ui/Field';
 import { Button } from '../ui/Button';
 import { CategoryPicker } from '../ui/CategoryPicker';
 import { RadioButton } from '@admiral-ds/react-ui';
+import { SplitField } from '../ui/SplitField';
+import { splitSharesFromInputs } from '../ui/split';
 
 interface ExpenseFormModalProps {
   expenseId?: string;
@@ -36,7 +38,6 @@ export function ExpenseFormModal({ expenseId, prefill }: ExpenseFormModalProps) 
   const setTab = useUIStore((s) => s.setTab);
   const user = useCurrentUser();
   const family = useFamilyStore((s) => s.family);
-  const isParent = useIsParent();
   const existing = useDataStore((s) => (expenseId ? s.expenses.find((e) => e.id === expenseId) : undefined));
   const requestId = useRequestId();
   const save = useAsyncAction(saveExpense);
@@ -48,31 +49,35 @@ export function ExpenseFormModal({ expenseId, prefill }: ExpenseFormModalProps) 
   const initialPayer = existing ? existing.paidBy ?? existing.authorId : user?.id ?? null;
   const [paidBy, setPaidBy] = useState(initialPayer);
   const source: 'shared' | 'personal' = existing
-    ? existing.accountMode?.startsWith('shared') ? 'shared' : 'personal'
+    ? existing.source ?? (existing.accountMode?.startsWith('shared') ? 'shared' : 'personal')
     : 'shared';
-  const [division, setDivision] = useState<'none' | 'equal' | 'custom'>(existing?.splitPercentages
-    ? 'custom'
-    : existing?.accountMode?.endsWith('_split') ? 'equal' : 'none');
-  const [percentages, setPercentages] = useState<Record<string, string>>(() =>
-    Object.fromEntries(Object.entries(existing?.splitPercentages ?? {}).map(([id, value]) => [id, String(value)])));
-  const accountMode: AccountMode = source === 'shared'
-    ? division === 'none' ? 'shared_common' : 'shared_split'
-    : division === 'none' ? 'outside' : 'personal_split';
+  const [splitMode, setSplitMode] = useState<SplitMode>(
+    existing?.splitMode === 'shares' || existing?.splitPercentages
+      ? 'shares'
+      : existing?.splitMode === 'equal' || existing?.accountMode?.endsWith('_split') ? 'equal' : 'none',
+  );
+  const [splitMembers, setSplitMembers] = useState<string[]>(
+    existing?.splitMembers ?? family?.members.map((member) => member.id) ?? [],
+  );
+  const [splitInputs, setSplitInputs] = useState<Record<string, string>>(() =>
+    Object.fromEntries(Object.entries(existing?.splitShares ?? existing?.splitPercentages ?? {}).map(([id, value]) =>
+      [id, String(existing?.splitShares ? value / 100 : value)])));
   const [submitted, setSubmitted] = useState(false);
 
   const participants = family?.members ?? [];
   const payerIsActive = participants.some((m) => m.id === initialPayer);
-  const editableMode = isParent && !existing?.paymentId && (!existing || payerIsActive);
-  const choosePayer = editableMode && source === 'personal' && participants.length > 1;
-  const custom = editableMode && division === 'custom';
-  const entries = participants.map((member) => [member.id, percentages[member.id] ?? '0'] as const);
-  const percentTotal = entries.reduce((sum, [, value]) => sum + Number(value || 0), 0);
-  const percentsValid = percentTotal === 100 && entries.every(([, value]) => /^\d{0,3}$/.test(value) && Number(value) <= 100);
-  const splitError = custom && submitted && !percentsValid ? 'Укажите целые проценты от 0 до 100. Сумма долей должна быть 100%.' : null;
+  const editableMode = !existing?.paymentId && (!existing || payerIsActive);
+  const choosePayer = editableMode && source === 'shared' && participants.length > 1;
+  const shares = splitSharesFromInputs(participants, splitInputs);
+  const splitError = submitted && splitMode === 'equal' && splitMembers.length === 0
+    ? 'Выберите хотя бы одного участника'
+    : submitted && splitMode === 'shares' && !shares
+      ? 'Доли всех участников должны быть больше нуля и в сумме дать 100%'
+      : null;
   // A purchase that has not happened yet belongs in the plan, not in expenses.
   const futureMonth = viewedMonth > toMonthKey();
   const futureDate = !!date && daysFromToday(date) > 0;
-  const offerPlan = !expenseId && isParent && (futureMonth || futureDate);
+  const offerPlan = !expenseId && (futureMonth || futureDate);
 
   const titleError = submitted && !title.trim() ? 'Укажите, что купили' : save.errorField === 'title' ? save.error : null;
   const amountError = submitted ? validateAmount(amount) : null;
@@ -85,13 +90,23 @@ export function ExpenseFormModal({ expenseId, prefill }: ExpenseFormModalProps) 
     e.preventDefault();
     setSubmitted(true);
     const value = parseAmount(amount);
-    if (!title.trim() || validateAmount(amount) || !category || !date || value === null || (custom && !percentsValid)) return;
+    if (!title.trim() || validateAmount(amount) || !category || !date || value === null || splitError
+      || (splitMode === 'equal' && splitMembers.length === 0) || (splitMode === 'shares' && !shares)) return;
 
     const payer = choosePayer && paidBy && paidBy !== initialPayer ? paidBy : undefined;
-    const splitPercentages = custom ? Object.fromEntries(entries.filter(([, percent]) => Number(percent) > 0)
-      .map(([id, percent]) => [id, Number(percent)])) : editableMode ? null : undefined;
-    const mode = editableMode && (!existing || existing.accountMode || accountMode !== 'outside') ? accountMode : undefined;
-    const res = await save.run({ id: expenseId, title, amount: value, category, date, paidBy: payer, accountMode: mode, splitPercentages }, requestId);
+    const res = await save.run({
+      id: expenseId,
+      title,
+      amount: value,
+      category,
+      date,
+      paidBy: payer,
+      splitMode: editableMode ? splitMode : undefined,
+      splitMembers: editableMode && splitMode === 'equal'
+        ? splitMembers
+        : editableMode && splitMode === 'shares' ? participants.map((member) => member.id) : editableMode ? null : undefined,
+      splitShares: editableMode && splitMode === 'shares' ? shares : editableMode ? null : undefined,
+    }, requestId);
     if (!res.ok) return;
 
     const savedMonth = date.slice(0, 7);
@@ -120,11 +135,11 @@ export function ExpenseFormModal({ expenseId, prefill }: ExpenseFormModalProps) 
 
   return (
     <Modal
-      title={expenseId ? 'Изменить покупку' : 'Записать покупку'}
+      title={expenseId ? 'Изменить покупку' : 'Добавить покупку'}
       onClose={closeModal}
       footer={
         <Button type="submit" form="expense-form" fullWidth size="lg" loading={save.pending}>
-          {expenseId ? 'Сохранить изменения' : 'Записать покупку'}
+          {expenseId ? 'Сохранить изменения' : 'Добавить покупку'}
         </Button>
       }
     >
@@ -150,45 +165,21 @@ export function ExpenseFormModal({ expenseId, prefill }: ExpenseFormModalProps) 
           <CategoryPicker value={category} onChange={setCategory} />
           {categoryError && <FieldError>{categoryError}</FieldError>}
         </div>
+        {source === 'personal' && existing && (
+          <p className="rounded-control bg-surface-muted p-3 text-sm text-ink-2">
+            Оплачено с личной карты: {participants.find((member) => member.id === (existing.paidBy ?? existing.authorId))?.name ?? 'участник'}
+          </p>
+        )}
+        {source === 'shared' && <p className="text-sm text-ink-2">Оплата с общего счёта</p>}
         {editableMode && (
-          <fieldset className="space-y-4 rounded-control bg-surface-muted p-3 sm:p-4">
-            <legend className="px-1 font-medium text-ink">Источник и деление</legend>
-            <p className="text-sm text-ink-2">{source === 'personal' ? 'Личная карта (покупка из импорта)' : 'Общий счёт'}</p>
-            <div className="flex flex-wrap gap-3">
-              <RadioButton name="purchase-division" value="none" checked={division === 'none'} onChange={() => setDivision('none')}>
-                Без деления
-              </RadioButton>
-              <RadioButton name="purchase-division" value="equal" checked={division === 'equal'} onChange={() => setDivision('equal')}>
-                Поровну
-              </RadioButton>
-              <RadioButton name="purchase-division" value="custom" checked={division === 'custom'} onChange={() => {
-                setDivision('custom');
-                if (!Object.keys(percentages).length) {
-                  const share = Math.floor(100 / participants.length);
-                  setPercentages(Object.fromEntries(participants.map((member, index) =>
-                    [member.id, String(share + (index < 100 % participants.length ? 1 : 0))])));
-                }
-              }}>В долях</RadioButton>
-            </div>
-            {custom && (
-              <div className="space-y-2">
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {participants.map((member) => (
-                    <Field key={member.id} label={`Доля: ${member.name}`} suffix="%" inputMode="numeric" maxLength={3}
-                      value={percentages[member.id] ?? ''}
-                      onChange={(event) => setPercentages((previous) => ({ ...previous, [member.id]: event.target.value }))} />
-                  ))}
-                </div>
-                {splitError || save.errorField === 'splitPercentages' ? <FieldError>{splitError ?? save.error}</FieldError> : (
-                  <p className="text-sm text-ink-2" aria-live="polite">Всего {Number.isFinite(percentTotal) ? percentTotal : '—'} из 100%</p>
-                )}
-              </div>
-            )}
-          </fieldset>
+          <SplitField members={participants} mode={splitMode} onModeChange={setSplitMode}
+            selectedMembers={splitMembers} onSelectedMembersChange={setSplitMembers}
+            shares={splitInputs} onSharesChange={setSplitInputs}
+            error={splitError ?? (save.errorField === 'splitShares' || save.errorField === 'splitMembers' ? save.error : null)} />
         )}
         {choosePayer && (
           <fieldset>
-            <legend className="block text-sm font-medium text-ink-2 mb-1.5">Кто платил</legend>
+            <legend className="block text-sm font-medium text-ink-2 mb-1.5">Кто покупал</legend>
             <div className="flex flex-wrap gap-x-5 gap-y-3">
               {participants.map((m) => (
                 <RadioButton

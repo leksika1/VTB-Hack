@@ -96,12 +96,6 @@ def until_limited(send, limit: int) -> list[httpx.Response]:
     raise AssertionError(f"нет 429 после {len(responses)} запросов при лимите {limit}")
 
 
-def start_demo(client: httpx.Client) -> Member:
-    r = client.post("/api/demo")
-    assert r.status_code == 201, r.text
-    return _member(client, r.json())
-
-
 def set_budget(m: Member, total: float = 100000, plans: dict | None = None, month: str = MONTH) -> dict:
     r = m.put(f"/api/budgets/{month}", {"totalAmount": total, "categoryPlans": PLANS if plans is None else plans})
     assert r.status_code == 200, r.text

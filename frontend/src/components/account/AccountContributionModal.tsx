@@ -8,7 +8,7 @@ import { AmountField, FormError } from '../ui/Field';
 import { Deposit } from '../ui/icons';
 import { Modal } from '../ui/Modal';
 
-export function AccountContributionModal({ amount }: { amount: number }) {
+export function AccountContributionModal({ amount }: { amount?: number }) {
   const close = useUIStore((s) => s.closeModal);
   const toast = useUIStore((s) => s.addToast);
   const request = useAsyncAction(contributeToAccount);
@@ -30,7 +30,7 @@ export function AccountContributionModal({ amount }: { amount: number }) {
 
   return (
     <Modal title="Пополнить общий счёт" onClose={close}
-      description="Пополнение в демо записывается в семейный бюджет. Банковское списание не выполняется."
+      description="Сумма запишется в семейный бюджет. В прототипе деньги с карты не списываются."
       footer={<Button type="submit" form="account-contribution" loading={request.pending} fullWidth>Записать пополнение</Button>}>
       <form id="account-contribution" className="space-y-4" onSubmit={submit} noValidate>
         <div className="flex items-center gap-3 rounded-control bg-surface-muted p-3">

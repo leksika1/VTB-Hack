@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import get_settings
-from ..errors import Conflict, DemoOnly, NotFound, Unauthorized, ValidationFailed
+from ..errors import Conflict, NotFound, Unauthorized, ValidationFailed
 from ..infra import get_redis
 from ..models import Member
 from ..oidc import OidcError, get_provider, pkce_challenge, validate_id_token
@@ -40,9 +40,6 @@ async def start(intent: str, redirect_uri: str, member: Member | None) -> str:
         raise ValidationFailed("intent: login или link", "intent")
     if intent == "link" and member is None:
         raise ValidationFailed("Чтобы привязать ВТБ ID, войдите в приложение", "intent")
-    if intent == "link" and member.family.is_demo:
-        # Иначе настоящий ВТБ ID оказался бы у участника копии, которую скоро удалят
-        raise DemoOnly("ВТБ ID нельзя привязать к демо-семье. Выйдите из демо и привяжите его в своей семье.")
     # Только заранее разрешённые адреса возврата: иначе код авторизации можно увести на чужой сайт
     if redirect_uri not in settings.oidc_redirect_uri_list:
         raise ValidationFailed("Недопустимый адрес возврата", "redirectUri")
@@ -72,7 +69,7 @@ async def callback(db: AsyncSession, code: str, state: str) -> OidcCallbackOut:
 
     if flow["intent"] == "link":
         member = await db.get(Member, flow["memberId"])
-        if member is None or not member.active or member.family.is_demo:
+        if member is None or not member.active:
             raise OidcError()
         if linked and linked.id != member.id:
             raise Conflict("Этот ВТБ ID уже привязан к другому участнику")

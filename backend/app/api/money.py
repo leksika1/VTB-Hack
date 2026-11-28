@@ -1,17 +1,19 @@
 """Разбор QR-кода чека и импорт банковской выписки."""
 from fastapi import APIRouter, Request, Response
 
-from ..deps import CurrentMember, Db, mark_silent
+from ..clock import current_month_key
+from ..deps import CurrentMember, Db, IdempotencyKey, mark_silent
 from ..receipts import parse_receipt
 from ..schemas import (
+    CardImportIn,
     ImportConfirmIn,
     ImportIn,
     ImportOut,
     ReceiptIn,
     ReceiptOut,
 )
-from ..services import finance, imports
-from ..validation import kop_to_amount
+from ..services import finance, idempotency, imports
+from ..validation import check_month_key, kop_to_amount
 
 router = APIRouter()
 
@@ -45,6 +47,21 @@ async def create_import(body: ImportIn, member: CurrentMember, db: Db):
     out = ImportOut.of(batch, with_rows=True)
     await db.commit()
     return out
+
+
+@router.post("/imports/card", response_model=ImportOut, status_code=201, tags=["imports"],
+             summary="Получить покупки с личной карты ВТБ за месяц")
+async def create_card_import(member: CurrentMember, db: Db, body: CardImportIn | None = None,
+                             idem: IdempotencyKey = None):
+    month = check_month_key((body.month if body else None) or current_month_key(), "month")
+
+    async def action():
+        batch = await imports.create_card(db, member, month)
+        return ImportOut.of(batch, with_rows=True).model_dump(mode="json", by_alias=True)
+
+    return await idempotency.run(
+        db, member.id, idem, idempotency.fingerprint("POST card import", month), action,
+    )
 
 
 @router.get("/imports", response_model=list[ImportOut], tags=["imports"])

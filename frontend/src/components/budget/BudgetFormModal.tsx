@@ -7,7 +7,7 @@ import { useAsyncAction, useRequestId } from '../../hooks/useAsyncAction';
 import { useMonthSummary } from '../../hooks/useMonthSummary';
 import { budgetKey, useDataStore } from '../../store/dataStore';
 import { useFamilyStore } from '../../store/familyStore';
-import { useUIStore, type PurchaseDraft } from '../../store/uiStore';
+import { useUIStore } from '../../store/uiStore';
 import { ALL_CATEGORIES, CATEGORIES, emptyCategoryRecord } from '../../utils/categories';
 import { amountToInput, formatCurrency, parseAmount, validateAmount } from '../../utils/currency';
 import { formatMonthIn, formatMonthKey, formatMonthLower, shiftMonth } from '../../utils/date';
@@ -29,12 +29,9 @@ function toInputs(plans: Record<ExpenseCategory, number> | undefined): PlanInput
 interface BudgetFormModalProps {
   /** Category whose limit the user came to revise: it is scrolled into view and ways to cover the gap are offered */
   focus?: ExpenseCategory;
-  /** Purchase check that sent the user here: it is counted in the gap and reopened after saving or closing */
-  purchase?: PurchaseDraft;
 }
 
-export function BudgetFormModal({ focus, purchase }: BudgetFormModalProps) {
-  const openModal = useUIStore((s) => s.openModal);
+export function BudgetFormModal({ focus }: BudgetFormModalProps) {
   const closeModal = useUIStore((s) => s.closeModal);
   const addToast = useUIStore((s) => s.addToast);
   const viewedMonth = useUIStore((s) => s.monthKey);
@@ -96,7 +93,7 @@ export function BudgetFormModal({ focus, purchase }: BudgetFormModalProps) {
   // Gap of the focused category from the limits typed in the form, so it shrinks as the user edits them
   const used = (k: ExpenseCategory) => {
     const c = current.categories.find((x) => x.key === k)!;
-    return c.spent + c.reserved + (purchase?.category === k ? purchase.amount ?? 0 : 0);
+    return c.spent + c.reserved;
   };
   const freeIn = (k: ExpenseCategory) => round((parseAmount(plans[k]) ?? 0) - used(k));
   const focused = focus && month === viewedMonth ? focus : null;
@@ -114,8 +111,6 @@ export function BudgetFormModal({ focus, purchase }: BudgetFormModalProps) {
     else if (from !== 'unallocated' && from !== 'total') addTo(from, -need);
     setMoved(true);
   };
-  const leave = () => (purchase ? openModal({ type: 'purchaseCheck', prefill: purchase }) : closeModal());
-
   // Bring the category to fix into view; no focus, so a phone does not cover the suggestions with the keyboard
   useEffect(() => {
     focusedRef.current?.scrollIntoView({ block: 'start' });
@@ -130,10 +125,8 @@ export function BudgetFormModal({ focus, purchase }: BudgetFormModalProps) {
 
     const res = await save.run({ monthKey: month, totalAmount: totalNum, categoryPlans }, `${requestId}:${month}`);
     if (!res.ok) return;
-    leave();
-    if (purchase && month === viewedMonth) {
-      addToast('Лимиты сохранены — проверка покупки пересчитана');
-    } else if (month !== viewedMonth) {
+    closeModal();
+    if (month !== viewedMonth) {
       addToast(`Бюджет на ${formatMonthLower(month)} сохранён`, 'success', { label: 'Показать', onClick: () => setMonthKey(month) });
     } else {
       addToast('Бюджет сохранён');
@@ -145,7 +138,7 @@ export function BudgetFormModal({ focus, purchase }: BudgetFormModalProps) {
       size="lg"
       title={`Бюджет на ${formatMonthLower(month)}`}
       description="План — ориентир семьи, а не запрет: расходы можно вносить и сверх него. Лимиты достаточно задать только важным категориям."
-      onClose={leave}
+      onClose={closeModal}
       footer={
         <div className="space-y-3">
           <div
@@ -167,11 +160,6 @@ export function BudgetFormModal({ focus, purchase }: BudgetFormModalProps) {
           <Button type="submit" form="budget-form" fullWidth size="lg" loading={save.pending}>
             {moved ? 'Сохранить перенос лимитов' : 'Сохранить бюджет'}
           </Button>
-          {purchase && (
-            <Button variant="ghost" fullWidth size="sm" onClick={leave}>
-              Вернуться к покупке без изменений
-            </Button>
-          )}
         </div>
       }
     >
@@ -247,7 +235,6 @@ export function BudgetFormModal({ focus, purchase }: BudgetFormModalProps) {
                       category={k}
                       need={need}
                       moved={moved}
-                      purchase={purchase}
                       sources={sources.map((s) => ({ key: s, free: freeIn(s) }))}
                       unallocated={unallocatedCovers ? unallocated : null}
                       onCover={cover}
@@ -269,7 +256,6 @@ interface CoverPanelProps {
   category: ExpenseCategory;
   need: number;
   moved: boolean;
-  purchase?: PurchaseDraft;
   sources: { key: ExpenseCategory; free: number }[];
   /** Unallocated part of the plan when it covers the gap */
   unallocated: number | null;
@@ -277,14 +263,14 @@ interface CoverPanelProps {
 }
 
 /** Ways to cover the gap of the category the user came to fix; each fills the form, saving confirms it */
-function CoverPanel({ category, need, moved, purchase, sources, unallocated, onCover }: CoverPanelProps) {
+function CoverPanel({ category, need, moved, sources, unallocated, onCover }: CoverPanelProps) {
   const label = CATEGORIES[category].label;
   if (need <= 0) {
     return (
       <p className="mt-2 sm:ml-11 flex items-start gap-2 rounded-xl bg-success-soft px-3.5 py-2.5 text-sm text-success" role="status">
         <Check size={16} className="shrink-0 mt-px" aria-hidden />
         <span>
-          {moved ? 'Лимит покрывает' : 'Хватает на'} {purchase?.category === category ? 'расходы, платежи и покупку' : 'расходы и платежи'}.
+          {moved ? 'Лимит покрывает' : 'Хватает на'} расходы и платежи.
           {moved && ' Перенос применится после сохранения.'}
         </span>
       </p>
@@ -294,9 +280,7 @@ function CoverPanel({ category, need, moved, purchase, sources, unallocated, onC
   return (
     <div className="mt-2 sm:ml-11 rounded-xl bg-warning-soft p-3.5">
       <p className="text-sm text-ink">
-        В «{label}» не хватает <b className="tabular">{formatCurrency(need)}</b>
-        {purchase?.category === category && purchase.amount ? ` с учётом покупки на ${formatCurrency(purchase.amount)}` : ''}. Увеличьте лимит
-        или возьмите сумму:
+        В «{label}» не хватает <b className="tabular">{formatCurrency(need)}</b>. Увеличьте лимит или возьмите сумму:
       </p>
       <ul className="mt-2 space-y-1.5">
         {unallocated !== null && (

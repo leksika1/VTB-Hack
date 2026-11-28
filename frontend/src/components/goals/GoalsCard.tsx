@@ -2,7 +2,6 @@ import { T } from '@admiral-ds/react-ui';
 import { Deposit, Plus } from '../ui/icons';
 import type { Goal } from '../../types';
 import { useDataStore } from '../../store/dataStore';
-import { useIsParent } from '../../store/familyStore';
 import { useUIStore } from '../../store/uiStore';
 import { formatCurrency } from '../../utils/currency';
 import { formatDateShort, formatMonthIn } from '../../utils/date';
@@ -17,14 +16,10 @@ import { ProgressBar } from '../ui/ProgressBar';
  * A contribution increases the savings progress and the shared account balance.
  */
 export function GoalsCard() {
-  const isParent = useIsParent();
   const openModal = useUIStore((s) => s.openModal);
   const goals = useDataStore((s) => s.goals);
   const shown = goals.filter((g) => g.status !== 'archived');
   const archived = goals.length - shown.length;
-
-  // Keep the compact empty state when goal creation is unavailable.
-  if (!isParent && shown.length === 0) return null;
 
   return (
     <Card className="p-5">
@@ -32,17 +27,15 @@ export function GoalsCard() {
         title="Цели"
         subtitle="Взносы в цели пополняют общий счёт"
         action={
-          isParent && (
-            <Button size="sm" variant="secondary" icon={<Plus size={16} />} onClick={() => openModal({ type: 'goalForm' })}>
-              Новая цель
-            </Button>
-          )
+          <Button size="sm" variant="secondary" icon={<Plus size={16} />} onClick={() => openModal({ type: 'goalForm' })}>
+            Новая цель
+          </Button>
         }
       />
       {shown.length > 0 ? (
         <ul className="divide-y divide-line">
           {shown.map((g) => (
-            <GoalRow key={g.id} goal={g} editable={isParent} />
+            <GoalRow key={g.id} goal={g} />
           ))}
         </ul>
       ) : (
@@ -58,7 +51,7 @@ export function GoalsCard() {
   );
 }
 
-function GoalRow({ goal, editable }: { goal: Goal; editable: boolean }) {
+function GoalRow({ goal }: { goal: Goal }) {
   const openModal = useUIStore((s) => s.openModal);
   const achieved = goal.status === 'achieved';
   const pace = achieved
@@ -73,20 +66,16 @@ function GoalRow({ goal, editable }: { goal: Goal; editable: boolean }) {
     <li className="py-3.5 first:pt-1 last:pb-1">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          {editable ? (
-            <T
-              as="button"
-              font="Subtitle/Subtitle 2"
-              type="button"
-              onClick={() => openModal({ type: 'goalForm', goalId: goal.id })}
-              className="font-medium text-ink text-left break-words hover:underline rounded"
-              title="Изменить цель"
-            >
-              {goal.title}
-            </T>
-          ) : (
-            <T as="p" font="Subtitle/Subtitle 2" className="break-words">{goal.title}</T>
-          )}
+          <T
+            as="button"
+            font="Subtitle/Subtitle 2"
+            type="button"
+            onClick={() => openModal({ type: 'goalForm', goalId: goal.id })}
+            className="font-medium text-ink text-left break-words hover:underline rounded"
+            title="Изменить цель"
+          >
+            {goal.title}
+          </T>
           <p className="text-sm text-ink-2 tabular">
             {formatCurrency(goal.saved)} из {formatCurrency(goal.target)}
             {goal.deadline && ` к ${formatDateShort(goal.deadline)}`}

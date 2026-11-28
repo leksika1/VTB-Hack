@@ -4,7 +4,7 @@ import hashlib
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..errors import Conflict, DemoOnly, Forbidden, NotFound, ValidationFailed
+from ..errors import Conflict, NotFound, ValidationFailed
 from ..models import Family, InviteLink, Member, MemberSession, now_ms
 from ..schemas import CreateFamilyIn, FamilyOut, InviteLinkOut, InvitePreviewOut, JoinFamilyIn, SessionOut
 from ..security import MEMBER_COLORS, hash_token, new_invite_code, new_invite_link_code, new_login_id, new_token
@@ -101,8 +101,6 @@ async def resolve_invite(db: AsyncSession, code: str, lock: bool = False) -> tup
         family = await db.scalar(select(Family).where(Family.invite_code == normalized))
         if family is None:
             raise NotFound("Приглашение не найдено. Попросите прислать ссылку ещё раз.", "code")
-    if family.is_demo:
-        raise NotFound("Приглашение не найдено. Попросите прислать ссылку ещё раз.", "code")
     return family, link
 
 
@@ -157,8 +155,6 @@ def _live_links(family_id: str):
 async def create_invite_link(db: AsyncSession, member: Member, role: str = "member") -> InviteLinkOut:
     if role not in {"member", "parent"}:  # parent принимается от старого фронта
         raise ValidationFailed("Роль приглашённого: member", "role")
-    if member.family.is_demo:
-        raise DemoOnly("В демо-семью нельзя пригласить: она видна только вам")
     await db.execute(select(Family.id).where(Family.id == member.family_id).with_for_update())
     live = await db.scalar(select(func.count()).select_from(_live_links(member.family_id).subquery()))
     if live >= MAX_ACTIVE_INVITE_LINKS:
@@ -256,10 +252,6 @@ async def transfer_ownership(db: AsyncSession, actor: Member, member_id: str) ->
 
 async def leave_family(db: AsyncSession, member: Member) -> None:
     family = await load_family(db, member.family_id)
-    if family.is_demo:
-        await db.execute(delete(MemberSession).where(MemberSession.member_id.in_([m.id for m in family.members])))
-        await db.commit()
-        return
     if not member.active:
         await _deactivate(db, member)
         await db.commit()
@@ -268,12 +260,3 @@ async def leave_family(db: AsyncSession, member: Member) -> None:
         raise Conflict("Владелец не может выйти, пока не передаст владение семьёй")
     await _deactivate(db, member)
     await db.commit()
-
-
-async def switch_demo_user(db: AsyncSession, member: Member, user_id: str) -> SessionOut:
-    family = await load_family(db, member.family_id)
-    if not family.is_demo:
-        raise Forbidden("Переключение участников доступно только в демо-режиме")
-    if not any(m.id == user_id and m.active for m in family.members):
-        raise NotFound("Участник не найден")
-    return await issue_session(db, user_id)

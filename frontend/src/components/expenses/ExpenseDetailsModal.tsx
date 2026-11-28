@@ -1,7 +1,7 @@
 import { T } from '@admiral-ds/react-ui';
 import { useState } from 'react';
 import { Calendar, Edit, DeleteIcon } from '../ui/icons';
-import { expenseShares, usesFamilyAccount } from '../../domain/familyAccount';
+import { expenseShares } from '../../domain/familyAccount';
 import { deleteExpense } from '../../api/client';
 import { useAsyncAction } from '../../hooks/useAsyncAction';
 import { useDataStore } from '../../store/dataStore';
@@ -95,15 +95,13 @@ export function ExpenseDetailsModal({ expenseId }: { expenseId: string }) {
       <dl className="divide-y divide-line text-[15px]">
         <DetailRow label="Категория" value={CATEGORIES[expense.category].label} />
         <DetailRow label="Дата покупки" value={`${formatDateShort(expense.date)} ${parseISODate(expense.date).getFullYear()}`} />
-        {expense.accountMode && (
-          <DetailRow label="Источник" value={usesFamilyAccount(expense.accountMode) ? 'Общий счёт' : 'Личная карта'} />
-        )}
-        {expense.accountMode && !usesFamilyAccount(expense.accountMode) && payerId && (
+        <DetailRow label="Источник" value={expense.source === 'shared' ? 'Общий счёт' : 'Личная карта'} />
+        {expense.source === 'personal' && payerId && (
           <DetailRow label="Кто платил" value={payerId === currentUserId ? `${payerName} (вы)` : payerName} />
         )}
-        {expense.accountMode && <DetailRow label="Деление" value={expense.splitPercentages ? 'В долях' : shares.length ? 'Поровну' : 'Без деления'} />}
-        {expense.splitPercentages && shares.map(({ id, amount }) => (
-          <DetailRow key={id} label={`${resolveAuthorName(family, id)} · ${expense.splitPercentages?.[id]}%`}
+        <DetailRow label="Деление" value={expense.splitMode === 'shares' ? 'В долях' : expense.splitMode === 'equal' ? 'Поровну' : 'Без деления'} />
+        {expense.splitMode === 'shares' && shares.map(({ id, amount }) => (
+          <DetailRow key={id} label={`${resolveAuthorName(family, id)} · ${(expense.splitShares?.[id] ?? 0) / 100}%`}
             value={formatCurrency(amount / 100)} />
         ))}
       </dl>

@@ -94,7 +94,6 @@ def test_rate_limit_on_signup(new_client):
                               get_settings().rate_limit_signup)
     assert {r.status_code for r in responses[:-1]} == {201}
     assert_error(responses[-1], 429, "rate_limited")
-    assert_error(client.post("/api/demo"), 429, "rate_limited")
 
 
 def test_rate_limit_on_writes_per_member(new_client):

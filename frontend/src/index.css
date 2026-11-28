@@ -373,10 +373,6 @@ input[type='number']::-webkit-inner-spin-button {
   --admiral-color-Neutral_Neutral50: var(--nav-ink);
 }
 
-.section-tabs [data-nav-count] {
-  --admiral-color-Primary_Primary60Main: var(--accent);
-}
-
 @media (max-width: 1023px) {
   .section-navigation {
     position: fixed;
