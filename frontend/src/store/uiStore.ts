@@ -20,16 +20,18 @@ export type ModalState =
   | { type: 'paymentForm'; paymentId?: string; prefill?: PaymentPrefill; planned?: boolean }
   | { type: 'invite' }
   | { type: 'goalForm'; goalId?: string }
-  | { type: 'accountContribution'; amount: number }
+  | { type: 'accountContribution'; amount?: number }
   | { type: 'goalContribution'; goalId: string }
   | null;
 
 export type Theme = 'light' | 'dark' | 'system';
 export type DataStatus = 'loading' | 'ready' | 'error';
+export type ProfileSection = 'settings' | 'access';
 
 interface UIState {
   tab: Tab;
   profileOpen: boolean;
+  profileSection: ProfileSection;
   /** Month the user is viewing. Independent from the date of an expense being edited. */
   monthKey: string;
   /** Direction of the last month change, drives the carousel: 1 — forward, -1 — back */
@@ -41,7 +43,7 @@ interface UIState {
   /** Invite links created in this tab: the server shows a code only once. Key: `${familyId}:${role}` */
   inviteLinks: Record<string, { url: string; expiresAt: number }>;
   setTab: (tab: Tab) => void;
-  setProfileOpen: (profileOpen: boolean) => void;
+  setProfileOpen: (profileOpen: boolean, section?: ProfileSection) => void;
   setMonthKey: (monthKey: string) => void;
   openModal: (modal: NonNullable<ModalState>) => void;
   closeModal: () => void;
@@ -57,6 +59,7 @@ export const useUIStore = create<UIState>()(
     (set, get) => ({
       tab: 'overview',
       profileOpen: false,
+      profileSection: 'settings',
       monthKey: toMonthKey(),
       monthDirection: 1,
       modal: null,
@@ -66,7 +69,7 @@ export const useUIStore = create<UIState>()(
       inviteLinks: {},
 
       setTab: (tab) => set({ tab, profileOpen: false }),
-      setProfileOpen: (profileOpen) => set({ profileOpen }),
+      setProfileOpen: (profileOpen, profileSection = 'settings') => set({ profileOpen, profileSection }),
       setMonthKey: (monthKey) =>
         set((state) => (monthKey === state.monthKey ? state : { monthKey, monthDirection: monthKey > state.monthKey ? 1 : -1 })),
       openModal: (modal) => set({ modal }),

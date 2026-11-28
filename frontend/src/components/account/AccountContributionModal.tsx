@@ -8,7 +8,7 @@ import { AmountField, FormError } from '../ui/Field';
 import { Deposit } from '../ui/icons';
 import { Modal } from '../ui/Modal';
 
-export function AccountContributionModal({ amount }: { amount: number }) {
+export function AccountContributionModal({ amount }: { amount?: number }) {
   const close = useUIStore((s) => s.closeModal);
   const toast = useUIStore((s) => s.addToast);
   const request = useAsyncAction(contributeToAccount);

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { RadioButton, T } from '@admiral-ds/react-ui';
 import type { Me } from '../../types';
 import { errorMessage, getMe, getOidcConfig, leaveFamily, startOidc, switchDemoUser, unlinkOidc, type OidcConfig } from '../../api/client';
@@ -14,15 +14,41 @@ import { ChoiceChip } from '../ui/ChoiceChip';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { Presence } from '../ui/Presence';
 
-export function ProfileSettings() {
+export function ProfileSettings({ focusSection = 'settings' }: { focusSection?: 'settings' | 'access' }) {
   const demo = useFamilyStore((state) => state.family?.isDemo);
   return (
     <div className="divide-y divide-line">
       {!demo && <ParticipantIdCard />}
       {!demo && <VtbIdCard />}
+      <AccessCard focus={focusSection === 'access'} />
       <AppearanceCard />
       {demo && <DemoCard />}
       <LeaveCard />
+    </div>
+  );
+}
+
+function AccessCard({ focus }: { focus: boolean }) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!focus) return;
+    const timer = window.setTimeout(() => {
+      ref.current?.focus({ preventScroll: true });
+      ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    return () => window.clearTimeout(timer);
+  }, [focus]);
+
+  return (
+    <div ref={ref} tabIndex={-1} aria-labelledby="profile-access-title" className="rounded-card outline-none">
+      <Card className="p-5">
+        <SectionHeader id="profile-access-title" title="Доступ и видимость данных" />
+        <div className="space-y-2 text-ink-2">
+          <p>Общий счёт и операции видят все подтверждённые участники семьи.</p>
+          <p>Личные покупки по карте видны только вам, пока вы не добавите их в общий бюджет.</p>
+        </div>
+      </Card>
     </div>
   );
 }

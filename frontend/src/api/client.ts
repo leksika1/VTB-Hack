@@ -334,6 +334,12 @@ export async function leaveFamily(): Promise<void> {
   clearSession();
 }
 
+/** End the session on this device without removing the participant from the family. */
+export async function signOut(): Promise<void> {
+  if (useFamilyStore.getState().family?.isDemo) return exitDemo();
+  clearSession();
+}
+
 /** Demo only: act as another member of the demo family */
 export async function switchDemoUser(userId: string): Promise<void> {
   const session = await request<SessionResponse>('/family/switch-user', { method: 'POST', body: { userId } });

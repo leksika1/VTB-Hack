@@ -26,6 +26,20 @@ const MONTHS_PREPOSITIONAL = [
   "ноябре",
   "декабре",
 ];
+const MONTHS_GENITIVE = [
+  "января",
+  "февраля",
+  "марта",
+  "апреля",
+  "мая",
+  "июня",
+  "июля",
+  "августа",
+  "сентября",
+  "октября",
+  "ноября",
+  "декабря",
+];
 
 function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
@@ -68,6 +82,13 @@ export function formatMonthIn(key: string): string {
   const [y, m] = key.split("-");
   const sameYear = Number(y) === new Date().getFullYear();
   return `в ${MONTHS_PREPOSITIONAL[Number(m) - 1]}${sameYear ? "" : ` ${y}`}`;
+}
+
+/** 'YYYY-MM' → 'октября 2026' (for «на конец октября 2026») */
+export function formatMonthGenitive(key: string): string {
+  const [y, m] = key.split("-");
+  const sameYear = Number(y) === new Date().getFullYear();
+  return `${MONTHS_GENITIVE[Number(m) - 1]}${sameYear ? "" : ` ${y}`}`;
 }
 
 /** 'YYYY-MM-DD' → '18 октября' */

@@ -1,21 +1,19 @@
-import { FamilyAccountCard } from '../components/account/FamilyAccountCard';
-import { ArrowRight, Calendar, Receipt, PersonAdd } from '../components/ui/icons';
-import { problemCategories } from '../domain/budget';
+import { FamilyAccountCard, FamilyContributionsCard } from '../components/account/FamilyAccountCard';
+import { ArrowRight, Calendar, Receipt, PersonAdd, Refresh } from '../components/ui/icons';
 import { useMonthSummary } from '../hooks/useMonthSummary';
 import { useMonthChanged } from '../hooks/useMonthChanged';
+import { useAnalytics } from '../hooks/useServerData';
 import { useUIStore } from '../store/uiStore';
 import { useFamilyStore } from '../store/familyStore';
 import { formatMonthLower } from '../utils/date';
+import { formatCurrency } from '../utils/currency';
+import { CATEGORIES } from '../utils/categories';
 import { Card, PageHeader, SectionHeader } from '../components/ui/Card';
 import { Avatar, MonthSwitcher } from '../components/ui/Misc';
 import { Button } from '../components/ui/Button';
 import { EmptyState } from '../components/ui/Feedback';
-import { MonthCarousel } from '../components/budget/MonthCarousel';
-import { CategoryList } from '../components/budget/CategoryList';
 import { ExpenseList } from '../components/expenses/ExpenseList';
 import { PaymentList } from '../components/payments/PaymentList';
-import { SpendingStructure } from '../components/budget/SpendingStructure';
-import { GoalsCard } from '../components/goals/GoalsCard';
 
 const RECENT_LIMIT = 5;
 const PAYMENTS_LIMIT = 3;
@@ -29,7 +27,6 @@ function FamilyOverview() {
   const openModal = useUIStore((s) => s.openModal);
   const setTab = useUIStore((s) => s.setTab);
   const summary = useMonthSummary();
-  const problems = problemCategories(summary);
   const recent = summary.expenses.slice(0, RECENT_LIMIT);
 
   const payments = <UpcomingPaymentsCard />;
@@ -44,43 +41,21 @@ function FamilyOverview() {
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_23rem] items-start">
         <div className="min-w-0">
           <div className="mb-5"><FamilyAccountCard /></div>
-          <MonthCarousel />
+          <div className="mb-5"><FamilyContributionsCard month={monthKey} /></div>
 
           {/* Month-dependent blocks fade in while the main block slides */}
-          <div key={monthKey} className={`mt-5 space-y-5 ${monthIn}`}>
-            {/* Phone order: summary → warnings → upcoming payments → categories → operations */}
+          <div key={monthKey} className={`space-y-5 ${monthIn}`}>
+            {/* Phone order: account → contributions → upcoming payments → categories → operations */}
             <div className="lg:hidden">{payments}</div>
 
-            <Card className="p-5">
-              <SectionHeader title="Расходы по категориям" />
-              <SpendingStructure summary={summary} limit={3} />
-            </Card>
-
-            {summary.hasBudget && (
-              <Card className="p-5">
-                <SectionHeader
-                  title="Категории"
-                  subtitle={
-                    problems.length > 0
-                      ? `Требуют внимания: ${problems.length}`
-                      : 'Все категории в пределах лимитов, с учётом предстоящих платежей'
-                  }
-                  action={
-                    <Button size="sm" variant="ghost" onClick={() => setTab('analytics')} icon={<ArrowRight size={16} />} className="flex-row-reverse">
-                      Аналитика
-                    </Button>
-                  }
-                />
-                <CategoryList categories={summary.categories} />
-              </Card>
-            )}
+            <TopCategoriesCard />
 
             <Card className="p-5">
               <SectionHeader
                 title="Последние операции"
                 action={
                   summary.expenses.length > RECENT_LIMIT && (
-                    <Button size="sm" variant="ghost" onClick={() => setTab('analytics')} icon={<ArrowRight size={16} />} className="flex-row-reverse">
+                    <Button size="sm" variant="ghost" onClick={() => setTab('records')} icon={<ArrowRight size={16} />} className="flex-row-reverse">
                       Все
                     </Button>
                   )
@@ -107,13 +82,57 @@ function FamilyOverview() {
 
         <aside className="space-y-5 min-w-0">
           <div key={monthKey} className={`hidden lg:block ${monthIn}`}>{payments}</div>
-          <GoalsCard />
           <FamilyStatusCard />
         </aside>
       </div>
     </>
   );
 }
+
+function TopCategoriesCard() {
+  const monthKey = useUIStore((s) => s.monthKey);
+  const analytics = useAnalytics(monthKey);
+  const categories = analytics.data?.topCategories.slice(0, 3) ?? [];
+
+  return (
+    <Card className="p-5">
+      <SectionHeader title="Расходы по категориям" />
+      {analytics.loading && !analytics.data && (
+        <div className="space-y-2" aria-label="Загрузка категорий">
+          <div className="h-8 animate-pulse rounded-control bg-surface-muted" />
+          <div className="h-8 animate-pulse rounded-control bg-surface-muted" />
+          <div className="h-8 animate-pulse rounded-control bg-surface-muted" />
+        </div>
+      )}
+      {analytics.error && !analytics.data && (
+        <div role="alert" className="py-2 text-sm">
+          <p className="text-danger">{analytics.error}</p>
+          <Button className="mt-2" variant="secondary" size="sm" icon={<Refresh size={15} />}
+            loading={analytics.loading} onClick={analytics.refetch}>Повторить</Button>
+        </div>
+      )}
+      {analytics.data && categories.length === 0 && (
+        <p className="py-2 text-ink-2">В этом месяце расходов пока нет.</p>
+      )}
+      {categories.length > 0 && (
+        <ul>
+          {categories.map((item) => (
+            <li key={item.category} className="flex items-center gap-2.5 py-1.5 text-[15px]">
+              <span className="size-3 shrink-0 rounded-sm" style={{ background: CATEGORIES[item.category].color }} aria-hidden />
+              <span className="flex-1 text-ink-2">{CATEGORIES[item.category].label}</span>
+              <span className="tabular text-ink">{formatCurrency(item.amount)}</span>
+              <span className="w-11 text-right tabular text-ink-3">{formatPercent(item.percent)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+const percentFormatter = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 1 });
+const formatPercent = (value: number) => `${percentFormatter.format(value)}%`;
+
 function UpcomingPaymentsCard() {
   const setTab = useUIStore((s) => s.setTab);
   const openModal = useUIStore((s) => s.openModal);

@@ -1,13 +1,13 @@
 import { useEffect, type ReactNode } from 'react';
 import { HorizontalTab, HorizontalTabs, T } from '@admiral-ds/react-ui';
 import styled from 'styled-components';
-import { Dashboard, Receipt, BarChart, Users, Calendar, Settings, ArrowLeft } from '../ui/icons';
+import { Dashboard, Receipt, BarChart, Users, Calendar, ArrowLeft } from '../ui/icons';
 import { ProfileDropdown } from './ProfileDropdown';
 import type { Tab } from '../../types';
 import { useUIStore } from '../../store/uiStore';
 import { useCurrentUser, useFamilyStore } from '../../store/familyStore';
-import { Avatar, Badge } from '../ui/Misc';
-import { Button, IconButton } from '../ui/Button';
+import { Badge } from '../ui/Misc';
+import { Button } from '../ui/Button';
 import { Card, PageHeader } from '../ui/Card';
 import { ProfileSettings } from '../family/ProfileSettings';
 import { useMediaQuery } from '../../utils/theme';
@@ -38,6 +38,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const family = useFamilyStore((s) => s.family);
   const user = useCurrentUser();
   const profileOpen = useUIStore((s) => s.profileOpen);
+  const profileSection = useUIStore((s) => s.profileSection);
   const setProfileOpen = useUIStore((s) => s.setProfileOpen);
   const mobile = useMediaQuery('(max-width: 1023px)');
   const profilePage = mobile && profileOpen;
@@ -52,30 +53,23 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="min-h-dvh">
       <header className="sticky top-0 z-30 app-header">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 h-16 lg:h-20 flex items-center gap-3 lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
-          <div className="flex items-center gap-3 min-w-0 flex-1">
+          <button type="button" onClick={() => setTab('family')} aria-label="Открыть раздел «Семья»"
+            className="flex min-w-0 flex-1 items-center gap-3 rounded-control text-left">
             <BrandMark />
-            <div className="min-w-0 leading-tight">
-              <T as="div" font="Caption/Caption 1" color="Neutral/Neutral 70">Общий план</T>
-              <T as="div" font="Subtitle/Subtitle 2" className="truncate" title={family?.name}>
+            <span className="min-w-0 leading-tight">
+              <T as="span" font="Caption/Caption 1" color="Neutral/Neutral 70" className="block">Общий план</T>
+              <T as="span" font="Subtitle/Subtitle 2" className="block truncate" title={family?.name}>
                 {family?.name}
               </T>
-            </div>
-          </div>
+            </span>
+          </button>
 
           <SectionNavigation nav={NAV} tab={tab} profilePage={profilePage} onSelect={setTab} />
           <div className="flex min-w-0 items-center justify-end gap-2">
             {/* Demo data looks real, so the mark stays on every screen size */}
             {family?.isDemo && <span className="shrink-0"><Badge tone="warning">Демо</Badge></span>}
 
-            {user && (mobile ? (
-              <div className="flex shrink-0 items-center gap-1">
-                <Avatar user={user} size="sm" />
-                <IconButton label="Настройки профиля" className="!size-10"
-                  aria-current={profilePage ? 'page' : undefined} onClick={() => setProfileOpen(!profileOpen)}>
-                  <Settings size={20} />
-                </IconButton>
-              </div>
-            ) : <ProfileDropdown user={user} />)}
+            {user && <ProfileDropdown user={user} mobile={mobile} />}
           </div>
         </div>
       </header>
@@ -87,7 +81,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <PageHeader title="Настройки профиля">
               <Button variant="ghost" size="sm" icon={<ArrowLeft size={16} />} onClick={() => setProfileOpen(false)}>Назад</Button>
             </PageHeader>
-            <Card><ProfileSettings /></Card>
+            <Card><ProfileSettings focusSection={profileSection} /></Card>
           </div>
         )}
       </main>
